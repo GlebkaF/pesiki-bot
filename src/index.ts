@@ -5,6 +5,62 @@ import { calculateStats, type PlayerStats, type StatsPeriod } from "./stats.js";
 import { createBot, sendMessage, setupCommands, startBot } from "./bot.js";
 import { formatStatsMessage, stripHtml } from "./formatter.js";
 
+// Health check configuration
+const HEALTH_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const startTime = Date.now();
+let commandsReceived = 0;
+let dailyStatsSent = 0;
+
+/**
+ * Formats uptime duration into human-readable string
+ */
+function formatUptime(ms: number): string {
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) {
+    return `${days}d ${hours % 24}h ${minutes % 60}m`;
+  }
+  if (hours > 0) {
+    return `${hours}h ${minutes % 60}m`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${seconds % 60}s`;
+  }
+  return `${seconds}s`;
+}
+
+/**
+ * Logs health check status with uptime and stats
+ */
+function logHealthCheck(): void {
+  const uptime = Date.now() - startTime;
+  const memUsage = process.memoryUsage();
+  const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+  
+  console.log(
+    `[HEALTH] ✅ Bot alive | Uptime: ${formatUptime(uptime)} | ` +
+    `Commands: ${commandsReceived} | Daily stats sent: ${dailyStatsSent} | ` +
+    `Memory: ${heapUsedMB}MB`
+  );
+}
+
+/**
+ * Increments the command counter (called from bot.ts via callback)
+ */
+export function incrementCommandCounter(): void {
+  commandsReceived++;
+}
+
+/**
+ * Increments the daily stats counter
+ */
+function incrementDailyStatsCounter(): void {
+  dailyStatsSent++;
+}
+
 /**
  * Fetches player nickname from OpenDota API
  * Falls back to player ID if nickname is not available
@@ -68,8 +124,9 @@ async function sendDailyStats(): Promise<void> {
     const bot = createBot();
     await sendMessage(bot, message);
     console.log("Message sent successfully!");
+    incrementDailyStatsCounter();
   } catch (error) {
-    console.error("Error sending daily stats:", error);
+    console.error("[ERROR] Failed to send daily stats:", error);
   }
 }
 
@@ -79,12 +136,16 @@ async function sendDailyStats(): Promise<void> {
  */
 async function main(): Promise<void> {
   console.log("🤖 Pesiki Bot starting...");
+  console.log(`[STARTUP] Environment: ${process.env.NODE_ENV || "development"}`);
+  console.log(`[STARTUP] Timezone: ${process.env.TZ || "not set (using system default)"}`);
+  console.log(`[STARTUP] Configured players: ${PLAYER_IDS.length}`);
+  console.log(`[STARTUP] Health check interval: ${HEALTH_CHECK_INTERVAL_MS / 1000}s`);
 
   // Create bot instance
   const bot = createBot();
 
-  // Set up /stats command handler
-  setupCommands(bot, getFormattedStats);
+  // Set up /stats command handler with callback to track commands
+  setupCommands(bot, getFormattedStats, incrementCommandCounter);
 
   // Schedule daily stats at 07:00 MSK (04:00 UTC)
   console.log("📅 Daily stats scheduled for 07:00 MSK (04:00 UTC)");
@@ -92,13 +153,21 @@ async function main(): Promise<void> {
     sendDailyStats();
   });
 
+  // Start periodic health check logging
+  setInterval(logHealthCheck, HEALTH_CHECK_INTERVAL_MS);
+  console.log(`[STARTUP] Health check logging started (every ${HEALTH_CHECK_INTERVAL_MS / 1000 / 60} minutes)`);
+
   // Send stats immediately if RUN_NOW environment variable is set (for testing)
   if (process.env.RUN_NOW === "true") {
     console.log("🚀 RUN_NOW=true detected, sending stats immediately...");
     await sendDailyStats();
   }
 
-  // Start bot to listen for commands
+  // Log initial health check before starting blocking bot polling
+  console.log("[STARTUP] ✅ Bot initialization complete");
+  logHealthCheck();
+
+  // Start bot to listen for commands (this blocks)
   await startBot(bot);
 }
 

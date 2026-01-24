@@ -10,3 +10,12 @@
 - Files changed: PRD.md, progress.txt
 - Commit: a3ce734
 
+## [2026-01-24 12:45] Task: Add health check logging
+- What was done: Added comprehensive health check logging to monitor bot status:
+  - Startup logs with environment info (timezone, player count, health interval)
+  - Periodic heartbeat every 5 minutes with uptime, command count, daily stats count, memory usage
+  - Command tracking for monitoring bot activity
+  - Structured log format with [STARTUP], [HEALTH], [ERROR] prefixes
+- Files changed: src/index.ts, src/bot.ts, PRD.md, progress.txt
+- Commit: pending
+

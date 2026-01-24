@@ -30,7 +30,8 @@ export async function sendMessage(bot: Bot, message: string): Promise<void> {
 async function handleStatsCommand(
   ctx: CommandContext<Context>,
   period: StatsPeriod,
-  fetchStatsHandler: (period: StatsPeriod) => Promise<string>
+  fetchStatsHandler: (period: StatsPeriod) => Promise<string>,
+  onCommandReceived?: () => void
 ): Promise<void> {
   const periodLabel = period === "today" ? "daily" : period === "week" ? "weekly" : "monthly";
   const commandName = period === "today" ? "stats" : period === "week" ? "weekly" : "monthly";
@@ -38,6 +39,11 @@ async function handleStatsCommand(
   console.log(
     `[${new Date().toISOString()}] /${commandName} command received from user ${ctx.from?.id}`
   );
+
+  // Track command for health monitoring
+  if (onCommandReceived) {
+    onCommandReceived();
+  }
 
   try {
     // Send "loading" message
@@ -52,7 +58,7 @@ async function handleStatsCommand(
 
     console.log(`[${new Date().toISOString()}] /${commandName} command completed`);
   } catch (error) {
-    console.error(`Error handling /${commandName} command:`, error);
+    console.error(`[ERROR] Failed to handle /${commandName} command:`, error);
     await ctx.reply("❌ Error fetching stats. Please try again later.");
   }
 }
@@ -61,19 +67,21 @@ async function handleStatsCommand(
  * Sets up bot commands and handlers
  * @param bot - The bot instance
  * @param fetchStatsHandler - Handler function that fetches and returns formatted stats message for a period
+ * @param onCommandReceived - Optional callback to track command usage for health monitoring
  */
 export function setupCommands(
   bot: Bot,
-  fetchStatsHandler: (period: StatsPeriod) => Promise<string>
+  fetchStatsHandler: (period: StatsPeriod) => Promise<string>,
+  onCommandReceived?: () => void
 ): void {
   // Register /stats command (today's stats)
-  bot.command("stats", (ctx) => handleStatsCommand(ctx, "today", fetchStatsHandler));
+  bot.command("stats", (ctx) => handleStatsCommand(ctx, "today", fetchStatsHandler, onCommandReceived));
 
   // Register /weekly command
-  bot.command("weekly", (ctx) => handleStatsCommand(ctx, "week", fetchStatsHandler));
+  bot.command("weekly", (ctx) => handleStatsCommand(ctx, "week", fetchStatsHandler, onCommandReceived));
 
   // Register /monthly command
-  bot.command("monthly", (ctx) => handleStatsCommand(ctx, "month", fetchStatsHandler));
+  bot.command("monthly", (ctx) => handleStatsCommand(ctx, "month", fetchStatsHandler, onCommandReceived));
 
   // Set bot commands menu
   bot.api.setMyCommands([
