@@ -20,3 +20,7 @@
 - What was done: Refactored index.ts to use node-cron for scheduling daily stats. Added sendDailyStats() function that handles the stats fetching and sending logic. Scheduled cron job to run at 23:55 MSK (20:55 UTC) using cron expression "55 20 * * *". Added RUN_NOW environment variable support for testing immediate execution. Bot now runs continuously waiting for scheduled tasks.
 - Files changed: src/index.ts, PRD.md
 
+## [2026-01-24 16:05] Task: Add Dockerfile and railway.json for deployment
+- What was done: Created multi-stage Dockerfile with builder stage (installs all deps, compiles TypeScript) and production stage (only production deps, runs compiled JS). Created railway.json with Dockerfile builder configuration and restart policy (ON_FAILURE with max 10 retries). Both files are optimized for Railway free tier deployment.
+- Files changed: Dockerfile (new), railway.json (new), PRD.md
+
