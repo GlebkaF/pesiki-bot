@@ -64,7 +64,8 @@ export async function fetchRecentMatches(
 
   if (days !== undefined && days > 1) {
     // Use /matches endpoint for longer periods (supports more than 20 matches)
-    url = `${OPENDOTA_API_BASE}/players/${accountId}/matches?date=${days}`;
+    // significant=0 includes all game modes (turbo, ability draft, etc.)
+    url = `${OPENDOTA_API_BASE}/players/${accountId}/matches?date=${days}&significant=0`;
   } else {
     // Use /recentMatches for today/yesterday (faster, limited to 20)
     url = `${OPENDOTA_API_BASE}/players/${accountId}/recentMatches`;

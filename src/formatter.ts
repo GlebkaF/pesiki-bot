@@ -12,6 +12,30 @@ function formatDate(date: Date): string {
 }
 
 /**
+ * Day start hour in MSK timezone (6:00 AM)
+ * Must match DAY_START_HOUR_MSK in stats.ts
+ */
+const DAY_START_HOUR_MSK = 6;
+const MSK_OFFSET_HOURS = 3;
+
+/**
+ * Gets current MSK time components
+ */
+function getMskTimeComponents() {
+  const now = new Date();
+  const mskTime = now.getTime() + MSK_OFFSET_HOURS * 60 * 60 * 1000;
+  const mskDate = new Date(mskTime);
+
+  return {
+    year: mskDate.getUTCFullYear(),
+    month: mskDate.getUTCMonth(),
+    date: mskDate.getUTCDate(),
+    hours: mskDate.getUTCHours(),
+    day: mskDate.getUTCDay(),
+  };
+}
+
+/**
  * Gets the period title for the stats message
  */
 function getPeriodTitle(period: StatsPeriod): string {
@@ -34,11 +58,26 @@ function getPeriodTitle(period: StatsPeriod): string {
       return `${formatDate(monday)} - ${formatDate(now)} (Week)`;
     }
     case "month": {
+      const msk = getMskTimeComponents();
       const monthNames = [
         "January", "February", "March", "April", "May", "June",
         "July", "August", "September", "October", "November", "December"
       ];
-      return `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+
+      // Determine the actual month we're reporting on
+      // (if it's 1st before 6:00 MSK, we're still in previous month)
+      let { year, month, date } = msk;
+      if (date === 1 && msk.hours < DAY_START_HOUR_MSK) {
+        const prevMonth = new Date(Date.UTC(year, month - 1, 1));
+        year = prevMonth.getUTCFullYear();
+        month = prevMonth.getUTCMonth();
+        // Last day of previous month
+        const lastDay = new Date(Date.UTC(year, month + 1, 0));
+        date = lastDay.getUTCDate();
+      }
+
+      // Format: "January 2026 (1-24)"
+      return `${monthNames[month]} ${year} (1-${date})`;
     }
   }
 }
