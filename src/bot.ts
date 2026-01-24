@@ -33,8 +33,8 @@ async function handleStatsCommand(
   fetchStatsHandler: (period: StatsPeriod) => Promise<string>,
   onCommandReceived?: () => void
 ): Promise<void> {
-  const periodLabel = period === "today" ? "daily" : period === "week" ? "weekly" : "monthly";
-  const commandName = period === "today" ? "stats" : period === "week" ? "weekly" : "monthly";
+  const periodLabel = period === "today" ? "daily" : period === "yesterday" ? "yesterday's" : period === "week" ? "weekly" : "monthly";
+  const commandName = period === "today" ? "stats" : period === "yesterday" ? "yesterday" : period === "week" ? "weekly" : "monthly";
 
   console.log(
     `[${new Date().toISOString()}] /${commandName} command received from user ${ctx.from?.id}`
@@ -77,6 +77,9 @@ export function setupCommands(
   // Register /stats command (today's stats)
   bot.command("stats", (ctx) => handleStatsCommand(ctx, "today", fetchStatsHandler, onCommandReceived));
 
+  // Register /yesterday command
+  bot.command("yesterday", (ctx) => handleStatsCommand(ctx, "yesterday", fetchStatsHandler, onCommandReceived));
+
   // Register /weekly command
   bot.command("weekly", (ctx) => handleStatsCommand(ctx, "week", fetchStatsHandler, onCommandReceived));
 
@@ -86,6 +89,7 @@ export function setupCommands(
   // Set bot commands menu
   bot.api.setMyCommands([
     { command: "stats", description: "Get today's Dota 2 stats" },
+    { command: "yesterday", description: "Get yesterday's Dota 2 stats" },
     { command: "weekly", description: "Get this week's Dota 2 stats" },
     { command: "monthly", description: "Get this month's Dota 2 stats" },
   ]);

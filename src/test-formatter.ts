@@ -6,7 +6,7 @@
 import { formatStatsMessage, stripHtml } from "./formatter.js";
 import type { PlayerStats } from "./stats.js";
 
-// Mock data to test formatting with heroes
+// Mock data to test formatting with heroes and APM
 // Hero IDs: 1=Anti-Mage, 2=Axe, 3=Bane, 4=Bloodseeker, 5=Crystal Maiden, 6=Drow Ranger
 const mockStats: PlayerStats[] = [
   {
@@ -18,12 +18,13 @@ const mockStats: PlayerStats[] = [
     winRate: 83,
     heroes: [
       { heroId: 1, isWin: true },
+      { heroId: 1, isWin: true },  // Same hero multiple times
       { heroId: 2, isWin: true },
-      { heroId: 3, isWin: true },
-      { heroId: 4, isWin: true },
-      { heroId: 5, isWin: true },
+      { heroId: 2, isWin: true },
+      { heroId: 2, isWin: true },
       { heroId: 6, isWin: false },
     ],
+    avgApm: 185,
   },
   {
     playerId: 167818283,
@@ -40,6 +41,7 @@ const mockStats: PlayerStats[] = [
       { heroId: 5, isWin: true },
       { heroId: 6, isWin: false },
     ],
+    avgApm: 142,
   },
   {
     playerId: 94014640,
@@ -49,12 +51,13 @@ const mockStats: PlayerStats[] = [
     totalMatches: 5,
     winRate: 20,
     heroes: [
-      { heroId: 1, isWin: false },
-      { heroId: 2, isWin: false },
-      { heroId: 3, isWin: false },
-      { heroId: 4, isWin: false },
+      { heroId: 5, isWin: false },
+      { heroId: 5, isWin: false },
+      { heroId: 5, isWin: false },
+      { heroId: 5, isWin: false },
       { heroId: 5, isWin: true },
     ],
+    avgApm: 98,
   },
   {
     playerId: 1869377945,
@@ -77,6 +80,7 @@ const mockStats: PlayerStats[] = [
       { heroId: 2, isWin: true },
       { heroId: 3, isWin: false },
     ],
+    avgApm: 156,
   },
   {
     playerId: 92126977,
@@ -89,6 +93,7 @@ const mockStats: PlayerStats[] = [
       { heroId: 1, isWin: false },
       { heroId: 2, isWin: false },
     ],
+    avgApm: 112,
   },
   {
     playerId: 40087920,
@@ -133,10 +138,13 @@ async function runTests() {
       pass: message.indexOf("ProGamer") < message.indexOf("InactivePlayer"),
     },
     { name: "Has hero names", pass: message.includes("Anti-Mage") },
-    { name: "Has win indicator", pass: message.includes("(✓)") },
-    { name: "Has loss indicator", pass: message.includes("(✗)") },
+    { name: "Has grouped wins (W)", pass: message.includes("W") },
+    { name: "Has grouped losses (L)", pass: message.includes("L") },
+    { name: "Has grouped W/L format", pass: /\d+W\/\d+L/.test(message) || /\d+W/.test(message) },
     { name: "Has player nicknames", pass: message.includes("ProGamer") && message.includes("MidPlayer") },
     { name: "Does not show player IDs", pass: !message.includes("93921511") },
+    { name: "Has APM for players", pass: message.includes("APM:") },
+    { name: "Has average team APM", pass: message.includes("Avg APM:") },
   ];
 
   console.log("Verification checks:");

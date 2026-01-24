@@ -24,6 +24,12 @@ export interface PlayerData {
   profile: PlayerProfile;
 }
 
+export interface PlayerTotal {
+  field: string;
+  n: number;
+  sum: number;
+}
+
 /**
  * Fetches player profile from OpenDota API
  * Returns player data including nickname (personaname)
@@ -52,6 +58,32 @@ export async function fetchRecentMatches(
   accountId: number
 ): Promise<RecentMatch[]> {
   const url = `${OPENDOTA_API_BASE}/players/${accountId}/recentMatches`;
+
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(
+      `OpenDota API error: ${response.status} ${response.statusText}`
+    );
+  }
+
+  return response.json();
+}
+
+/**
+ * Fetches player totals (aggregated stats) from OpenDota API
+ * @param accountId - Steam32 account ID
+ * @param date - Optional number of days to filter (e.g., 1 for last day, 7 for last week)
+ * @returns Array of totals including actions_per_min for APM calculation
+ */
+export async function fetchPlayerTotals(
+  accountId: number,
+  date?: number
+): Promise<PlayerTotal[]> {
+  let url = `${OPENDOTA_API_BASE}/players/${accountId}/totals`;
+  if (date !== undefined) {
+    url += `?date=${date}`;
+  }
 
   const response = await fetch(url);
 

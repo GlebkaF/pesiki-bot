@@ -55,16 +55,69 @@ function getPerformanceEmoji(stats: PlayerStats): string {
 }
 
 /**
- * Formats heroes list with win/loss indicators
+ * Grouped hero statistics
+ */
+interface GroupedHero {
+  heroId: number;
+  name: string;
+  wins: number;
+  losses: number;
+}
+
+/**
+ * Groups heroes by heroId and counts wins/losses
+ */
+function groupHeroes(heroes: HeroMatch[], heroNames: string[]): GroupedHero[] {
+  const grouped = new Map<number, GroupedHero>();
+
+  heroes.forEach((hero, index) => {
+    const name = heroNames[index];
+    const existing = grouped.get(hero.heroId);
+
+    if (existing) {
+      if (hero.isWin) {
+        existing.wins++;
+      } else {
+        existing.losses++;
+      }
+    } else {
+      grouped.set(hero.heroId, {
+        heroId: hero.heroId,
+        name,
+        wins: hero.isWin ? 1 : 0,
+        losses: hero.isWin ? 0 : 1,
+      });
+    }
+  });
+
+  // Sort by total games (descending), then by name
+  return Array.from(grouped.values()).sort((a, b) => {
+    const totalA = a.wins + a.losses;
+    const totalB = b.wins + b.losses;
+    if (totalB !== totalA) return totalB - totalA;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+/**
+ * Formats a single grouped hero's W/L
+ */
+function formatGroupedHero(hero: GroupedHero): string {
+  if (hero.wins > 0 && hero.losses > 0) {
+    return `${hero.name}: ${hero.wins}W/${hero.losses}L`;
+  } else if (hero.wins > 0) {
+    return `${hero.name}: ${hero.wins}W`;
+  } else {
+    return `${hero.name}: ${hero.losses}L`;
+  }
+}
+
+/**
+ * Formats heroes list grouped by hero with win/loss counts
  */
 function formatHeroesList(heroes: HeroMatch[], heroNames: string[]): string {
-  return heroes
-    .map((hero, index) => {
-      const name = heroNames[index];
-      const indicator = hero.isWin ? "✓" : "✗";
-      return `${name}(${indicator})`;
-    })
-    .join(", ");
+  const grouped = groupHeroes(heroes, heroNames);
+  return grouped.map(formatGroupedHero).join(", ");
 }
 
 /**
@@ -81,8 +134,9 @@ function formatPlayerLine(
     return `${emoji} <b>${displayName}</b>: did not play`;
   }
 
+  const apmStr = stats.avgApm ? ` | APM: ${stats.avgApm}` : "";
   const heroesStr = formatHeroesList(stats.heroes, heroNames);
-  return `${emoji} <b>${displayName}</b>: ${stats.wins}W / ${stats.losses}L (${stats.winRate}%)\n    ${heroesStr}`;
+  return `${emoji} <b>${displayName}</b>: ${stats.wins}W / ${stats.losses}L (${stats.winRate}%)${apmStr}\n    ${heroesStr}`;
 }
 
 /**
@@ -113,6 +167,7 @@ function calculateTotals(stats: PlayerStats[]): {
   totalLosses: number;
   teamWinRate: number;
   playersPlayed: number;
+  avgTeamApm: number | null;
 } {
   const totalMatches = stats.reduce((sum, s) => sum + s.totalMatches, 0);
   const totalWins = stats.reduce((sum, s) => sum + s.wins, 0);
@@ -121,7 +176,13 @@ function calculateTotals(stats: PlayerStats[]): {
     totalMatches > 0 ? Math.round((totalWins / totalMatches) * 100) : 0;
   const playersPlayed = stats.filter((s) => s.totalMatches > 0).length;
 
-  return { totalMatches, totalWins, totalLosses, teamWinRate, playersPlayed };
+  // Calculate average team APM from players who have APM data
+  const playersWithApm = stats.filter((s) => s.avgApm !== undefined);
+  const avgTeamApm = playersWithApm.length > 0
+    ? Math.round(playersWithApm.reduce((sum, s) => sum + (s.avgApm ?? 0), 0) / playersWithApm.length)
+    : null;
+
+  return { totalMatches, totalWins, totalLosses, teamWinRate, playersPlayed, avgTeamApm };
 }
 
 /**
@@ -177,6 +238,11 @@ export async function formatStatsMessage(
     `📊 Win Rate: ${totals.teamWinRate}%`,
     `👥 Players active: ${totals.playersPlayed}/${allStats.length}`,
   ];
+
+  // Add average APM if available
+  if (totals.avgTeamApm !== null) {
+    lines.push(`⌨️ Avg APM: ${totals.avgTeamApm}`);
+  }
 
   return lines.join("\n");
 }

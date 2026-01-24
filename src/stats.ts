@@ -13,6 +13,7 @@ export interface PlayerStats {
   totalMatches: number;
   winRate: number;
   heroes: HeroMatch[];
+  avgApm?: number;
 }
 
 export type StatsPeriod = "today" | "yesterday" | "week" | "month";
@@ -188,7 +189,8 @@ export function calculateStats(
   playerId: number,
   playerName: string,
   matches: RecentMatch[],
-  period: StatsPeriod = "today"
+  period: StatsPeriod = "today",
+  avgApm?: number
 ): PlayerStats {
   const filteredMatches = filterMatchesByPeriod(matches, period);
 
@@ -211,5 +213,6 @@ export function calculateStats(
     totalMatches,
     winRate,
     heroes,
+    avgApm,
   };
 }
