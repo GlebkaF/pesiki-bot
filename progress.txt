@@ -1,2 +1,6 @@
 # Progress Log
 
+## [2026-01-24 12:00] Task: Tracer Bullet 1 - End-to-end for ONE player
+- What was done: Set up project structure with package.json, tsconfig.json, .env.example, .gitignore. Created src/ folder with config.ts (player IDs), opendota.ts (API client to fetch recent matches), stats.ts (W/L calculation logic), and index.ts (entry point). Successfully fetches matches from OpenDota API and calculates daily W/L stats for one player, printing results to console.
+- Files changed: package.json, tsconfig.json, .env.example, .gitignore, src/config.ts, src/opendota.ts, src/stats.ts, src/index.ts
+

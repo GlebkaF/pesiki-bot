@@ -35,7 +35,7 @@ Telegram bot that sends daily Dota 2 win/loss statistics for a group of 7 player
 
 ### Tracer Bullet 1: End-to-end for ONE player (console output)
 
-- [ ] Set up project (package.json, tsconfig, .env.example) and fetch ONE player's matches from OpenDota, calculate W/L for today, print to console
+- [x] Set up project (package.json, tsconfig, .env.example) and fetch ONE player's matches from OpenDota, calculate W/L for today, print to console
 
 ### Tracer Bullet 2: Telegram integration
 
