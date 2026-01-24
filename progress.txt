@@ -3,5 +3,10 @@
 ## [2026-01-24 12:29] Task: Verify local build works
 - What was done: Verified that `npm run build` compiles TypeScript successfully and `npm start` launches the bot correctly. Bot outputs startup messages, schedules cron job for 07:00 MSK, and starts polling for commands.
 - Files changed: PRD.md (marked task complete), progress.txt
-- Commit: pending (git repo not initialized yet - next task)
+- Commit: 45ea01a
+
+## [2026-01-24 12:35] Task: Initialize git repository and create initial commit
+- What was done: Git repository was already initialized with full commit history (deployment to Railway already complete). Committed pending changes from previous iteration and marked task complete.
+- Files changed: PRD.md, progress.txt
+- Commit: 7d8e2fb
 
