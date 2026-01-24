@@ -1,32 +1,34 @@
 import cron from "node-cron";
 import { PLAYER_IDS } from "./config.js";
 import { fetchRecentMatches } from "./opendota.js";
-import { calculateStats, type PlayerStats } from "./stats.js";
+import { calculateStats, type PlayerStats, type StatsPeriod } from "./stats.js";
 import { createBot, sendMessage, setupCommands, startBot } from "./bot.js";
 import { formatStatsMessage, stripHtml } from "./formatter.js";
 
 /**
- * Fetches stats for all configured players
+ * Fetches stats for all configured players for a given period
  */
-async function fetchAllPlayersStats(): Promise<PlayerStats[]> {
+async function fetchAllPlayersStats(
+  period: StatsPeriod = "today"
+): Promise<PlayerStats[]> {
   const statsPromises = PLAYER_IDS.map(async (playerId) => {
     console.log(`Fetching matches for player ${playerId}...`);
     const matches = await fetchRecentMatches(playerId);
     console.log(`  Found ${matches.length} recent matches`);
-    return calculateStats(playerId, matches);
+    return calculateStats(playerId, matches, period);
   });
 
   return Promise.all(statsPromises);
 }
 
 /**
- * Fetches stats and returns formatted message
+ * Fetches stats and returns formatted message for a given period
  */
-async function getFormattedStats(): Promise<string> {
-  console.log(`Fetching stats for ${PLAYER_IDS.length} players...`);
-  const allStats = await fetchAllPlayersStats();
+async function getFormattedStats(period: StatsPeriod = "today"): Promise<string> {
+  console.log(`Fetching ${period} stats for ${PLAYER_IDS.length} players...`);
+  const allStats = await fetchAllPlayersStats(period);
   console.log("Fetching hero names...");
-  return await formatStatsMessage(allStats);
+  return await formatStatsMessage(allStats, period);
 }
 
 /**

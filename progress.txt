@@ -32,3 +32,7 @@
 - What was done: Added hero display to player statistics. Created src/heroes.ts module that fetches hero data from OpenDota API (/api/heroes) with caching. Updated PlayerStats interface to include heroes array with heroId and isWin for each match. Updated formatter.ts to display hero names with win/loss indicators (✓/✗) under each player's stats line. The formatStatsMessage function is now async to support fetching hero names. Updated test file with hero data and new verification checks.
 - Files changed: src/heroes.ts (new), src/stats.ts, src/formatter.ts, src/index.ts, src/test-formatter.ts, PRD.md
 
+## [2026-01-24 16:12] Task: Add weekly/monthly reports
+- What was done: Added /weekly and /monthly commands to the bot for viewing stats over different time periods. Updated stats.ts with StatsPeriod type ("today" | "week" | "month") and filterMatchesByPeriod() function that calculates period start timestamps. Updated formatter.ts with getPeriodTitle() function that formats period-specific titles (e.g., "20.01.2026 - 24.01.2026 (Week)" for weekly, "January 2026" for monthly). Updated bot.ts with handleStatsCommand() helper and registered /weekly and /monthly commands in the bot menu. Updated index.ts to pass period parameter through the stats fetching chain.
+- Files changed: src/stats.ts, src/formatter.ts, src/bot.ts, src/index.ts, PRD.md
+

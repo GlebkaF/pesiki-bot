@@ -14,6 +14,8 @@ export interface PlayerStats {
   heroes: HeroMatch[];
 }
 
+export type StatsPeriod = "today" | "week" | "month";
+
 /**
  * Determines if the player won the match
  * Player slots 0-127 are Radiant, 128-255 are Dire
@@ -24,17 +26,56 @@ function isWin(match: RecentMatch): boolean {
 }
 
 /**
+ * Gets the start timestamp for a given period
+ */
+function getPeriodStartTimestamp(period: StatsPeriod): number {
+  const now = new Date();
+
+  switch (period) {
+    case "today": {
+      const todayStart = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate()
+      );
+      return todayStart.getTime() / 1000;
+    }
+    case "week": {
+      // Get the start of the current week (Monday)
+      const dayOfWeek = now.getDay();
+      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const weekStart = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - daysToMonday
+      );
+      return weekStart.getTime() / 1000;
+    }
+    case "month": {
+      // Get the start of the current month
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      return monthStart.getTime() / 1000;
+    }
+  }
+}
+
+/**
+ * Filters matches to only include those from the specified period
+ */
+function filterMatchesByPeriod(
+  matches: RecentMatch[],
+  period: StatsPeriod
+): RecentMatch[] {
+  const periodStart = getPeriodStartTimestamp(period);
+  return matches.filter((match) => match.start_time >= periodStart);
+}
+
+/**
  * Filters matches to only include those from today (local time)
+ * @deprecated Use filterMatchesByPeriod with "today" period instead
  */
 function filterTodayMatches(matches: RecentMatch[]): RecentMatch[] {
-  const now = new Date();
-  const todayStart = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate()
-  ).getTime() / 1000;
-
-  return matches.filter((match) => match.start_time >= todayStart);
+  return filterMatchesByPeriod(matches, "today");
 }
 
 /**
@@ -42,17 +83,18 @@ function filterTodayMatches(matches: RecentMatch[]): RecentMatch[] {
  */
 export function calculateStats(
   playerId: number,
-  matches: RecentMatch[]
+  matches: RecentMatch[],
+  period: StatsPeriod = "today"
 ): PlayerStats {
-  const todayMatches = filterTodayMatches(matches);
+  const filteredMatches = filterMatchesByPeriod(matches, period);
 
-  const wins = todayMatches.filter(isWin).length;
-  const losses = todayMatches.length - wins;
-  const totalMatches = todayMatches.length;
+  const wins = filteredMatches.filter(isWin).length;
+  const losses = filteredMatches.length - wins;
+  const totalMatches = filteredMatches.length;
   const winRate = totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0;
 
   // Collect heroes played with win/loss info
-  const heroes: HeroMatch[] = todayMatches.map((match) => ({
+  const heroes: HeroMatch[] = filteredMatches.map((match) => ({
     heroId: match.hero_id,
     isWin: isWin(match),
   }));

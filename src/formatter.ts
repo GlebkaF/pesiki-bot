@@ -1,4 +1,4 @@
-import type { PlayerStats, HeroMatch } from "./stats.js";
+import type { PlayerStats, HeroMatch, StatsPeriod } from "./stats.js";
 import { getHeroNames } from "./heroes.js";
 
 /**
@@ -9,6 +9,33 @@ function formatDate(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const year = date.getFullYear();
   return `${day}.${month}.${year}`;
+}
+
+/**
+ * Gets the period title for the stats message
+ */
+function getPeriodTitle(period: StatsPeriod): string {
+  const now = new Date();
+
+  switch (period) {
+    case "today":
+      return formatDate(now);
+    case "week": {
+      // Get Monday of current week
+      const dayOfWeek = now.getDay();
+      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - daysToMonday);
+      return `${formatDate(monday)} - ${formatDate(now)} (Week)`;
+    }
+    case "month": {
+      const monthNames = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+      ];
+      return `${monthNames[now.getMonth()]} ${now.getFullYear()}`;
+    }
+  }
 }
 
 /**
@@ -116,9 +143,10 @@ async function fetchAllHeroNames(
  * Formats the full stats message for Telegram (HTML format)
  */
 export async function formatStatsMessage(
-  allStats: PlayerStats[]
+  allStats: PlayerStats[],
+  period: StatsPeriod = "today"
 ): Promise<string> {
-  const today = formatDate(new Date());
+  const periodTitle = getPeriodTitle(period);
   const sortedStats = sortByPerformance(allStats);
   const totals = calculateTotals(allStats);
 
@@ -132,7 +160,7 @@ export async function formatStatsMessage(
   }
 
   const lines: string[] = [
-    `📊 <b>Dota Stats for ${today}</b>`,
+    `📊 <b>Dota Stats for ${periodTitle}</b>`,
     "",
     ...playerLines,
     "",
