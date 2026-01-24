@@ -1,6 +1,9 @@
 import "dotenv/config";
 
-// Player Steam IDs to track
+/**
+ * Player Steam IDs to track
+ * All 7 players from the configured list
+ */
 export const PLAYER_IDS = [
   93921511,
   167818283,
@@ -10,9 +13,6 @@ export const PLAYER_IDS = [
   92126977,
   40087920,
 ] as const;
-
-// For Tracer Bullet 1, we use just one player
-export const TEST_PLAYER_ID = PLAYER_IDS[0];
 
 export const config = {
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN ?? "",

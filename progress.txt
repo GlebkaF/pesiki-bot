@@ -8,3 +8,7 @@
 - What was done: Created src/bot.ts with grammy bot setup (createBot and sendMessage functions). Updated src/index.ts to format stats message with HTML and send it to Telegram chat using configured bot token and chat ID. Message includes formatted date, player stats, and total matches count.
 - Files changed: src/bot.ts (new), src/index.ts
 
+## [2026-01-24 13:00] Task: Add all 7 players with config module
+- What was done: Updated index.ts to fetch stats for all 7 players instead of just one test player. Added fetchAllPlayersStats() function that fetches matches for all players in parallel using Promise.all. Updated formatStatsMessage() to display stats for all players and calculate total matches across all players. Removed unused TEST_PLAYER_ID from config.ts.
+- Files changed: src/index.ts, src/config.ts
+
