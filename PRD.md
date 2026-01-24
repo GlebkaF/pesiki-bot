@@ -31,14 +31,14 @@ The bot is fully implemented with:
 
 - [x] Verify local build works (npm run build && npm start)
 - [x] Initialize git repository and create initial commit
-- [ ] Create Railway account and project
-- [ ] Connect GitHub/GitLab repo to Railway (or use Railway CLI)
-- [ ] Configure environment variables on Railway:
-  - BOT_TOKEN (from @BotFather)
-  - CHAT_ID (target Telegram chat)
+- [x] Create Railway account and project
+- [x] Connect GitHub/GitLab repo to Railway (or use Railway CLI)
+- [x] Configure environment variables on Railway:
+  - TELEGRAM_BOT_TOKEN (from @BotFather)
+  - TELEGRAM_CHAT_ID (target Telegram chat)
   - TZ=Europe/Moscow
-- [ ] Deploy and verify bot starts successfully
-- [ ] Test /stats command to verify bot is responding
+- [x] Deploy and verify bot starts successfully
+- [x] Test /stats command to verify bot is responding
 - [ ] Verify cron job works (check logs around 23:55 MSK)
 
 ### Phase 2: Monitoring & Maintenance
