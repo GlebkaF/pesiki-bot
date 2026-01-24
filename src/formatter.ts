@@ -1,4 +1,5 @@
-import type { PlayerStats } from "./stats.js";
+import type { PlayerStats, HeroMatch } from "./stats.js";
+import { getHeroNames } from "./heroes.js";
 
 /**
  * Formats the date in DD.MM.YYYY format
@@ -22,16 +23,33 @@ function getPerformanceEmoji(stats: PlayerStats): string {
 }
 
 /**
+ * Formats heroes list with win/loss indicators
+ */
+function formatHeroesList(heroes: HeroMatch[], heroNames: string[]): string {
+  return heroes
+    .map((hero, index) => {
+      const name = heroNames[index];
+      const indicator = hero.isWin ? "✓" : "✗";
+      return `${name}(${indicator})`;
+    })
+    .join(", ");
+}
+
+/**
  * Formats a single player's stats line
  */
-function formatPlayerLine(stats: PlayerStats): string {
+function formatPlayerLine(
+  stats: PlayerStats,
+  heroNames: string[]
+): string {
   const emoji = getPerformanceEmoji(stats);
 
   if (stats.totalMatches === 0) {
     return `${emoji} <b>${stats.playerId}</b>: did not play`;
   }
 
-  return `${emoji} <b>${stats.playerId}</b>: ${stats.wins}W / ${stats.losses}L (${stats.winRate}%)`;
+  const heroesStr = formatHeroesList(stats.heroes, heroNames);
+  return `${emoji} <b>${stats.playerId}</b>: ${stats.wins}W / ${stats.losses}L (${stats.winRate}%)\n    ${heroesStr}`;
 }
 
 /**
@@ -74,17 +92,49 @@ function calculateTotals(stats: PlayerStats[]): {
 }
 
 /**
+ * Fetches all hero names needed for the stats
+ */
+async function fetchAllHeroNames(
+  allStats: PlayerStats[]
+): Promise<Map<number, string[]>> {
+  const heroNamesMap = new Map<number, string[]>();
+
+  for (const stats of allStats) {
+    if (stats.heroes.length > 0) {
+      const heroIds = stats.heroes.map((h) => h.heroId);
+      const names = await getHeroNames(heroIds);
+      heroNamesMap.set(stats.playerId, names);
+    } else {
+      heroNamesMap.set(stats.playerId, []);
+    }
+  }
+
+  return heroNamesMap;
+}
+
+/**
  * Formats the full stats message for Telegram (HTML format)
  */
-export function formatStatsMessage(allStats: PlayerStats[]): string {
+export async function formatStatsMessage(
+  allStats: PlayerStats[]
+): Promise<string> {
   const today = formatDate(new Date());
   const sortedStats = sortByPerformance(allStats);
   const totals = calculateTotals(allStats);
 
+  // Fetch hero names for all players
+  const heroNamesMap = await fetchAllHeroNames(allStats);
+
+  const playerLines: string[] = [];
+  for (const stats of sortedStats) {
+    const heroNames = heroNamesMap.get(stats.playerId) ?? [];
+    playerLines.push(formatPlayerLine(stats, heroNames));
+  }
+
   const lines: string[] = [
     `📊 <b>Dota Stats for ${today}</b>`,
     "",
-    ...sortedStats.map(formatPlayerLine),
+    ...playerLines,
     "",
     "━━━━━━━━━━━━━━━━━━━━",
     `📈 <b>Team Summary</b>`,

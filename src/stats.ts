@@ -1,11 +1,17 @@
 import type { RecentMatch } from "./opendota.js";
 
+export interface HeroMatch {
+  heroId: number;
+  isWin: boolean;
+}
+
 export interface PlayerStats {
   playerId: number;
   wins: number;
   losses: number;
   totalMatches: number;
   winRate: number;
+  heroes: HeroMatch[];
 }
 
 /**
@@ -45,11 +51,18 @@ export function calculateStats(
   const totalMatches = todayMatches.length;
   const winRate = totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0;
 
+  // Collect heroes played with win/loss info
+  const heroes: HeroMatch[] = todayMatches.map((match) => ({
+    heroId: match.hero_id,
+    isWin: isWin(match),
+  }));
+
   return {
     playerId,
     wins,
     losses,
     totalMatches,
     winRate,
+    heroes,
   };
 }

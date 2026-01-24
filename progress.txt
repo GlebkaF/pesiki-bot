@@ -28,3 +28,7 @@
 - What was done: Added /stats command handler to the bot. Updated bot.ts with setupCommands() function that registers /stats command with loading indicator, and startBot() function to enable polling. Updated index.ts to use single bot instance for both cron jobs and command handling. Extracted getFormattedStats() function for reuse. Bot now shows "Fetching stats..." message while loading, then replaces it with actual stats.
 - Files changed: src/bot.ts, src/index.ts, PRD.md
 
+## [2026-01-24 16:09] Task: Show heroes played in statistics
+- What was done: Added hero display to player statistics. Created src/heroes.ts module that fetches hero data from OpenDota API (/api/heroes) with caching. Updated PlayerStats interface to include heroes array with heroId and isWin for each match. Updated formatter.ts to display hero names with win/loss indicators (✓/✗) under each player's stats line. The formatStatsMessage function is now async to support fetching hero names. Updated test file with hero data and new verification checks.
+- Files changed: src/heroes.ts (new), src/stats.ts, src/formatter.ts, src/index.ts, src/test-formatter.ts, PRD.md
+

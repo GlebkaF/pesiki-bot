@@ -25,7 +25,8 @@ async function fetchAllPlayersStats(): Promise<PlayerStats[]> {
 async function getFormattedStats(): Promise<string> {
   console.log(`Fetching stats for ${PLAYER_IDS.length} players...`);
   const allStats = await fetchAllPlayersStats();
-  return formatStatsMessage(allStats);
+  console.log("Fetching hero names...");
+  return await formatStatsMessage(allStats);
 }
 
 /**
