@@ -1,5 +1,65 @@
 const OPENDOTA_API_BASE = "https://api.opendota.com/api";
 
+// Rate limiting configuration
+const RATE_LIMIT_DELAY_MS = 1100; // ~55 requests per minute to stay under 60/min limit
+const MAX_RETRIES = 3;
+const INITIAL_RETRY_DELAY_MS = 2000;
+
+// Simple queue-based rate limiter
+let lastRequestTime = 0;
+
+/**
+ * Delays execution to respect rate limits
+ */
+async function rateLimitDelay(): Promise<void> {
+  const now = Date.now();
+  const timeSinceLastRequest = now - lastRequestTime;
+  
+  if (timeSinceLastRequest < RATE_LIMIT_DELAY_MS) {
+    const delayNeeded = RATE_LIMIT_DELAY_MS - timeSinceLastRequest;
+    await new Promise(resolve => setTimeout(resolve, delayNeeded));
+  }
+  
+  lastRequestTime = Date.now();
+}
+
+/**
+ * Fetches from OpenDota API with rate limiting and retry logic
+ */
+async function fetchWithRateLimit(url: string, context: string): Promise<Response> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    await rateLimitDelay();
+    
+    const response = await fetch(url);
+    
+    if (response.ok) {
+      return response;
+    }
+    
+    if (response.status === 429) {
+      // Rate limited - wait with exponential backoff
+      const retryDelay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt);
+      console.warn(
+        `Rate limited for ${context}, attempt ${attempt + 1}/${MAX_RETRIES}, ` +
+        `waiting ${retryDelay}ms before retry...`
+      );
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
+      lastError = new Error(`OpenDota API rate limit (429) for ${context}`);
+      continue;
+    }
+    
+    // Other errors - throw immediately
+    throw new Error(
+      `OpenDota API error: ${response.status} ${response.statusText}`
+    );
+  }
+  
+  // All retries exhausted
+  throw lastError || new Error(`Failed to fetch ${context} after ${MAX_RETRIES} retries`);
+}
+
 export interface RecentMatch {
   match_id: number;
   player_slot: number;
@@ -38,15 +98,7 @@ export async function fetchPlayerProfile(
   accountId: number
 ): Promise<PlayerData> {
   const url = `${OPENDOTA_API_BASE}/players/${accountId}`;
-
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error(
-      `OpenDota API error: ${response.status} ${response.statusText}`
-    );
-  }
-
+  const response = await fetchWithRateLimit(url, `player profile ${accountId}`);
   return response.json();
 }
 
@@ -71,14 +123,7 @@ export async function fetchRecentMatches(
     url = `${OPENDOTA_API_BASE}/players/${accountId}/recentMatches`;
   }
 
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error(
-      `OpenDota API error: ${response.status} ${response.statusText}`
-    );
-  }
-
+  const response = await fetchWithRateLimit(url, `recent matches for ${accountId}`);
   return response.json();
 }
 
@@ -97,13 +142,6 @@ export async function fetchPlayerTotals(
     url += `?date=${date}`;
   }
 
-  const response = await fetch(url);
-
-  if (!response.ok) {
-    throw new Error(
-      `OpenDota API error: ${response.status} ${response.statusText}`
-    );
-  }
-
+  const response = await fetchWithRateLimit(url, `totals for ${accountId}`);
   return response.json();
 }
