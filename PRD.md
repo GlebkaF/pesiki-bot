@@ -44,7 +44,7 @@ Telegram bot that sends daily Dota 2 win/loss statistics for a group of 7 player
 ### Phase 1: Full MVP
 
 - [x] Add all 7 players with config module
-- [ ] Format beautiful message with all players stats
+- [x] Format beautiful message with all players stats
 - [ ] Add cron job for daily stats at 23:55 MSK
 - [ ] Add Dockerfile and railway.json for deployment
 

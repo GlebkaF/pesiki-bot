@@ -2,6 +2,7 @@ import { PLAYER_IDS } from "./config.js";
 import { fetchRecentMatches } from "./opendota.js";
 import { calculateStats, type PlayerStats } from "./stats.js";
 import { createBot, sendMessage } from "./bot.js";
+import { formatStatsMessage, stripHtml } from "./formatter.js";
 
 /**
  * Fetches stats for all configured players
@@ -18,33 +19,6 @@ async function fetchAllPlayersStats(): Promise<PlayerStats[]> {
 }
 
 /**
- * Formats player stats into a display string
- */
-function formatPlayerStats(stats: PlayerStats): string {
-  if (stats.totalMatches === 0) {
-    return `🎮 Player ${stats.playerId}: did not play today`;
-  }
-  return `🎮 Player ${stats.playerId}: ${stats.wins}W / ${stats.losses}L (${stats.winRate}%)`;
-}
-
-/**
- * Formats the full stats message for all players
- */
-function formatStatsMessage(allStats: PlayerStats[]): string {
-  const today = new Date().toLocaleDateString("ru-RU");
-  const totalMatches = allStats.reduce((sum, s) => sum + s.totalMatches, 0);
-
-  const lines = [
-    `📊 <b>Dota Stats for ${today}</b>`,
-    "",
-    ...allStats.map(formatPlayerStats),
-    "",
-    `Total matches today: ${totalMatches}`,
-  ];
-  return lines.join("\n");
-}
-
-/**
  * Main entry point: Fetch all players' matches and send stats to Telegram
  */
 async function main() {
@@ -55,7 +29,7 @@ async function main() {
     const message = formatStatsMessage(allStats);
 
     // Print to console
-    console.log("\n" + message.replace(/<[^>]*>/g, "") + "\n");
+    console.log("\n" + stripHtml(message) + "\n");
 
     // Send to Telegram
     console.log("Sending message to Telegram...");
