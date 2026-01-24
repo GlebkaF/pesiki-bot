@@ -16,3 +16,7 @@
 - What was done: Created dedicated formatter.ts module with enhanced message formatting. Added performance-based emojis (🔥 for 75%+, ✅ for 50%+, 😐 for 25%+, 💀 for below, 😴 for inactive). Players are sorted by activity (most matches first, then by win rate). Added team summary section with total matches, wins/losses, team win rate, and active players count. Refactored index.ts to use the new formatter module.
 - Files changed: src/formatter.ts (new), src/index.ts, PRD.md
 
+## [2026-01-24 16:30] Task: Add cron job for daily stats at 23:55 MSK
+- What was done: Refactored index.ts to use node-cron for scheduling daily stats. Added sendDailyStats() function that handles the stats fetching and sending logic. Scheduled cron job to run at 23:55 MSK (20:55 UTC) using cron expression "55 20 * * *". Added RUN_NOW environment variable support for testing immediate execution. Bot now runs continuously waiting for scheduled tasks.
+- Files changed: src/index.ts, PRD.md
+
