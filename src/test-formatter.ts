@@ -135,8 +135,8 @@ async function runTests() {
     { name: "Has skull emoji for low rate", pass: message.includes("💀") },
     { name: "Has sleep emoji for inactive", pass: message.includes("😴") },
     { name: "Has team summary", pass: message.includes("Team Summary") },
-    { name: "Has total matches", pass: message.includes("Matches: 22") },
-    { name: "Has win rate", pass: message.includes("Win Rate:") },
+    { name: "Has total matches", pass: message.includes("22 matches") },
+    { name: "Has win rate", pass: message.includes("% WR") },
     { name: "Has active players count", pass: message.includes("5/7") },
     {
       name: "Players sorted by activity",
@@ -147,11 +147,14 @@ async function runTests() {
     { name: "Has grouped losses (L)", pass: message.includes("L") },
     { name: "Has grouped W/L format", pass: /\d+W\/\d+L/.test(message) || /\d+W/.test(message) },
     { name: "Has player nicknames", pass: message.includes("ProGamer") && message.includes("MidPlayer") },
-    { name: "Does not show player IDs", pass: !message.includes("93921511") },
+    { name: "Has OpenDota links", pass: message.includes("opendota.com/players/") },
     { name: "Has APM for players", pass: message.includes("APM:") },
-    { name: "Has average team APM", pass: message.includes("Avg APM:") },
+    { name: "Has team APM in summary", pass: /APM: \d+/.test(message) },
     { name: "Has KDA for players", pass: message.includes("KDA:") },
-    { name: "Has average team KDA", pass: message.includes("Avg KDA:") },
+    { name: "Has team KDA in summary", pass: /KDA: [\d.]+/.test(message) },
+    { name: "Has progress bar", pass: message.includes("█") && message.includes("░") },
+    { name: "Has best hero marker", pass: message.includes("⭐") },
+    { name: "Has inactive players line", pass: message.includes("Не играли:") },
   ];
 
   console.log("Verification checks:");

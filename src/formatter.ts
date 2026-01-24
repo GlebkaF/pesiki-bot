@@ -55,6 +55,17 @@ function getPerformanceEmoji(stats: PlayerStats): string {
 }
 
 /**
+ * Renders a visual progress bar for win rate
+ * Uses 10 characters: █ for filled, ░ for empty
+ */
+function renderProgressBar(percentage: number): string {
+  const totalBars = 10;
+  const filledBars = Math.round((percentage / 100) * totalBars);
+  const emptyBars = totalBars - filledBars;
+  return "█".repeat(filledBars) + "░".repeat(emptyBars);
+}
+
+/**
  * Grouped hero statistics
  */
 interface GroupedHero {
@@ -100,6 +111,32 @@ function groupHeroes(heroes: HeroMatch[], heroNames: string[]): GroupedHero[] {
 }
 
 /**
+ * Gets the best hero (most wins, or most games if tied)
+ */
+function getBestHero(groupedHeroes: GroupedHero[]): GroupedHero | null {
+  if (groupedHeroes.length === 0) return null;
+
+  return groupedHeroes.reduce((best, hero) => {
+    // Prefer hero with more wins
+    if (hero.wins > best.wins) return hero;
+    if (hero.wins < best.wins) return best;
+    // If tied on wins, prefer more total games
+    const heroTotal = hero.wins + hero.losses;
+    const bestTotal = best.wins + best.losses;
+    if (heroTotal > bestTotal) return hero;
+    return best;
+  });
+}
+
+/**
+ * Generates OpenDota profile link as HTML anchor
+ */
+function getOpenDotaLink(playerId: number, playerName: string): string {
+  const url = `https://www.opendota.com/players/${playerId}`;
+  return `<a href="${url}">${playerName}</a>`;
+}
+
+/**
  * Formats a single grouped hero's W/L
  */
 function formatGroupedHero(hero: GroupedHero): string {
@@ -121,23 +158,61 @@ function formatHeroesList(heroes: HeroMatch[], heroNames: string[]): string {
 }
 
 /**
- * Formats a single player's stats line
+ * Formats a player card with visual elements
  */
-function formatPlayerLine(
+function formatPlayerCard(
   stats: PlayerStats,
   heroNames: string[]
 ): string {
   const emoji = getPerformanceEmoji(stats);
-  const displayName = stats.playerName;
+  const playerLink = getOpenDotaLink(stats.playerId, stats.playerName);
+  const progressBar = renderProgressBar(stats.winRate);
 
-  if (stats.totalMatches === 0) {
-    return `${emoji} <b>${displayName}</b>: did not play`;
+  const lines: string[] = [
+    "━━━━━━━━━━━━━━━━━━━━",
+    "",
+    `${emoji} <b>${playerLink}</b> 🔗`,
+    `${progressBar} ${stats.winRate}% • ${stats.wins}W / ${stats.losses}L`,
+  ];
+
+  // Group heroes and find best
+  const groupedHeroes = groupHeroes(stats.heroes, heroNames);
+  const bestHero = getBestHero(groupedHeroes);
+
+  if (bestHero) {
+    lines.push(`⭐ ${formatGroupedHero(bestHero)}`);
+
+    // Other heroes (excluding best)
+    const otherHeroes = groupedHeroes.filter((h) => h.heroId !== bestHero.heroId);
+    if (otherHeroes.length > 0) {
+      const othersStr = otherHeroes.map(formatGroupedHero).join(", ");
+      lines.push(`🎯 ${othersStr}`);
+    }
   }
 
-  const apmStr = stats.avgApm ? ` | APM: ${stats.avgApm}` : "";
-  const kdaStr = stats.avgKda !== undefined ? ` | KDA: ${stats.avgKda}` : "";
-  const heroesStr = formatHeroesList(stats.heroes, heroNames);
-  return `${emoji} <b>${displayName}</b>: ${stats.wins}W / ${stats.losses}L (${stats.winRate}%)${apmStr}${kdaStr}\n    ${heroesStr}`;
+  // Metrics line
+  const metrics: string[] = [];
+  if (stats.avgKda !== undefined) {
+    metrics.push(`KDA: ${stats.avgKda}`);
+  }
+  if (stats.avgApm !== undefined) {
+    metrics.push(`APM: ${stats.avgApm}`);
+  }
+  if (metrics.length > 0) {
+    lines.push(`📊 ${metrics.join(" • ")}`);
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Formats inactive players as a compact single line
+ */
+function formatInactivePlayers(inactivePlayers: PlayerStats[]): string {
+  if (inactivePlayers.length === 0) return "";
+
+  const names = inactivePlayers.map((p) => p.playerName).join(", ");
+  return `😴 Не играли: ${names}`;
 }
 
 /**
@@ -225,36 +300,51 @@ export async function formatStatsMessage(
   const sortedStats = sortByPerformance(allStats);
   const totals = calculateTotals(allStats);
 
+  // Separate active and inactive players
+  const activePlayers = sortedStats.filter((s) => s.totalMatches > 0);
+  const inactivePlayers = sortedStats.filter((s) => s.totalMatches === 0);
+
   // Fetch hero names for all players
   const heroNamesMap = await fetchAllHeroNames(allStats);
 
-  const playerLines: string[] = [];
-  for (const stats of sortedStats) {
+  // Build player cards for active players
+  const playerCards: string[] = [];
+  for (const stats of activePlayers) {
     const heroNames = heroNamesMap.get(stats.playerId) ?? [];
-    playerLines.push(formatPlayerLine(stats, heroNames));
+    playerCards.push(formatPlayerCard(stats, heroNames));
   }
 
   const lines: string[] = [
     `📊 <b>Dota Stats for ${periodTitle}</b>`,
-    "",
-    ...playerLines,
-    "",
-    "━━━━━━━━━━━━━━━━━━━━",
-    `📈 <b>Team Summary</b>`,
-    `🎮 Matches: ${totals.totalMatches}`,
-    `✅ Wins: ${totals.totalWins} | ❌ Losses: ${totals.totalLosses}`,
-    `📊 Win Rate: ${totals.teamWinRate}%`,
-    `👥 Players active: ${totals.playersPlayed}/${allStats.length}`,
+    ...playerCards,
   ];
 
-  // Add average APM if available
-  if (totals.avgTeamApm !== null) {
-    lines.push(`⌨️ Avg APM: ${totals.avgTeamApm}`);
+  // Add inactive players as compact line
+  if (inactivePlayers.length > 0) {
+    lines.push("");
+    lines.push("━━━━━━━━━━━━━━━━━━━━");
+    lines.push("");
+    lines.push(formatInactivePlayers(inactivePlayers));
   }
 
-  // Add average KDA if available
+  // Team summary
+  lines.push("");
+  lines.push("━━━━━━━━━━━━━━━━━━━━");
+  lines.push(`📈 <b>Team Summary</b>`);
+  lines.push(`🎮 ${totals.totalMatches} matches • ${totals.teamWinRate}% WR`);
+  lines.push(`✅ ${totals.totalWins}W | ❌ ${totals.totalLosses}L`);
+  lines.push(`👥 ${totals.playersPlayed}/${allStats.length} active`);
+
+  // Add average metrics on one line
+  const teamMetrics: string[] = [];
   if (totals.avgTeamKda !== null) {
-    lines.push(`⚔️ Avg KDA: ${totals.avgTeamKda}`);
+    teamMetrics.push(`KDA: ${totals.avgTeamKda}`);
+  }
+  if (totals.avgTeamApm !== null) {
+    teamMetrics.push(`APM: ${totals.avgTeamApm}`);
+  }
+  if (teamMetrics.length > 0) {
+    lines.push(`⚔️ ${teamMetrics.join(" • ")}`);
   }
 
   return lines.join("\n");
