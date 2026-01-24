@@ -208,11 +208,28 @@ function formatHeroesList(heroes: HeroMatch[], heroNames: string[]): string {
 }
 
 /**
+ * Returns max number of "other heroes" to display based on period
+ * For longer periods, we need to limit to keep message under Telegram limit
+ */
+function getMaxOtherHeroes(period: StatsPeriod): number {
+  switch (period) {
+    case "today":
+    case "yesterday":
+      return Infinity; // Show all for daily stats
+    case "week":
+      return 8; // Limit for weekly
+    case "month":
+      return 5; // More restrictive for monthly
+  }
+}
+
+/**
  * Formats a player card with visual elements
  */
 function formatPlayerCard(
   stats: PlayerStats,
-  heroNames: string[]
+  heroNames: string[],
+  period: StatsPeriod
 ): string {
   const emoji = getPerformanceEmoji(stats);
   const playerLink = getOpenDotaLink(stats.playerId, stats.playerName);
@@ -232,11 +249,20 @@ function formatPlayerCard(
   if (bestHero) {
     lines.push(`⭐ ${formatGroupedHero(bestHero)}`);
 
-    // Other heroes (excluding best)
-    const otherHeroes = groupedHeroes.filter((h) => h.heroId !== bestHero.heroId);
+    // Other heroes (excluding best), limited by period
+    const maxOther = getMaxOtherHeroes(period);
+    let otherHeroes = groupedHeroes.filter((h) => h.heroId !== bestHero.heroId);
+    
+    const totalOthers = otherHeroes.length;
+    if (otherHeroes.length > maxOther) {
+      otherHeroes = otherHeroes.slice(0, maxOther);
+    }
+    
     if (otherHeroes.length > 0) {
       const othersStr = otherHeroes.map(formatGroupedHero).join(", ");
-      lines.push(`🎯 ${othersStr}`);
+      const moreCount = totalOthers - otherHeroes.length;
+      const moreStr = moreCount > 0 ? ` +${moreCount} more` : "";
+      lines.push(`🎯 ${othersStr}${moreStr}`);
     }
   }
 
@@ -561,7 +587,7 @@ export async function formatStatsMessage(
   const playerCards: string[] = [];
   for (const stats of activePlayers) {
     const heroNames = heroNamesMap.get(stats.playerId) ?? [];
-    playerCards.push(formatPlayerCard(stats, heroNames));
+    playerCards.push(formatPlayerCard(stats, heroNames, period));
   }
 
   const lines: string[] = [
