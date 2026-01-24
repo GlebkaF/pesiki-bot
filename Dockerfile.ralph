@@ -1,0 +1,20 @@
+# Ralph Sandbox - isolated environment for autonomous coding
+FROM node:20-slim
+
+# Install cursor agent CLI
+RUN npm install -g @anthropic-ai/claude-code cursor-agent 2>/dev/null || true
+
+# Install git and common tools
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Configure git
+RUN git config --global user.email "ralph@sandbox" && \
+    git config --global user.name "Ralph Bot"
+
+WORKDIR /workspace
+
+# Entry point
+ENTRYPOINT ["/bin/bash"]

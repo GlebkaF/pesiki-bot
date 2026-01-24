@@ -1,2 +1,7 @@
 # Progress Log
 
+## [2026-01-24 12:29] Task: Verify local build works
+- What was done: Verified that `npm run build` compiles TypeScript successfully and `npm start` launches the bot correctly. Bot outputs startup messages, schedules cron job for 07:00 MSK, and starts polling for commands.
+- Files changed: PRD.md (marked task complete), progress.txt
+- Commit: pending (git repo not initialized yet - next task)
+
