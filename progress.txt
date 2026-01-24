@@ -1,0 +1,4 @@
+# Progress Log
+
+<!-- Ralph will append progress here after each iteration -->
+
