@@ -21,6 +21,7 @@ export async function sendMessage(bot: Bot, message: string): Promise<void> {
   }
   await bot.api.sendMessage(config.telegramChatId, message, {
     parse_mode: "HTML",
+    link_preview_options: { is_disabled: true },
   });
 }
 
@@ -54,7 +55,10 @@ async function handleStatsCommand(
 
     // Delete loading message and send stats
     await ctx.api.deleteMessage(ctx.chat.id, loadingMsg.message_id);
-    await ctx.reply(message, { parse_mode: "HTML" });
+    await ctx.reply(message, {
+      parse_mode: "HTML",
+      link_preview_options: { is_disabled: true },
+    });
 
     console.log(`[${new Date().toISOString()}] /${commandName} command completed`);
   } catch (error) {

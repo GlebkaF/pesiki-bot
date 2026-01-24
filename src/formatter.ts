@@ -402,14 +402,14 @@ function calculateNominations(
     true // ascending - lowest first
   );
   const bot = sortedByParticipation[0];
-  const participation =
+  const avgKillsAssists =
     Math.round(((bot.totalKills + bot.totalAssists) / bot.totalMatches) * 10) /
     10;
   nominations.push({
     title: "Бот",
     emoji: "🤖",
     player: bot,
-    value: `${participation} участия/игра`,
+    value: `${avgKillsAssists} K+A за игру`,
   });
 
   // 6. Задрот (🎮) - most matches
