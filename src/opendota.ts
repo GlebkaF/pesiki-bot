@@ -1,9 +1,10 @@
 const OPENDOTA_API_BASE = "https://api.opendota.com/api";
 
 // Rate limiting configuration
-const RATE_LIMIT_DELAY_MS = 1100; // ~55 requests per minute to stay under 60/min limit
-const MAX_RETRIES = 3;
-const INITIAL_RETRY_DELAY_MS = 2000;
+// OpenDota free tier: 60 requests/minute, but be conservative
+const RATE_LIMIT_DELAY_MS = 2000; // ~30 requests per minute to stay well under 60/min limit
+const MAX_RETRIES = 5;
+const INITIAL_RETRY_DELAY_MS = 5000; // Start with longer backoff
 
 // Cache TTL configuration (in milliseconds)
 const CACHE_TTL = {
