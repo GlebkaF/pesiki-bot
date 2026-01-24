@@ -26,6 +26,9 @@ const mockStats: PlayerStats[] = [
     ],
     avgApm: 185,
     avgKda: 4.25,
+    totalKills: 48,
+    totalDeaths: 12,
+    totalAssists: 30,
   },
   {
     playerId: 167818283,
@@ -44,6 +47,9 @@ const mockStats: PlayerStats[] = [
     ],
     avgApm: 142,
     avgKda: 2.8,
+    totalKills: 35,
+    totalDeaths: 20,
+    totalAssists: 25,
   },
   {
     playerId: 94014640,
@@ -61,6 +67,9 @@ const mockStats: PlayerStats[] = [
     ],
     avgApm: 98,
     avgKda: 1.95,
+    totalKills: 8,
+    totalDeaths: 25,
+    totalAssists: 45, // High assists, low kills → Гей nominee
   },
   {
     playerId: 1869377945,
@@ -70,6 +79,9 @@ const mockStats: PlayerStats[] = [
     totalMatches: 0,
     winRate: 0,
     heroes: [],
+    totalKills: 0,
+    totalDeaths: 0,
+    totalAssists: 0,
   },
   {
     playerId: 126449680,
@@ -85,6 +97,9 @@ const mockStats: PlayerStats[] = [
     ],
     avgApm: 156,
     avgKda: 3.5,
+    totalKills: 22,
+    totalDeaths: 8,
+    totalAssists: 12,
   },
   {
     playerId: 92126977,
@@ -99,6 +114,9 @@ const mockStats: PlayerStats[] = [
     ],
     avgApm: 112,
     avgKda: 1.2,
+    totalKills: 4,
+    totalDeaths: 15, // Most deaths relative to games → potential Feeder
+    totalAssists: 6,
   },
   {
     playerId: 40087920,
@@ -108,6 +126,29 @@ const mockStats: PlayerStats[] = [
     totalMatches: 0,
     winRate: 0,
     heroes: [],
+    totalKills: 0,
+    totalDeaths: 0,
+    totalAssists: 0,
+  },
+  {
+    playerId: 12345678,
+    playerName: "LuckyGuy",
+    wins: 4,
+    losses: 1,
+    totalMatches: 5,
+    winRate: 80,
+    heroes: [
+      { heroId: 1, isWin: true },
+      { heroId: 2, isWin: true },
+      { heroId: 3, isWin: true },
+      { heroId: 4, isWin: true },
+      { heroId: 5, isWin: false },
+    ],
+    avgApm: 95,
+    avgKda: 1.5, // Low KDA but high WR → Везунчик
+    totalKills: 12,
+    totalDeaths: 18,
+    totalAssists: 15,
   },
 ];
 
@@ -135,9 +176,9 @@ async function runTests() {
     { name: "Has skull emoji for low rate", pass: message.includes("💀") },
     { name: "Has sleep emoji for inactive", pass: message.includes("😴") },
     { name: "Has team summary", pass: message.includes("Team Summary") },
-    { name: "Has total matches", pass: message.includes("22 matches") },
+    { name: "Has total matches", pass: message.includes("27 matches") },
     { name: "Has win rate", pass: message.includes("% WR") },
-    { name: "Has active players count", pass: message.includes("5/7") },
+    { name: "Has active players count", pass: message.includes("6/8") },
     {
       name: "Players sorted by activity",
       pass: message.indexOf("ProGamer") < message.indexOf("InactivePlayer"),
@@ -155,6 +196,16 @@ async function runTests() {
     { name: "Has progress bar", pass: message.includes("█") && message.includes("░") },
     { name: "Has best hero marker", pass: message.includes("⭐") },
     { name: "Has inactive players line", pass: message.includes("Не играли:") },
+    // Nominations checks
+    { name: "Has nominations section", pass: message.includes("🏆") && message.includes("Номинации") },
+    { name: "Has Лузер nomination", pass: message.includes("💀 Лузер:") },
+    { name: "Has Фидер nomination", pass: message.includes("⚰️ Фидер:") },
+    { name: "Has Тащер nomination", pass: message.includes("💪 Тащер:") },
+    { name: "Has Гей nomination", pass: message.includes("🏳️‍🌈 Гей:") },
+    { name: "Has Бот nomination", pass: message.includes("🤖 Бот:") },
+    { name: "Has Задрот nomination", pass: message.includes("🎮 Задрот:") },
+    { name: "Has Везунчик nomination", pass: message.includes("🍀 Везунчик:") },
+    { name: "Has Клоун nomination", pass: message.includes("🤡 Клоун:") },
   ];
 
   console.log("Verification checks:");

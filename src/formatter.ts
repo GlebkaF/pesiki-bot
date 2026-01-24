@@ -76,6 +76,17 @@ interface GroupedHero {
 }
 
 /**
+ * Nomination awarded to a player
+ */
+interface Nomination {
+  title: string;
+  emoji: string;
+  player: PlayerStats;
+  value: string; // formatted value for display
+  heroName?: string; // for Clown nomination
+}
+
+/**
  * Groups heroes by heroId and counts wins/losses
  */
 function groupHeroes(heroes: HeroMatch[], heroNames: string[]): GroupedHero[] {
@@ -269,6 +280,201 @@ function calculateTotals(stats: PlayerStats[]): {
 }
 
 /**
+ * Formats nominations section for display
+ */
+function formatNominationsSection(nominations: Nomination[]): string[] {
+  if (nominations.length === 0) return [];
+
+  const lines: string[] = [
+    "",
+    "━━━━━━━━━━━━━━━━━━━━",
+    "🏆 <b>Номинации</b>",
+    "",
+  ];
+
+  for (const nom of nominations) {
+    if (nom.heroName) {
+      // For Clown nomination with hero name
+      lines.push(`${nom.emoji} ${nom.title}: ${nom.player.playerName} (${nom.heroName} ${nom.value})`);
+    } else {
+      lines.push(`${nom.emoji} ${nom.title}: ${nom.player.playerName} (${nom.value})`);
+    }
+  }
+
+  return lines;
+}
+
+/**
+ * Calculates nominations based on player stats
+ * Only considers players with at least 1 match
+ * Returns empty array if less than 2 active players
+ */
+function calculateNominations(
+  activePlayers: PlayerStats[],
+  heroNamesMap: Map<number, string[]>
+): Nomination[] {
+  // Need at least 2 players to compare
+  if (activePlayers.length < 2) return [];
+
+  const nominations: Nomination[] = [];
+
+  // Sort helper - for ties, sort by player name alphabetically
+  const sortWithTiebreaker = <T>(
+    arr: T[],
+    getValue: (item: T) => number,
+    ascending: boolean = false
+  ): T[] => {
+    return [...arr].sort((a, b) => {
+      const diff = ascending
+        ? getValue(a) - getValue(b)
+        : getValue(b) - getValue(a);
+      if (diff !== 0) return diff;
+      // Tie: sort by name
+      const aName = (a as unknown as PlayerStats).playerName;
+      const bName = (b as unknown as PlayerStats).playerName;
+      return aName.localeCompare(bName);
+    });
+  };
+
+  // 1. Лузер (💀) - worst win rate
+  const sortedByWinRate = sortWithTiebreaker(
+    activePlayers,
+    (p) => p.winRate,
+    true // ascending - lowest first
+  );
+  const loser = sortedByWinRate[0];
+  nominations.push({
+    title: "Лузер",
+    emoji: "💀",
+    player: loser,
+    value: `${loser.winRate}% WR`,
+  });
+
+  // 2. Фидер (⚰️) - most deaths
+  const sortedByDeaths = sortWithTiebreaker(
+    activePlayers,
+    (p) => p.totalDeaths
+  );
+  const feeder = sortedByDeaths[0];
+  nominations.push({
+    title: "Фидер",
+    emoji: "⚰️",
+    player: feeder,
+    value: `${feeder.totalDeaths} смертей`,
+  });
+
+  // 3. Тащер (💪) - best KDA
+  const playersWithKda = activePlayers.filter((p) => p.avgKda !== undefined);
+  if (playersWithKda.length > 0) {
+    const sortedByKda = sortWithTiebreaker(
+      playersWithKda,
+      (p) => p.avgKda ?? 0
+    );
+    const carry = sortedByKda[0];
+    nominations.push({
+      title: "Тащер",
+      emoji: "💪",
+      player: carry,
+      value: `KDA ${carry.avgKda}`,
+    });
+  }
+
+  // 4. Гей (🏳️‍🌈) - highest assists/kills ratio
+  const playersWithKills = activePlayers.filter((p) => p.totalKills > 0);
+  if (playersWithKills.length > 0) {
+    const sortedByAssistRatio = sortWithTiebreaker(playersWithKills, (p) =>
+      p.totalAssists / p.totalKills
+    );
+    const gay = sortedByAssistRatio[0];
+    const ratio = Math.round((gay.totalAssists / gay.totalKills) * 10) / 10;
+    nominations.push({
+      title: "Гей",
+      emoji: "🏳️‍🌈",
+      player: gay,
+      value: `A/K: ${ratio}`,
+    });
+  }
+
+  // 5. Бот (🤖) - lowest (kills + assists) per game
+  const sortedByParticipation = sortWithTiebreaker(
+    activePlayers,
+    (p) => (p.totalKills + p.totalAssists) / p.totalMatches,
+    true // ascending - lowest first
+  );
+  const bot = sortedByParticipation[0];
+  const participation =
+    Math.round(((bot.totalKills + bot.totalAssists) / bot.totalMatches) * 10) /
+    10;
+  nominations.push({
+    title: "Бот",
+    emoji: "🤖",
+    player: bot,
+    value: `${participation} участия/игра`,
+  });
+
+  // 6. Задрот (🎮) - most matches
+  const sortedByMatches = sortWithTiebreaker(
+    activePlayers,
+    (p) => p.totalMatches
+  );
+  const grinder = sortedByMatches[0];
+  nominations.push({
+    title: "Задрот",
+    emoji: "🎮",
+    player: grinder,
+    value: `${grinder.totalMatches} игр`,
+  });
+
+  // 7. Везунчик (🍀) - high WR (>= 60%) with low KDA (< 2)
+  const luckyPlayers = activePlayers.filter(
+    (p) => p.winRate >= 60 && p.avgKda !== undefined && p.avgKda < 2
+  );
+  if (luckyPlayers.length > 0) {
+    // Sort by win rate descending, then by KDA ascending (lower KDA = luckier)
+    const sortedLucky = [...luckyPlayers].sort((a, b) => {
+      if (b.winRate !== a.winRate) return b.winRate - a.winRate;
+      return (a.avgKda ?? 0) - (b.avgKda ?? 0);
+    });
+    const lucky = sortedLucky[0];
+    nominations.push({
+      title: "Везунчик",
+      emoji: "🍀",
+      player: lucky,
+      value: `${lucky.winRate}% WR, KDA ${lucky.avgKda}`,
+    });
+  }
+
+  // 8. Клоун (🤡) - plays 70%+ games on one hero with WR < 50% on that hero
+  for (const player of activePlayers) {
+    const heroNames = heroNamesMap.get(player.playerId) ?? [];
+    const groupedHeroes = groupHeroes(player.heroes, heroNames);
+
+    if (groupedHeroes.length === 0) continue;
+
+    // Find most played hero
+    const mostPlayed = groupedHeroes[0]; // already sorted by total games
+    const totalGames = mostPlayed.wins + mostPlayed.losses;
+    const heroRatio = totalGames / player.totalMatches;
+    const heroWinRate =
+      totalGames > 0 ? (mostPlayed.wins / totalGames) * 100 : 0;
+
+    // 70%+ games on one hero AND win rate < 50% on that hero
+    if (heroRatio >= 0.7 && heroWinRate < 50) {
+      nominations.push({
+        title: "Клоун",
+        emoji: "🤡",
+        player: player,
+        value: `${mostPlayed.wins}W/${mostPlayed.losses}L`,
+        heroName: mostPlayed.name,
+      });
+      break; // Only one clown
+    }
+  }
+
+  return nominations;
+}
+
+/**
  * Fetches all hero names needed for the stats
  */
 async function fetchAllHeroNames(
@@ -326,6 +532,11 @@ export async function formatStatsMessage(
     lines.push("");
     lines.push(formatInactivePlayers(inactivePlayers));
   }
+
+  // Calculate and add nominations
+  const nominations = calculateNominations(activePlayers, heroNamesMap);
+  const nominationsLines = formatNominationsSection(nominations);
+  lines.push(...nominationsLines);
 
   // Team summary
   lines.push("");
