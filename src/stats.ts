@@ -7,6 +7,7 @@ export interface HeroMatch {
 
 export interface PlayerStats {
   playerId: number;
+  playerName: string;
   wins: number;
   losses: number;
   totalMatches: number;
@@ -83,6 +84,7 @@ function filterTodayMatches(matches: RecentMatch[]): RecentMatch[] {
  */
 export function calculateStats(
   playerId: number,
+  playerName: string,
   matches: RecentMatch[],
   period: StatsPeriod = "today"
 ): PlayerStats {
@@ -101,6 +103,7 @@ export function calculateStats(
 
   return {
     playerId,
+    playerName,
     wins,
     losses,
     totalMatches,

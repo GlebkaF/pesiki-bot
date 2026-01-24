@@ -1,9 +1,23 @@
 import cron from "node-cron";
 import { PLAYER_IDS } from "./config.js";
-import { fetchRecentMatches } from "./opendota.js";
+import { fetchRecentMatches, fetchPlayerProfile } from "./opendota.js";
 import { calculateStats, type PlayerStats, type StatsPeriod } from "./stats.js";
 import { createBot, sendMessage, setupCommands, startBot } from "./bot.js";
 import { formatStatsMessage, stripHtml } from "./formatter.js";
+
+/**
+ * Fetches player nickname from OpenDota API
+ * Falls back to player ID if nickname is not available
+ */
+async function getPlayerName(playerId: number): Promise<string> {
+  try {
+    const playerData = await fetchPlayerProfile(playerId);
+    return playerData.profile?.personaname || String(playerId);
+  } catch (error) {
+    console.warn(`Failed to fetch profile for player ${playerId}:`, error);
+    return String(playerId);
+  }
+}
 
 /**
  * Fetches stats for all configured players for a given period
@@ -12,10 +26,16 @@ async function fetchAllPlayersStats(
   period: StatsPeriod = "today"
 ): Promise<PlayerStats[]> {
   const statsPromises = PLAYER_IDS.map(async (playerId) => {
-    console.log(`Fetching matches for player ${playerId}...`);
-    const matches = await fetchRecentMatches(playerId);
-    console.log(`  Found ${matches.length} recent matches`);
-    return calculateStats(playerId, matches, period);
+    console.log(`Fetching data for player ${playerId}...`);
+    
+    // Fetch profile and matches in parallel
+    const [playerName, matches] = await Promise.all([
+      getPlayerName(playerId),
+      fetchRecentMatches(playerId),
+    ]);
+    
+    console.log(`  Player: ${playerName}, Found ${matches.length} recent matches`);
+    return calculateStats(playerId, playerName, matches, period);
   });
 
   return Promise.all(statsPromises);

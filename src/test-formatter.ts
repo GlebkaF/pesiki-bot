@@ -11,6 +11,7 @@ import type { PlayerStats } from "./stats.js";
 const mockStats: PlayerStats[] = [
   {
     playerId: 93921511,
+    playerName: "ProGamer",
     wins: 5,
     losses: 1,
     totalMatches: 6,
@@ -26,6 +27,7 @@ const mockStats: PlayerStats[] = [
   },
   {
     playerId: 167818283,
+    playerName: "MidPlayer",
     wins: 3,
     losses: 3,
     totalMatches: 6,
@@ -41,6 +43,7 @@ const mockStats: PlayerStats[] = [
   },
   {
     playerId: 94014640,
+    playerName: "Support4Life",
     wins: 1,
     losses: 4,
     totalMatches: 5,
@@ -55,6 +58,7 @@ const mockStats: PlayerStats[] = [
   },
   {
     playerId: 1869377945,
+    playerName: "InactivePlayer",
     wins: 0,
     losses: 0,
     totalMatches: 0,
@@ -63,6 +67,7 @@ const mockStats: PlayerStats[] = [
   },
   {
     playerId: 126449680,
+    playerName: "CarryMaster",
     wins: 2,
     losses: 1,
     totalMatches: 3,
@@ -75,6 +80,7 @@ const mockStats: PlayerStats[] = [
   },
   {
     playerId: 92126977,
+    playerName: "OfflaneKing",
     wins: 0,
     losses: 2,
     totalMatches: 2,
@@ -86,6 +92,7 @@ const mockStats: PlayerStats[] = [
   },
   {
     playerId: 40087920,
+    playerName: "AnotherInactive",
     wins: 0,
     losses: 0,
     totalMatches: 0,
@@ -123,11 +130,13 @@ async function runTests() {
     { name: "Has active players count", pass: message.includes("5/7") },
     {
       name: "Players sorted by activity",
-      pass: message.indexOf("93921511") < message.indexOf("1869377945"),
+      pass: message.indexOf("ProGamer") < message.indexOf("InactivePlayer"),
     },
     { name: "Has hero names", pass: message.includes("Anti-Mage") },
     { name: "Has win indicator", pass: message.includes("(✓)") },
     { name: "Has loss indicator", pass: message.includes("(✗)") },
+    { name: "Has player nicknames", pass: message.includes("ProGamer") && message.includes("MidPlayer") },
+    { name: "Does not show player IDs", pass: !message.includes("93921511") },
   ];
 
   console.log("Verification checks:");

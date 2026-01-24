@@ -36,3 +36,7 @@
 - What was done: Added /weekly and /monthly commands to the bot for viewing stats over different time periods. Updated stats.ts with StatsPeriod type ("today" | "week" | "month") and filterMatchesByPeriod() function that calculates period start timestamps. Updated formatter.ts with getPeriodTitle() function that formats period-specific titles (e.g., "20.01.2026 - 24.01.2026 (Week)" for weekly, "January 2026" for monthly). Updated bot.ts with handleStatsCommand() helper and registered /weekly and /monthly commands in the bot menu. Updated index.ts to pass period parameter through the stats fetching chain.
 - Files changed: src/stats.ts, src/formatter.ts, src/bot.ts, src/index.ts, PRD.md
 
+## [2026-01-24 16:15] Task: Display player nicknames instead of IDs
+- What was done: Added player nickname fetching from OpenDota API. Created fetchPlayerProfile() function in opendota.ts that fetches player data including personaname. Updated PlayerStats interface to include playerName field. Updated calculateStats() to accept playerName parameter. Modified index.ts to fetch player profiles in parallel with matches and pass nicknames to stats calculation. Updated formatter.ts to display playerName instead of playerId. Updated test-formatter.ts with mock playerName data and added verification checks for nicknames.
+- Files changed: src/opendota.ts, src/stats.ts, src/index.ts, src/formatter.ts, src/test-formatter.ts, PRD.md
+

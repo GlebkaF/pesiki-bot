@@ -70,13 +70,14 @@ function formatPlayerLine(
   heroNames: string[]
 ): string {
   const emoji = getPerformanceEmoji(stats);
+  const displayName = stats.playerName;
 
   if (stats.totalMatches === 0) {
-    return `${emoji} <b>${stats.playerId}</b>: did not play`;
+    return `${emoji} <b>${displayName}</b>: did not play`;
   }
 
   const heroesStr = formatHeroesList(stats.heroes, heroNames);
-  return `${emoji} <b>${stats.playerId}</b>: ${stats.wins}W / ${stats.losses}L (${stats.winRate}%)\n    ${heroesStr}`;
+  return `${emoji} <b>${displayName}</b>: ${stats.wins}W / ${stats.losses}L (${stats.winRate}%)\n    ${heroesStr}`;
 }
 
 /**
