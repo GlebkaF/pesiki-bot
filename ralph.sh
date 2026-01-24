@@ -1,11 +1,9 @@
 #!/bin/bash
-# Ralph - autonomous AI coding agent
-# Always runs in Docker sandbox with Claude Opus 4.5
+# Ralph - autonomous AI coding agent with Claude Opus 4.5
 #
 # Usage:
 #   ./ralph.sh           # One iteration (interactive)
 #   ./ralph.sh 5         # 5 iterations (AFK mode)
-#   ./ralph.sh 10 -p     # 10 iterations (print mode, non-interactive)
 
 set -e
 
@@ -13,18 +11,34 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 ITERATIONS=${1:-1}
-MODE=${2:-""}
 MODEL="opus-4.5"
 
-echo "🐳 Ralph (Docker Sandbox + $MODEL)"
+echo "🤖 Ralph ($MODEL)"
 echo "📁 Workspace: $SCRIPT_DIR"
 echo "🔄 Iterations: $ITERATIONS"
 echo ""
+
+# Safety: create backup branch before AFK mode
+if [[ "$ITERATIONS" -gt 1 ]]; then
+  BACKUP_BRANCH="ralph-backup-$(date +%Y%m%d-%H%M%S)"
+  git branch "$BACKUP_BRANCH" 2>/dev/null || true
+  echo "🛡️  Safety backup: $BACKUP_BRANCH"
+  echo ""
+fi
 
 PROMPT="@PRD.md @progress.txt
 
 You are Ralph - an autonomous coding agent.
 
+## SAFETY RULES (NEVER VIOLATE)
+- ONLY work inside this workspace directory: $SCRIPT_DIR
+- NEVER run: rm -rf /, sudo, chmod 777, curl | bash, or any destructive system commands
+- NEVER modify files outside the workspace
+- NEVER install global packages (no npm -g, pip install without venv)
+- NEVER access or modify ~/.bashrc, ~/.zshrc, /etc, /usr, /var, ~/ or any system files
+- If unsure about a command's safety, DON'T run it
+
+## YOUR TASK
 1. Read PRD.md and progress.txt carefully
 2. Find the NEXT incomplete task (unchecked checkbox [ ])
 3. Implement that ONE task fully
@@ -46,13 +60,13 @@ for ((i=1; i<=$ITERATIONS; i++)); do
   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   echo ""
 
-  if [[ "$MODE" == "-p" ]] || [[ "$ITERATIONS" -gt 1 ]]; then
+  if [[ "$ITERATIONS" -gt 1 ]]; then
     # Print mode for AFK / multiple iterations
-    result=$(docker sandbox run cursor agent -p -f --model "$MODEL" "$PROMPT")
+    result=$(cursor agent -p -f --model "$MODEL" --workspace "$SCRIPT_DIR" "$PROMPT" 2>&1) || true
     echo "$result"
   else
     # Interactive mode for single iteration
-    docker sandbox run cursor agent -f --model "$MODEL" "$PROMPT"
+    cursor agent -f --model "$MODEL" --workspace "$SCRIPT_DIR" "$PROMPT"
     result=""
   fi
 
@@ -70,4 +84,5 @@ done
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "⏸️  Completed $ITERATIONS iteration(s)"
+[[ -n "$BACKUP_BRANCH" ]] && echo "🛡️  To restore: git checkout $BACKUP_BRANCH"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
