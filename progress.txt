@@ -4,3 +4,7 @@
 - What was done: Set up project structure with package.json, tsconfig.json, .env.example, .gitignore. Created src/ folder with config.ts (player IDs), opendota.ts (API client to fetch recent matches), stats.ts (W/L calculation logic), and index.ts (entry point). Successfully fetches matches from OpenDota API and calculates daily W/L stats for one player, printing results to console.
 - Files changed: package.json, tsconfig.json, .env.example, .gitignore, src/config.ts, src/opendota.ts, src/stats.ts, src/index.ts
 
+## [2026-01-24 12:30] Task: Tracer Bullet 2 - Telegram integration
+- What was done: Created src/bot.ts with grammy bot setup (createBot and sendMessage functions). Updated src/index.ts to format stats message with HTML and send it to Telegram chat using configured bot token and chat ID. Message includes formatted date, player stats, and total matches count.
+- Files changed: src/bot.ts (new), src/index.ts
+

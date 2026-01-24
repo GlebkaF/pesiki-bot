@@ -39,7 +39,7 @@ Telegram bot that sends daily Dota 2 win/loss statistics for a group of 7 player
 
 ### Tracer Bullet 2: Telegram integration
 
-- [ ] Send the stats message to Telegram chat (hardcoded one player)
+- [x] Send the stats message to Telegram chat (hardcoded one player)
 
 ### Phase 1: Full MVP
 
