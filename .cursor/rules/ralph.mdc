@@ -21,10 +21,18 @@ The AI picks tasks from a PRD, implements ONE task per iteration, commits, and u
 ## Rules for Ralph Iterations
 
 1. **One task at a time** - Never work on multiple tasks in one iteration
-2. **Always commit** - Each iteration ends with a git commit
-3. **Update progress** - Append to progress.txt after each task
-4. **Check the box** - Mark completed tasks as [x] in PRD.md
-5. **Small scope** - If a task is too big, break it down first
+2. **Test before commit** - Always verify the code actually works end-to-end:
+   - Run `npm run build` or `npx tsc --noEmit` for TypeScript projects
+   - Run `npm test` if tests exist
+   - Run `npm run lint` if linter is configured
+   - **CRITICAL: Actually run the application** (`npm start`, `npm run dev`, etc.) and verify the feature works
+   - For bots/APIs: make a real request and check the output
+   - For CLI tools: run with real arguments and verify output
+   - Do NOT commit until you've seen the code work with your own eyes
+3. **Always commit** - Each iteration ends with a git commit
+4. **Update progress** - Append to progress.txt after each task
+5. **Check the box** - Mark completed tasks as [x] in PRD.md
+6. **Small scope** - If a task is too big, break it down first
 
 ## Cursor Commands
 

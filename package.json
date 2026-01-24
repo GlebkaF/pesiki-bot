@@ -8,7 +8,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx src/test-formatter.ts"
   },
   "keywords": ["dota2", "telegram", "bot", "statistics"],
   "license": "MIT",
