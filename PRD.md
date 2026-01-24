@@ -2,107 +2,97 @@
 
 ## Overview
 
-Telegram bot that sends daily Dota 2 win/loss statistics for a group of 7 players using OpenDota API data.
+Deploy the Pesiki Bot (Dota 2 statistics Telegram bot) to Railway platform.
 
 ## Goals
 
-- Automatically send daily stats to a Telegram chat at the end of each day
-- Track wins and losses for each player from the configured list
-- Show percentage and total matches played
+- Deploy the bot to Railway with all environment variables configured
+- Ensure the bot runs continuously and sends daily stats at 23:55 MSK
+- Verify deployment works end-to-end
 
 ## Tech Stack
 
-- **Runtime**: Node.js 20+
-- **Language**: TypeScript
-- **Bot Framework**: grammy
-- **HTTP Client**: fetch (built-in)
-- **Scheduler**: node-cron
-- **Deploy**: Railway (free tier)
+- **Runtime**: Node.js 20+ (Alpine)
+- **Build**: Multi-stage Dockerfile
+- **Platform**: Railway (free tier)
+- **Bot**: grammy + node-cron
 
-## Players
+## Project Status
 
-| Steam ID   | OpenDota Link                                |
-|------------|----------------------------------------------|
-| 93921511   | https://www.opendota.com/players/93921511    |
-| 167818283  | https://www.opendota.com/players/167818283   |
-| 94014640   | https://www.opendota.com/players/94014640    |
-| 1869377945 | https://www.opendota.com/players/1869377945  |
-| 126449680  | https://www.opendota.com/players/126449680   |
-| 92126977   | https://www.opendota.com/players/92126977    |
-| 40087920   | https://www.opendota.com/players/40087920    |
+The bot is fully implemented with:
+- Daily stats at 23:55 MSK via cron
+- /stats, /weekly, /monthly commands
+- Hero names and player nicknames display
+- Beautiful formatted messages with emojis
 
 ## Features
 
-### Tracer Bullet 1: End-to-end for ONE player (console output)
+### Phase 1: Railway Deployment
 
-- [x] Set up project (package.json, tsconfig, .env.example) and fetch ONE player's matches from OpenDota, calculate W/L for today, print to console
+- [ ] Verify local build works (npm run build && npm start)
+- [ ] Initialize git repository and create initial commit
+- [ ] Create Railway account and project
+- [ ] Connect GitHub/GitLab repo to Railway (or use Railway CLI)
+- [ ] Configure environment variables on Railway:
+  - BOT_TOKEN (from @BotFather)
+  - CHAT_ID (target Telegram chat)
+  - TZ=Europe/Moscow
+- [ ] Deploy and verify bot starts successfully
+- [ ] Test /stats command to verify bot is responding
+- [ ] Verify cron job works (check logs around 23:55 MSK)
 
-### Tracer Bullet 2: Telegram integration
+### Phase 2: Monitoring & Maintenance
 
-- [x] Send the stats message to Telegram chat (hardcoded one player)
+- [ ] Set up Railway alerts for deployment failures
+- [ ] Add health check logging
+- [ ] Document deployment process in README
 
-### Phase 1: Full MVP
+## Environment Variables
 
-- [x] Add all 7 players with config module
-- [x] Format beautiful message with all players stats
-- [x] Add cron job for daily stats at 23:55 MSK
-- [x] Add Dockerfile and railway.json for deployment
+| Variable | Description | Required |
+|----------|-------------|----------|
+| BOT_TOKEN | Telegram bot token from @BotFather | Yes |
+| CHAT_ID | Target Telegram chat ID | Yes |
+| TZ | Timezone for cron (Europe/Moscow) | Yes |
+| RUN_NOW | Set to "true" to send stats immediately on start | No |
 
-### Phase 2: Enhancements
+## Railway Configuration
 
-- [x] Add /stats command for manual stats request
-- [x] Show heroes played in statistics
-- [x] Add weekly/monthly reports
-- [x] Display player nicknames instead of IDs
+The project already includes:
+- `Dockerfile` - Multi-stage build (builder → production)
+- `railway.json` - Dockerfile builder with restart policy
 
-## Non-Goals
+## Deployment Steps (Manual)
 
-- Real-time match notifications
-- Match history storage/database
-- Web interface
-- Multiple chat support (single chat only for MVP)
+1. Create Railway account at https://railway.app
+2. Create new project → Deploy from GitHub
+3. Connect your repository
+4. Add environment variables in Settings → Variables
+5. Deploy
 
-## Technical Notes
+## Alternative: Railway CLI
 
-### OpenDota API
+```bash
+# Install Railway CLI
+npm install -g @railway/cli
 
-Endpoint: `GET https://api.opendota.com/api/players/{account_id}/recentMatches`
+# Login
+railway login
 
-Returns last 20 matches with:
-- `match_id` - match identifier
-- `player_slot` - player slot (0-127 = Radiant, 128-255 = Dire)
-- `radiant_win` - whether Radiant won
-- `start_time` - Unix timestamp of match start
+# Initialize project
+railway init
 
-Win detection: `(player_slot < 128) === radiant_win`
+# Set variables
+railway variables set BOT_TOKEN=your_token
+railway variables set CHAT_ID=your_chat_id
+railway variables set TZ=Europe/Moscow
 
-### Project Structure
-
-```
-src/
-├── config.ts      # Configuration (player IDs, bot token)
-├── opendota.ts    # OpenDota API client
-├── stats.ts       # Stats calculation logic
-├── formatter.ts   # Message formatting
-├── bot.ts         # Telegram bot setup
-└── index.ts       # Entry point with cron
-```
-
-### Example Output
-
-```
-📊 Dota Stats for 24.01.2026
-
-🎮 Player1: 3W / 1L (75%)
-🎮 Player2: 2W / 2L (50%)
-🎮 Player3: 0W / 0L (did not play)
-...
-
-Total matches: 8
+# Deploy
+railway up
 ```
 
 ## Definition of Done
 
-- [ ] All Phase 1 features implemented
-- [ ] Bot successfully sends daily stats
-- [ ] Deployed to Railway and running
+- [ ] Bot is deployed and running on Railway
+- [ ] Bot responds to /stats command
+- [ ] Daily stats are sent at 23:55 MSK
