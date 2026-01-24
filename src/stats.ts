@@ -27,35 +27,107 @@ function isWin(match: RecentMatch): boolean {
 }
 
 /**
+ * Day start hour in MSK timezone (6:00 AM)
+ * Day is considered to start at 6:00 MSK, not midnight
+ */
+const DAY_START_HOUR_MSK = 6;
+const MSK_OFFSET_HOURS = 3; // UTC+3
+
+/**
+ * Gets current MSK time components using UTC methods.
+ * By adding MSK offset to UTC time and using getUTC* methods,
+ * we correctly get MSK time regardless of server timezone.
+ */
+function getMskTimeComponents() {
+  const now = new Date();
+  const mskTime = now.getTime() + MSK_OFFSET_HOURS * 60 * 60 * 1000;
+  const mskDate = new Date(mskTime);
+
+  // Use getUTC* methods since we've shifted the time to make UTC act like MSK
+  return {
+    year: mskDate.getUTCFullYear(),
+    month: mskDate.getUTCMonth(),
+    date: mskDate.getUTCDate(),
+    hours: mskDate.getUTCHours(),
+    day: mskDate.getUTCDay(),
+  };
+}
+
+/**
+ * Creates a UTC timestamp (in seconds) for a specific MSK time.
+ * Uses Date.UTC to avoid local timezone interference.
+ */
+function mskToUtcTimestamp(
+  year: number,
+  month: number,
+  date: number,
+  hours: number
+): number {
+  // Create UTC time for the given components, then subtract MSK offset to get actual UTC
+  const utcMillis = Date.UTC(year, month, date, hours, 0, 0, 0);
+  return (utcMillis - MSK_OFFSET_HOURS * 60 * 60 * 1000) / 1000;
+}
+
+/**
  * Gets the start timestamp for a given period
+ * For "today", day starts at 6:00 MSK instead of midnight
  */
 function getPeriodStartTimestamp(period: StatsPeriod): number {
-  const now = new Date();
+  const msk = getMskTimeComponents();
 
   switch (period) {
     case "today": {
-      const todayStart = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate()
-      );
-      return todayStart.getTime() / 1000;
+      // Day starts at 6:00 MSK
+      // If current MSK time is before 6:00, use yesterday's 6:00
+      let { year, month, date } = msk;
+
+      if (msk.hours < DAY_START_HOUR_MSK) {
+        // Before 6:00 MSK - use previous day's 6:00
+        // Handle month/year boundaries by using Date arithmetic
+        const prevDay = new Date(Date.UTC(year, month, date - 1));
+        year = prevDay.getUTCFullYear();
+        month = prevDay.getUTCMonth();
+        date = prevDay.getUTCDate();
+      }
+
+      return mskToUtcTimestamp(year, month, date, DAY_START_HOUR_MSK);
     }
     case "week": {
-      // Get the start of the current week (Monday)
-      const dayOfWeek = now.getDay();
+      // Get the start of the current week (Monday at 6:00 MSK)
+      const dayOfWeek = msk.day;
       const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-      const weekStart = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate() - daysToMonday
+
+      // If it's Monday before 6:00, we're still in previous week
+      let adjustedDays = daysToMonday;
+      if (daysToMonday === 0 && msk.hours < DAY_START_HOUR_MSK) {
+        adjustedDays = 7;
+      }
+
+      // Calculate Monday's date using Date arithmetic to handle month/year boundaries
+      const mondayDate = new Date(
+        Date.UTC(msk.year, msk.month, msk.date - adjustedDays)
       );
-      return weekStart.getTime() / 1000;
+
+      return mskToUtcTimestamp(
+        mondayDate.getUTCFullYear(),
+        mondayDate.getUTCMonth(),
+        mondayDate.getUTCDate(),
+        DAY_START_HOUR_MSK
+      );
     }
     case "month": {
-      // Get the start of the current month
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      return monthStart.getTime() / 1000;
+      // Get the start of the current month (1st at 6:00 MSK)
+      // If it's 1st before 6:00, use previous month
+      let { year, month } = msk;
+
+      if (msk.date === 1 && msk.hours < DAY_START_HOUR_MSK) {
+        // Handle year boundary
+        const prevMonth = new Date(Date.UTC(year, month - 1, 1));
+        year = prevMonth.getUTCFullYear();
+        month = prevMonth.getUTCMonth();
+      }
+
+      return mskToUtcTimestamp(year, month, 1, DAY_START_HOUR_MSK);
     }
   }
 }

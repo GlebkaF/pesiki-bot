@@ -75,7 +75,7 @@ async function sendDailyStats(): Promise<void> {
 
 /**
  * Main entry point: Set up cron job and bot commands
- * Cron expression: 55 20 * * * = 20:55 UTC = 23:55 MSK
+ * Cron expression: 0 4 * * * = 04:00 UTC = 07:00 MSK
  */
 async function main(): Promise<void> {
   console.log("🤖 Pesiki Bot starting...");
@@ -86,9 +86,9 @@ async function main(): Promise<void> {
   // Set up /stats command handler
   setupCommands(bot, getFormattedStats);
 
-  // Schedule daily stats at 23:55 MSK (20:55 UTC)
-  console.log("📅 Daily stats scheduled for 23:55 MSK (20:55 UTC)");
-  cron.schedule("55 20 * * *", () => {
+  // Schedule daily stats at 07:00 MSK (04:00 UTC)
+  console.log("📅 Daily stats scheduled for 07:00 MSK (04:00 UTC)");
+  cron.schedule("0 4 * * *", () => {
     sendDailyStats();
   });
 
