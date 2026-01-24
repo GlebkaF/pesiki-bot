@@ -50,7 +50,7 @@ Telegram bot that sends daily Dota 2 win/loss statistics for a group of 7 player
 
 ### Phase 2: Enhancements
 
-- [ ] Add /stats command for manual stats request
+- [x] Add /stats command for manual stats request
 - [ ] Show heroes played in statistics
 - [ ] Add weekly/monthly reports
 - [ ] Display player nicknames instead of IDs

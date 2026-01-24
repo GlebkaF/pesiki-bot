@@ -24,3 +24,7 @@
 - What was done: Created multi-stage Dockerfile with builder stage (installs all deps, compiles TypeScript) and production stage (only production deps, runs compiled JS). Created railway.json with Dockerfile builder configuration and restart policy (ON_FAILURE with max 10 retries). Both files are optimized for Railway free tier deployment.
 - Files changed: Dockerfile (new), railway.json (new), PRD.md
 
+## [2026-01-24 17:15] Task: Add /stats command for manual stats request
+- What was done: Added /stats command handler to the bot. Updated bot.ts with setupCommands() function that registers /stats command with loading indicator, and startBot() function to enable polling. Updated index.ts to use single bot instance for both cron jobs and command handling. Extracted getFormattedStats() function for reuse. Bot now shows "Fetching stats..." message while loading, then replaces it with actual stats.
+- Files changed: src/bot.ts, src/index.ts, PRD.md
+
