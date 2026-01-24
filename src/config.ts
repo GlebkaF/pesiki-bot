@@ -16,6 +16,7 @@ export const PLAYER_IDS = [
   97643532,
   83930539,
   76017871,
+  93253585,
 ] as const;
 
 export const config = {
