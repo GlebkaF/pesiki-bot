@@ -135,8 +135,9 @@ function formatPlayerLine(
   }
 
   const apmStr = stats.avgApm ? ` | APM: ${stats.avgApm}` : "";
+  const kdaStr = stats.avgKda !== undefined ? ` | KDA: ${stats.avgKda}` : "";
   const heroesStr = formatHeroesList(stats.heroes, heroNames);
-  return `${emoji} <b>${displayName}</b>: ${stats.wins}W / ${stats.losses}L (${stats.winRate}%)${apmStr}\n    ${heroesStr}`;
+  return `${emoji} <b>${displayName}</b>: ${stats.wins}W / ${stats.losses}L (${stats.winRate}%)${apmStr}${kdaStr}\n    ${heroesStr}`;
 }
 
 /**
@@ -168,6 +169,7 @@ function calculateTotals(stats: PlayerStats[]): {
   teamWinRate: number;
   playersPlayed: number;
   avgTeamApm: number | null;
+  avgTeamKda: number | null;
 } {
   const totalMatches = stats.reduce((sum, s) => sum + s.totalMatches, 0);
   const totalWins = stats.reduce((sum, s) => sum + s.wins, 0);
@@ -182,7 +184,13 @@ function calculateTotals(stats: PlayerStats[]): {
     ? Math.round(playersWithApm.reduce((sum, s) => sum + (s.avgApm ?? 0), 0) / playersWithApm.length)
     : null;
 
-  return { totalMatches, totalWins, totalLosses, teamWinRate, playersPlayed, avgTeamApm };
+  // Calculate average team KDA from players who have KDA data
+  const playersWithKda = stats.filter((s) => s.avgKda !== undefined);
+  const avgTeamKda = playersWithKda.length > 0
+    ? Math.round(playersWithKda.reduce((sum, s) => sum + (s.avgKda ?? 0), 0) / playersWithKda.length * 100) / 100
+    : null;
+
+  return { totalMatches, totalWins, totalLosses, teamWinRate, playersPlayed, avgTeamApm, avgTeamKda };
 }
 
 /**
@@ -242,6 +250,11 @@ export async function formatStatsMessage(
   // Add average APM if available
   if (totals.avgTeamApm !== null) {
     lines.push(`⌨️ Avg APM: ${totals.avgTeamApm}`);
+  }
+
+  // Add average KDA if available
+  if (totals.avgTeamKda !== null) {
+    lines.push(`⚔️ Avg KDA: ${totals.avgTeamKda}`);
   }
 
   return lines.join("\n");

@@ -14,6 +14,7 @@ export interface PlayerStats {
   winRate: number;
   heroes: HeroMatch[];
   avgApm?: number;
+  avgKda?: number;
 }
 
 export type StatsPeriod = "today" | "yesterday" | "week" | "month";
@@ -205,6 +206,21 @@ export function calculateStats(
     isWin: isWin(match),
   }));
 
+  // Calculate average KDA
+  let avgKda: number | undefined;
+  if (filteredMatches.length > 0) {
+    const totalKills = filteredMatches.reduce((sum, m) => sum + m.kills, 0);
+    const totalDeaths = filteredMatches.reduce((sum, m) => sum + m.deaths, 0);
+    const totalAssists = filteredMatches.reduce((sum, m) => sum + m.assists, 0);
+
+    // KDA = (K + A) / D, or (K + A) if D = 0
+    const kda =
+      totalDeaths > 0
+        ? (totalKills + totalAssists) / totalDeaths
+        : totalKills + totalAssists;
+    avgKda = Math.round(kda * 100) / 100; // Round to 2 decimal places
+  }
+
   return {
     playerId,
     playerName,
@@ -214,5 +230,6 @@ export function calculateStats(
     winRate,
     heroes,
     avgApm,
+    avgKda,
   };
 }

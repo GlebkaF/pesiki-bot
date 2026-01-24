@@ -6,7 +6,7 @@
 import { formatStatsMessage, stripHtml } from "./formatter.js";
 import type { PlayerStats } from "./stats.js";
 
-// Mock data to test formatting with heroes and APM
+// Mock data to test formatting with heroes, APM, and KDA
 // Hero IDs: 1=Anti-Mage, 2=Axe, 3=Bane, 4=Bloodseeker, 5=Crystal Maiden, 6=Drow Ranger
 const mockStats: PlayerStats[] = [
   {
@@ -25,6 +25,7 @@ const mockStats: PlayerStats[] = [
       { heroId: 6, isWin: false },
     ],
     avgApm: 185,
+    avgKda: 4.25,
   },
   {
     playerId: 167818283,
@@ -42,6 +43,7 @@ const mockStats: PlayerStats[] = [
       { heroId: 6, isWin: false },
     ],
     avgApm: 142,
+    avgKda: 2.8,
   },
   {
     playerId: 94014640,
@@ -58,6 +60,7 @@ const mockStats: PlayerStats[] = [
       { heroId: 5, isWin: true },
     ],
     avgApm: 98,
+    avgKda: 1.95,
   },
   {
     playerId: 1869377945,
@@ -81,6 +84,7 @@ const mockStats: PlayerStats[] = [
       { heroId: 3, isWin: false },
     ],
     avgApm: 156,
+    avgKda: 3.5,
   },
   {
     playerId: 92126977,
@@ -94,6 +98,7 @@ const mockStats: PlayerStats[] = [
       { heroId: 2, isWin: false },
     ],
     avgApm: 112,
+    avgKda: 1.2,
   },
   {
     playerId: 40087920,
@@ -145,6 +150,8 @@ async function runTests() {
     { name: "Does not show player IDs", pass: !message.includes("93921511") },
     { name: "Has APM for players", pass: message.includes("APM:") },
     { name: "Has average team APM", pass: message.includes("Avg APM:") },
+    { name: "Has KDA for players", pass: message.includes("KDA:") },
+    { name: "Has average team KDA", pass: message.includes("Avg KDA:") },
   ];
 
   console.log("Verification checks:");
