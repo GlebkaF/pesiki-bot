@@ -52,12 +52,23 @@ export async function fetchPlayerProfile(
 
 /**
  * Fetches recent matches for a player from OpenDota API
- * Returns last 20 matches
+ * Uses /matches endpoint with date filter for period-based queries
+ * @param accountId - Steam32 account ID
+ * @param days - Number of days to fetch matches for (default: 1 for today)
  */
 export async function fetchRecentMatches(
-  accountId: number
+  accountId: number,
+  days?: number
 ): Promise<RecentMatch[]> {
-  const url = `${OPENDOTA_API_BASE}/players/${accountId}/recentMatches`;
+  let url: string;
+
+  if (days !== undefined && days > 1) {
+    // Use /matches endpoint for longer periods (supports more than 20 matches)
+    url = `${OPENDOTA_API_BASE}/players/${accountId}/matches?date=${days}`;
+  } else {
+    // Use /recentMatches for today/yesterday (faster, limited to 20)
+    url = `${OPENDOTA_API_BASE}/players/${accountId}/recentMatches`;
+  }
 
   const response = await fetch(url);
 

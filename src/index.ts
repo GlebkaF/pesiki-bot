@@ -98,18 +98,36 @@ async function getPlayerAvgApm(playerId: number): Promise<number | undefined> {
 }
 
 /**
+ * Returns number of days to fetch matches for based on period
+ * Returns undefined to use default /recentMatches endpoint (faster, limited to 20)
+ */
+function getDaysForPeriod(period: StatsPeriod): number | undefined {
+  switch (period) {
+    case "today":
+    case "yesterday":
+      return undefined; // Use fast /recentMatches (20 is enough for 1-2 days)
+    case "week":
+      return 8; // Extra day margin for timezone edge cases
+    case "month":
+      return 32; // Extra day margin for timezone edge cases
+  }
+}
+
+/**
  * Fetches stats for all configured players for a given period
  */
 async function fetchAllPlayersStats(
   period: StatsPeriod = "today"
 ): Promise<PlayerStats[]> {
+  const days = getDaysForPeriod(period);
+  
   const statsPromises = PLAYER_IDS.map(async (playerId) => {
     console.log(`Fetching data for player ${playerId}...`);
     
     // Fetch profile, matches, and APM in parallel
     const [playerName, matches, avgApm] = await Promise.all([
       getPlayerName(playerId),
-      fetchRecentMatches(playerId),
+      fetchRecentMatches(playerId, days),
       getPlayerAvgApm(playerId),
     ]);
     
