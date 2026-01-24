@@ -350,17 +350,19 @@ function calculateNominations(
     value: `${loser.winRate}% WR`,
   });
 
-  // 2. Фидер (⚰️) - most deaths
+  // 2. Фидер (⚰️) - most deaths per game
   const sortedByDeaths = sortWithTiebreaker(
     activePlayers,
-    (p) => p.totalDeaths
+    (p) => p.totalDeaths / p.totalMatches
   );
   const feeder = sortedByDeaths[0];
+  const deathsPerGame =
+    Math.round((feeder.totalDeaths / feeder.totalMatches) * 10) / 10;
   nominations.push({
     title: "Фидер",
     emoji: "⚰️",
     player: feeder,
-    value: `${feeder.totalDeaths} смертей`,
+    value: `${deathsPerGame} смертей/игра`,
   });
 
   // 3. Тащер (💪) - best KDA
@@ -395,7 +397,7 @@ function calculateNominations(
     });
   }
 
-  // 5. Бот (🤖) - lowest (kills + assists) per game
+  // 5. Бот (🤖) - lowest (kills + assists) per game, only if < 10
   const sortedByParticipation = sortWithTiebreaker(
     activePlayers,
     (p) => (p.totalKills + p.totalAssists) / p.totalMatches,
@@ -405,12 +407,15 @@ function calculateNominations(
   const avgKillsAssists =
     Math.round(((bot.totalKills + bot.totalAssists) / bot.totalMatches) * 10) /
     10;
-  nominations.push({
-    title: "Бот",
-    emoji: "🤖",
-    player: bot,
-    value: `${avgKillsAssists} K+A за игру`,
-  });
+  // Only award if truly low participation (< 10 K+A per game)
+  if (avgKillsAssists < 10) {
+    nominations.push({
+      title: "Бот",
+      emoji: "🤖",
+      player: bot,
+      value: `${avgKillsAssists} K+A за игру`,
+    });
+  }
 
   // 6. Задрот (🎮) - most matches
   const sortedByMatches = sortWithTiebreaker(
