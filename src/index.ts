@@ -76,30 +76,15 @@ async function getPlayerName(playerId: number): Promise<string> {
 }
 
 /**
- * Converts StatsPeriod to date parameter for OpenDota API
- * Returns number of days to look back
- */
-function getPeriodDateParam(period: StatsPeriod): number {
-  switch (period) {
-    case "today":
-      return 1;
-    case "yesterday":
-      return 2; // Includes yesterday and today
-    case "week":
-      return 7;
-    case "month":
-      return 30;
-  }
-}
-
-/**
  * Fetches average APM for a player from OpenDota totals
+ * Note: APM is only available for parsed matches, so we fetch all-time average
+ * (filtering by date returns empty data since recent matches are rarely parsed)
  * Returns undefined if APM data is not available
  */
-async function getPlayerAvgApm(playerId: number, period: StatsPeriod): Promise<number | undefined> {
+async function getPlayerAvgApm(playerId: number): Promise<number | undefined> {
   try {
-    const dateParam = getPeriodDateParam(period);
-    const totals = await fetchPlayerTotals(playerId, dateParam);
+    // Fetch all-time totals (no date filter) because APM requires parsed matches
+    const totals = await fetchPlayerTotals(playerId);
     const apmTotal = totals.find((t) => t.field === "actions_per_min");
     
     if (apmTotal && apmTotal.n > 0) {
@@ -125,7 +110,7 @@ async function fetchAllPlayersStats(
     const [playerName, matches, avgApm] = await Promise.all([
       getPlayerName(playerId),
       fetchRecentMatches(playerId),
-      getPlayerAvgApm(playerId, period),
+      getPlayerAvgApm(playerId),
     ]);
     
     console.log(`  Player: ${playerName}, Found ${matches.length} recent matches, APM: ${avgApm ?? "N/A"}`);
