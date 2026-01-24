@@ -20,6 +20,11 @@ function getPeriodTitle(period: StatsPeriod): string {
   switch (period) {
     case "today":
       return formatDate(now);
+    case "yesterday": {
+      const yesterday = new Date(now);
+      yesterday.setDate(now.getDate() - 1);
+      return formatDate(yesterday);
+    }
     case "week": {
       // Get Monday of current week
       const dayOfWeek = now.getDay();

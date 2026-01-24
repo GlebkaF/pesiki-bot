@@ -114,7 +114,7 @@ async function sendDailyStats(): Promise<void> {
   console.log(`[${new Date().toISOString()}] Sending daily stats...`);
 
   try {
-    const message = await getFormattedStats();
+    const message = await getFormattedStats("yesterday");
 
     // Print to console
     console.log("\n" + stripHtml(message) + "\n");

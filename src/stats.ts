@@ -15,7 +15,7 @@ export interface PlayerStats {
   heroes: HeroMatch[];
 }
 
-export type StatsPeriod = "today" | "week" | "month";
+export type StatsPeriod = "today" | "yesterday" | "week" | "month";
 
 /**
  * Determines if the player won the match
@@ -92,6 +92,20 @@ function getPeriodStartTimestamp(period: StatsPeriod): number {
 
       return mskToUtcTimestamp(year, month, date, DAY_START_HOUR_MSK);
     }
+    case "yesterday": {
+      // Yesterday: from 6:00 MSK of the day before "today"
+      // If current MSK time is before 6:00, go back 2 days, otherwise 1 day
+      const { year, month, date } = msk;
+      const daysBack = msk.hours < DAY_START_HOUR_MSK ? 2 : 1;
+      const prevDay = new Date(Date.UTC(year, month, date - daysBack));
+
+      return mskToUtcTimestamp(
+        prevDay.getUTCFullYear(),
+        prevDay.getUTCMonth(),
+        prevDay.getUTCDate(),
+        DAY_START_HOUR_MSK
+      );
+    }
     case "week": {
       // Get the start of the current week (Monday at 6:00 MSK)
       const dayOfWeek = msk.day;
@@ -133,6 +147,16 @@ function getPeriodStartTimestamp(period: StatsPeriod): number {
 }
 
 /**
+ * Gets the end timestamp for a given period (exclusive)
+ * Returns null for periods that don't have an upper bound (today, week, month)
+ * Returns today's start for "yesterday" period
+ */
+function getPeriodEndTimestamp(period: StatsPeriod): number | null {
+  if (period !== "yesterday") return null;
+  return getPeriodStartTimestamp("today");
+}
+
+/**
  * Filters matches to only include those from the specified period
  */
 function filterMatchesByPeriod(
@@ -140,7 +164,13 @@ function filterMatchesByPeriod(
   period: StatsPeriod
 ): RecentMatch[] {
   const periodStart = getPeriodStartTimestamp(period);
-  return matches.filter((match) => match.start_time >= periodStart);
+  const periodEnd = getPeriodEndTimestamp(period);
+
+  return matches.filter((match) => {
+    if (match.start_time < periodStart) return false;
+    if (periodEnd !== null && match.start_time >= periodEnd) return false;
+    return true;
+  });
 }
 
 /**
