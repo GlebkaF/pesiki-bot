@@ -188,8 +188,8 @@ async function main(): Promise<void> {
   // Set up /stats command handler with callback to track commands
   setupCommands(bot, getFormattedStats, incrementCommandCounter);
 
-  // Schedule daily stats at 07:00 MSK (04:00 UTC)
-  console.log("📅 Daily stats scheduled for 07:00 MSK (04:00 UTC)");
+  // 0 4 = 0 4 MSK for some reason in railway
+  console.log("📅 Daily stats scheduled for 04:00 MSK (01:00 UTC)");
   cron.schedule("0 4 * * *", () => {
     sendDailyStats();
   });
