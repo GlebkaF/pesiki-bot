@@ -172,7 +172,7 @@ async function runTests() {
   const checks = [
     { name: "Has date header", pass: message.includes("Dota Stats for") },
     { name: "Has fire emoji for 75%+", pass: message.includes("🔥") },
-    { name: "Has check emoji for 50%+", pass: message.includes("✅") },
+    { name: "Has star emoji for 50%+", pass: message.includes("⭐") },
     { name: "Has skull emoji for low rate", pass: message.includes("💀") },
     { name: "Has sleep emoji for inactive", pass: message.includes("😴") },
     { name: "Has team summary", pass: message.includes("Team Summary") },
@@ -193,8 +193,6 @@ async function runTests() {
     { name: "Has team APM in summary", pass: /APM: \d+/.test(message) },
     { name: "Has KDA for players", pass: message.includes("KDA:") },
     { name: "Has team KDA in summary", pass: /KDA: [\d.]+/.test(message) },
-    { name: "Has progress bar", pass: message.includes("█") && message.includes("░") },
-    { name: "Has best hero marker", pass: message.includes("⭐") },
     { name: "Has inactive players line", pass: message.includes("Не играли:") },
     // Nominations checks
     { name: "Has nominations section", pass: message.includes("🏆") && message.includes("Номинации") },
