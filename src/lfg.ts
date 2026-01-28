@@ -18,6 +18,10 @@ const lastNotificationTime = new Map<number, number>();
 // Track previous "in Dota" state to detect transitions
 const wasPlayingDota = new Map<number, boolean>();
 
+// Warm-up flag: first poll only records state, doesn't send notifications
+// This prevents spam when bot restarts while players are already in Dota
+let isWarmupComplete = false;
+
 // Stats for health logging
 let pollCount = 0;
 let notificationsSent = 0;
@@ -127,6 +131,27 @@ async function checkPlayersAndNotify(bot: Bot, chatId: string): Promise<void> {
 
   try {
     const players = await getPlayerSummaries(PLAYER_IDS, config.steamApiKey);
+
+    // During warm-up phase, only record current state without sending notifications
+    // This prevents spam when bot restarts while players are already in Dota
+    if (!isWarmupComplete) {
+      console.log("[LFG] Warm-up phase: recording initial player states");
+      for (const [playerId, player] of players) {
+        const isInDota = isPlayingDota(player);
+        wasPlayingDota.set(playerId, isInDota);
+        if (isInDota) {
+          // Also set cooldown for players already in Dota to prevent immediate notification
+          // if they briefly disconnect and reconnect
+          lastNotificationTime.set(playerId, Date.now());
+          console.log(
+            `[LFG] ${player.personaname} already in Dota, setting cooldown`,
+          );
+        }
+      }
+      isWarmupComplete = true;
+      console.log("[LFG] Warm-up complete, notifications enabled");
+      return;
+    }
 
     for (const [playerId, player] of players) {
       const isInDota = isPlayingDota(player);
