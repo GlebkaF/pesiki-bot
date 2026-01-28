@@ -22,4 +22,5 @@ export const PLAYER_IDS = [
 export const config = {
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN ?? "",
   telegramChatId: process.env.TELEGRAM_CHAT_ID ?? "",
+  steamApiKey: process.env.STEAM_API_KEY ?? "",
 };

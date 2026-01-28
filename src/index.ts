@@ -1,9 +1,10 @@
 import cron from "node-cron";
-import { PLAYER_IDS } from "./config.js";
+import { config, PLAYER_IDS } from "./config.js";
 import { fetchRecentMatches, fetchPlayerProfile, fetchPlayerTotals } from "./opendota.js";
 import { calculateStats, type PlayerStats, type StatsPeriod } from "./stats.js";
 import { createBot, sendMessage, setupCommands, startBot } from "./bot.js";
 import { formatStatsMessage, stripHtml } from "./formatter.js";
+import { startLfgPolling, getLfgStats } from "./lfg.js";
 
 // Health check configuration
 const HEALTH_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -39,10 +40,12 @@ function logHealthCheck(): void {
   const uptime = Date.now() - startTime;
   const memUsage = process.memoryUsage();
   const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+  const lfgStats = getLfgStats();
   
   console.log(
     `[HEALTH] ✅ Bot alive | Uptime: ${formatUptime(uptime)} | ` +
     `Commands: ${commandsReceived} | Daily stats sent: ${dailyStatsSent} | ` +
+    `LFG polls: ${lfgStats.pollCount} | LFG notifications: ${lfgStats.notificationsSent} | ` +
     `Memory: ${heapUsedMB}MB`
   );
 }
@@ -187,6 +190,11 @@ async function main(): Promise<void> {
 
   // Set up /stats command handler with callback to track commands
   setupCommands(bot, getFormattedStats, incrementCommandCounter);
+
+  // Start LFG polling (detect when players launch Dota 2)
+  if (config.telegramChatId) {
+    startLfgPolling(bot, config.telegramChatId);
+  }
 
   // 0 6 = 0 6 MSK for some reason in railway
   console.log("📅 Daily stats scheduled for 06:00 MSK (03:00 UTC)");
