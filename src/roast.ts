@@ -177,7 +177,7 @@ function calculateLosingStreak(matches: RecentMatch[]): number {
  * Finds the most played hero in matches
  */
 async function findMostPlayedHero(
-  matches: RecentMatch[]
+  matches: RecentMatch[],
 ): Promise<RoastCandidate["stats"]["mostPlayedHero"]> {
   if (matches.length === 0) return null;
 
@@ -352,7 +352,7 @@ function calculateRoastScore(stats: RoastCandidate["stats"]): {
  * Collects stats for a single player
  */
 async function collectPlayerStats(
-  playerId: number
+  playerId: number,
 ): Promise<RoastCandidate | null> {
   try {
     const [profile, matches] = await Promise.all([
@@ -436,7 +436,7 @@ async function collectAllCandidates(): Promise<RoastCandidate[]> {
       candidates.push(candidate);
       console.log(
         `[ROAST] ${candidate.playerName}: score=${candidate.roastScore.toFixed(1)}, ` +
-          `reasons=${candidate.reasons.map((r) => r.category).join(",") || "none"}`
+          `reasons=${candidate.reasons.map((r) => r.category).join(",") || "none"}`,
       );
     }
   }
@@ -451,10 +451,7 @@ async function collectAllCandidates(): Promise<RoastCandidate[]> {
 /**
  * Selects a roast template based on category and deterministic index
  */
-function selectTemplate(
-  category: RoastCategory,
-  playerId: number
-): string {
+function selectTemplate(category: RoastCategory, playerId: number): string {
   const templates = ROAST_TEMPLATES[category];
   const dayOfYear = getDayOfYear();
   const index = (playerId + dayOfYear) % templates.length;
@@ -464,13 +461,17 @@ function selectTemplate(
 /**
  * Fills template with actual data
  */
-function fillTemplate(template: string, data: Record<string, string | number>, playerName: string): string {
+function fillTemplate(
+  template: string,
+  data: Record<string, string | number>,
+  playerName: string,
+): string {
   let result = template.replace(/{name}/g, playerName);
-  
+
   for (const [key, value] of Object.entries(data)) {
     result = result.replace(new RegExp(`{${key}}`, "g"), String(value));
   }
-  
+
   return result;
 }
 
@@ -480,7 +481,7 @@ function fillTemplate(template: string, data: Record<string, string | number>, p
 function buildRoast(candidate: RoastCandidate): RoastResult {
   // Find the most severe reason
   const sortedReasons = [...candidate.reasons].sort(
-    (a, b) => b.severity - a.severity
+    (a, b) => b.severity - a.severity,
   );
   const primaryReason = sortedReasons[0];
 
@@ -500,7 +501,11 @@ function buildRoast(candidate: RoastCandidate): RoastResult {
   }
 
   const template = selectTemplate(primaryReason.category, candidate.playerId);
-  const roastText = fillTemplate(template, primaryReason.data, candidate.playerName);
+  const roastText = fillTemplate(
+    template,
+    primaryReason.data,
+    candidate.playerName,
+  );
 
   return {
     playerId: candidate.playerId,
@@ -520,7 +525,7 @@ function buildRoast(candidate: RoastCandidate): RoastResult {
  */
 function hasRealPoints(candidate: RoastCandidate): boolean {
   return candidate.reasons.some(
-    (r) => r.category !== "normie" && r.category !== "ghost"
+    (r) => r.category !== "normie" && r.category !== "ghost",
   );
 }
 
@@ -529,20 +534,20 @@ function hasRealPoints(candidate: RoastCandidate): boolean {
  * Priority: players with real points (not ghost) > everyone else
  */
 async function generateNewRoast(
-  excludePlayerId: number | null
+  excludePlayerId: number | null,
 ): Promise<RoastResult> {
   const candidates = await collectAllCandidates();
 
   // Filter out excluded player
   const available = candidates.filter((c) => c.playerId !== excludePlayerId);
-  
+
   if (available.length === 0) {
     throw new Error("No candidates found for roasting");
   }
 
   // Try to find players with real points (loser, feeder, bot, tilter, one_trick)
   const withPoints = available.filter(hasRealPoints);
-  
+
   // Use players with points if any, otherwise all
   const pool = withPoints.length > 0 ? withPoints : available;
   const poolName = withPoints.length > 0 ? "with points" : "all";
@@ -552,7 +557,7 @@ async function generateNewRoast(
   const victim = pool[randomIndex];
 
   console.log(
-    `[ROAST] Selected from ${poolName} (${pool.length}): ${victim.playerName} (score=${victim.roastScore.toFixed(1)})`
+    `[ROAST] Selected from ${poolName} (${pool.length}): ${victim.playerName} (score=${victim.roastScore.toFixed(1)})`,
   );
 
   return buildRoast(victim);
@@ -592,7 +597,7 @@ export async function getRoastOfTheDay(): Promise<RoastResult> {
  * Bypasses daily cache
  */
 export async function generateRoastWithExclusion(
-  excludePlayerId: number | null
+  excludePlayerId: number | null,
 ): Promise<RoastResult> {
   return generateNewRoast(excludePlayerId);
 }
@@ -609,7 +614,7 @@ export function formatRoastMessage(roast: RoastResult): string {
   // Add stats if player has matches
   if (roast.stats.wins + roast.stats.losses > 0) {
     lines.push(
-      `📊 Последние 10 игр: ${roast.stats.wins}W/${roast.stats.losses}L (${roast.stats.winRate}% WR)`
+      `📊 Последние 10 игр: ${roast.stats.wins}W/${roast.stats.losses}L (${roast.stats.winRate}% WR)`,
     );
     lines.push(`💀 В среднем ${roast.stats.avgDeaths} смертей за игру`);
     lines.push("");

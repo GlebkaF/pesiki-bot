@@ -33,13 +33,27 @@ async function handleStatsCommand(
   ctx: CommandContext<Context>,
   period: StatsPeriod,
   fetchStatsHandler: (period: StatsPeriod) => Promise<string>,
-  onCommandReceived?: () => void
+  onCommandReceived?: () => void,
 ): Promise<void> {
-  const periodLabel = period === "today" ? "daily" : period === "yesterday" ? "yesterday's" : period === "week" ? "weekly" : "monthly";
-  const commandName = period === "today" ? "stats" : period === "yesterday" ? "yesterday" : period === "week" ? "weekly" : "monthly";
+  const periodLabel =
+    period === "today"
+      ? "daily"
+      : period === "yesterday"
+        ? "yesterday's"
+        : period === "week"
+          ? "weekly"
+          : "monthly";
+  const commandName =
+    period === "today"
+      ? "stats"
+      : period === "yesterday"
+        ? "yesterday"
+        : period === "week"
+          ? "weekly"
+          : "monthly";
 
   console.log(
-    `[${new Date().toISOString()}] /${commandName} command received from user ${ctx.from?.id}`
+    `[${new Date().toISOString()}] /${commandName} command received from user ${ctx.from?.id}`,
   );
 
   // Track command for health monitoring
@@ -61,7 +75,9 @@ async function handleStatsCommand(
       link_preview_options: { is_disabled: true },
     });
 
-    console.log(`[${new Date().toISOString()}] /${commandName} command completed`);
+    console.log(
+      `[${new Date().toISOString()}] /${commandName} command completed`,
+    );
   } catch (error) {
     console.error(`[ERROR] Failed to handle /${commandName} command:`, error);
     await ctx.reply("❌ Error fetching stats. Please try again later.");
@@ -73,10 +89,10 @@ async function handleStatsCommand(
  */
 async function handleRoastCommand(
   ctx: CommandContext<Context>,
-  onCommandReceived?: () => void
+  onCommandReceived?: () => void,
 ): Promise<void> {
   console.log(
-    `[${new Date().toISOString()}] /roast command received from user ${ctx.from?.id}`
+    `[${new Date().toISOString()}] /roast command received from user ${ctx.from?.id}`,
   );
 
   if (onCommandReceived) {
@@ -98,7 +114,9 @@ async function handleRoastCommand(
       link_preview_options: { is_disabled: true },
     });
 
-    console.log(`[${new Date().toISOString()}] /roast command completed - victim: ${roast.playerName}`);
+    console.log(
+      `[${new Date().toISOString()}] /roast command completed - victim: ${roast.playerName}`,
+    );
   } catch (error) {
     console.error("[ERROR] Failed to handle /roast command:", error);
     await ctx.reply("❌ Не удалось найти кого прожарить. Попробуй позже.");
@@ -114,19 +132,27 @@ async function handleRoastCommand(
 export function setupCommands(
   bot: Bot,
   fetchStatsHandler: (period: StatsPeriod) => Promise<string>,
-  onCommandReceived?: () => void
+  onCommandReceived?: () => void,
 ): void {
   // Register /stats command (today's stats)
-  bot.command("stats", (ctx) => handleStatsCommand(ctx, "today", fetchStatsHandler, onCommandReceived));
+  bot.command("stats", (ctx) =>
+    handleStatsCommand(ctx, "today", fetchStatsHandler, onCommandReceived),
+  );
 
   // Register /yesterday command
-  bot.command("yesterday", (ctx) => handleStatsCommand(ctx, "yesterday", fetchStatsHandler, onCommandReceived));
+  bot.command("yesterday", (ctx) =>
+    handleStatsCommand(ctx, "yesterday", fetchStatsHandler, onCommandReceived),
+  );
 
   // Register /weekly command
-  bot.command("weekly", (ctx) => handleStatsCommand(ctx, "week", fetchStatsHandler, onCommandReceived));
+  bot.command("weekly", (ctx) =>
+    handleStatsCommand(ctx, "week", fetchStatsHandler, onCommandReceived),
+  );
 
   // Register /monthly command
-  bot.command("monthly", (ctx) => handleStatsCommand(ctx, "month", fetchStatsHandler, onCommandReceived));
+  bot.command("monthly", (ctx) =>
+    handleStatsCommand(ctx, "month", fetchStatsHandler, onCommandReceived),
+  );
 
   // Register /roast command
   bot.command("roast", (ctx) => handleRoastCommand(ctx, onCommandReceived));

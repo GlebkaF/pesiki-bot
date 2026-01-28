@@ -9,7 +9,7 @@ import { generateRoastWithExclusion, formatRoastMessage } from "./src/roast.js";
 
 async function main(): Promise<void> {
   // Parse --exclude argument
-  const excludeArg = process.argv.find(arg => arg.startsWith("--exclude="));
+  const excludeArg = process.argv.find((arg) => arg.startsWith("--exclude="));
   const excludeId = excludeArg ? parseInt(excludeArg.split("=")[1], 10) : null;
 
   if (excludeId) {
