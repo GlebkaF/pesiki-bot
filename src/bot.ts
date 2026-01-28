@@ -1,6 +1,7 @@
 import { Bot, type CommandContext, type Context } from "grammy";
 import { config } from "./config.js";
 import type { StatsPeriod } from "./stats.js";
+import { getRoastOfTheDay, formatRoastMessage } from "./roast.js";
 
 /**
  * Creates and returns a configured Telegram bot instance
@@ -68,6 +69,43 @@ async function handleStatsCommand(
 }
 
 /**
+ * Handles the /roast command
+ */
+async function handleRoastCommand(
+  ctx: CommandContext<Context>,
+  onCommandReceived?: () => void
+): Promise<void> {
+  console.log(
+    `[${new Date().toISOString()}] /roast command received from user ${ctx.from?.id}`
+  );
+
+  if (onCommandReceived) {
+    onCommandReceived();
+  }
+
+  try {
+    // Send "loading" message
+    const loadingMsg = await ctx.reply("🔥 Ищу кого прожарить...");
+
+    // Get roast of the day
+    const roast = await getRoastOfTheDay();
+    const message = formatRoastMessage(roast);
+
+    // Delete loading message and send roast
+    await ctx.api.deleteMessage(ctx.chat.id, loadingMsg.message_id);
+    await ctx.reply(message, {
+      parse_mode: "HTML",
+      link_preview_options: { is_disabled: true },
+    });
+
+    console.log(`[${new Date().toISOString()}] /roast command completed - victim: ${roast.playerName}`);
+  } catch (error) {
+    console.error("[ERROR] Failed to handle /roast command:", error);
+    await ctx.reply("❌ Не удалось найти кого прожарить. Попробуй позже.");
+  }
+}
+
+/**
  * Sets up bot commands and handlers
  * @param bot - The bot instance
  * @param fetchStatsHandler - Handler function that fetches and returns formatted stats message for a period
@@ -90,12 +128,16 @@ export function setupCommands(
   // Register /monthly command
   bot.command("monthly", (ctx) => handleStatsCommand(ctx, "month", fetchStatsHandler, onCommandReceived));
 
+  // Register /roast command
+  bot.command("roast", (ctx) => handleRoastCommand(ctx, onCommandReceived));
+
   // Set bot commands menu
   bot.api.setMyCommands([
     { command: "stats", description: "Get today's Dota 2 stats" },
     { command: "yesterday", description: "Get yesterday's Dota 2 stats" },
     { command: "weekly", description: "Get this week's Dota 2 stats" },
     { command: "monthly", description: "Get this month's Dota 2 stats" },
+    { command: "roast", description: "Roast the worst player of the day" },
   ]);
 }
 
