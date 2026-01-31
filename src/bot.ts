@@ -2,6 +2,7 @@ import { Bot, type CommandContext, type Context } from "grammy";
 import { config } from "./config.js";
 import type { StatsPeriod } from "./stats.js";
 import { getRoastOfTheDay, formatRoastMessage } from "./roast.js";
+import { analyzeLastMatch } from "./analyze.js";
 
 /**
  * Creates and returns a configured Telegram bot instance
@@ -124,6 +125,42 @@ async function handleRoastCommand(
 }
 
 /**
+ * Handles the /analyze command - AI analysis of last match
+ */
+async function handleAnalyzeCommand(
+  ctx: CommandContext<Context>,
+  onCommandReceived?: () => void,
+): Promise<void> {
+  console.log(
+    `[${new Date().toISOString()}] /analyze command received from user ${ctx.from?.id}`,
+  );
+
+  if (onCommandReceived) {
+    onCommandReceived();
+  }
+
+  try {
+    // Send "loading" message
+    const loadingMsg = await ctx.reply("🔬 Анализирую последний матч...");
+
+    // Get analysis
+    const analysis = await analyzeLastMatch();
+
+    // Delete loading message and send analysis
+    await ctx.api.deleteMessage(ctx.chat.id, loadingMsg.message_id);
+    await ctx.reply(analysis, {
+      parse_mode: "HTML",
+      link_preview_options: { is_disabled: true },
+    });
+
+    console.log(`[${new Date().toISOString()}] /analyze command completed`);
+  } catch (error) {
+    console.error("[ERROR] Failed to handle /analyze command:", error);
+    await ctx.reply("❌ Не удалось проанализировать матч. Попробуй позже.");
+  }
+}
+
+/**
  * Sets up bot commands and handlers
  * @param bot - The bot instance
  * @param fetchStatsHandler - Handler function that fetches and returns formatted stats message for a period
@@ -157,6 +194,9 @@ export function setupCommands(
   // Register /roast command
   bot.command("roast", (ctx) => handleRoastCommand(ctx, onCommandReceived));
 
+  // Register /analyze command
+  bot.command("analyze", (ctx) => handleAnalyzeCommand(ctx, onCommandReceived));
+
   // Set bot commands menu
   bot.api.setMyCommands([
     { command: "stats", description: "Get today's Dota 2 stats" },
@@ -164,6 +204,7 @@ export function setupCommands(
     { command: "weekly", description: "Get this week's Dota 2 stats" },
     { command: "monthly", description: "Get this month's Dota 2 stats" },
     { command: "roast", description: "Roast the worst player of the day" },
+    { command: "analyze", description: "AI analysis of last match" },
   ]);
 }
 
