@@ -17,10 +17,10 @@ export interface Player {
  */
 export const PLAYERS: Player[] = [
   { steamId: 93921511,   dotaName: "Unclead",      telegramId: undefined },
-  { steamId: 167818283,  dotaName: "MOX",          telegramId: undefined },
-  { steamId: 94014640,   dotaName: "СделкаУтка",  telegramId: undefined },
-  { steamId: 1869377945, dotaName: "zladey",       telegramId: undefined },
-  { steamId: 126449680,  dotaName: "Marinad",      telegramId: undefined },
+  { steamId: 167818283,  dotaName: "MOX",          telegramId: 55087818, telegramUsername: "alexkim87" },
+  { steamId: 94014640,   dotaName: "СделкаУтка",  telegramId: 455412364, telegramUsername: "loothood" },
+  { steamId: 1869377945, dotaName: "zladey",       telegramId: 1152640, telegramUsername: "glebkaF" },
+  { steamId: 126449680,  dotaName: "Marinad",      telegramId: 44083057, telegramUsername: "marinerius" },
   { steamId: 92126977,   dotaName: "Stronk doto",  telegramId: undefined },
   { steamId: 40087920,   dotaName: "mightyBO",     telegramId: undefined },
   { steamId: 178693086,  dotaName: "Curiosity",    telegramId: undefined },
