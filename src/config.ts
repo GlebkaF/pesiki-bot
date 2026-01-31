@@ -23,7 +23,7 @@ export const PLAYERS: Player[] = [
   { steamId: 126449680,  dotaName: "Marinad",      telegramId: 44083057, telegramUsername: "marinerius" },
   { steamId: 92126977,   dotaName: "Stronk doto",  telegramId: 121460076 },
   { steamId: 40087920,   dotaName: "mightyBO",     telegramId: 278234366 },
-  { steamId: 178693086,  dotaName: "Curiosity",    telegramId: undefined },
+  { steamId: 178693086,  dotaName: "Curiosity",    telegramId: 572881360 },
   { steamId: 97643532,   dotaName: "Aoba",         telegramId: 416994035 },
   { steamId: 83930539,   dotaName: "Shootema",     telegramId: 439811056 },
   { steamId: 76017871,   dotaName: "vedpo",        telegramId: 44310713 },
