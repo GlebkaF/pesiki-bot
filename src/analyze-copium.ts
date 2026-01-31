@@ -3,6 +3,7 @@ import { PLAYER_IDS } from "./config.js";
 import { fetchRecentMatches, fetchPlayerProfile } from "./opendota.js";
 import { getHeroName } from "./heroes.js";
 import { getItemNames } from "./items.js";
+import { getRankName } from "./ranks.js";
 
 const OPENDOTA_API_BASE = "https://api.opendota.com/api";
 
@@ -80,6 +81,7 @@ interface MatchPlayer {
   isRadiant: boolean;
   win: number;
   kda: number;
+  rank_tier?: number | null;
   lane?: number | null;
   lane_role?: number | null;
   is_roaming?: boolean | null;
@@ -260,13 +262,14 @@ ECONOMY (our team perspective):
     const hero = heroNames.get(p.hero_id) || "Unknown";
     const name = p.personaname || "Anonymous";
     const items = playerItems.get(p.player_slot) || "None";
+    const rank = getRankName(p.rank_tier);
     
     let marker = "";
     if (role === "our") marker = "⭐ [OUR PLAYER - PRAISE THEM] ";
     else if (role === "random_ally") marker = "🤷 [RANDOM ALLY - FIND THEIR MISTAKES] ";
     else marker = "⚔️ [ENEMY - ACKNOWLEDGE IF STRONG] ";
     
-    let info = `${marker}${name} (${hero})
+    let info = `${marker}${name} (${hero})${rank ? ` [${rank}]` : ""}
     • KDA: ${p.kills}/${p.deaths}/${p.assists} (${p.kda.toFixed(2)})
     • GPM: ${p.gold_per_min} | XPM: ${p.xp_per_min} | NW: ${p.net_worth.toLocaleString()}
     • Hero Damage: ${p.hero_damage.toLocaleString()} | Tower: ${p.tower_damage.toLocaleString()}

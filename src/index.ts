@@ -65,16 +65,19 @@ function incrementDailyStatsCounter(): void {
 }
 
 /**
- * Fetches player nickname from OpenDota API
- * Falls back to player ID if nickname is not available
+ * Fetches player profile data from OpenDota API
+ * Returns name and rank tier
  */
-async function getPlayerName(playerId: number): Promise<string> {
+async function getPlayerProfileData(playerId: number): Promise<{ name: string; rank: number | null }> {
   try {
     const playerData = await fetchPlayerProfile(playerId);
-    return playerData.profile?.personaname || String(playerId);
+    return {
+      name: playerData.profile?.personaname || String(playerId),
+      rank: playerData.rank_tier ?? null,
+    };
   } catch (error) {
     console.warn(`Failed to fetch profile for player ${playerId}:`, error);
-    return String(playerId);
+    return { name: String(playerId), rank: null };
   }
 }
 
@@ -128,14 +131,14 @@ async function fetchAllPlayersStats(
     console.log(`Fetching data for player ${playerId}...`);
     
     // Fetch profile, matches, and APM in parallel
-    const [playerName, matches, avgApm] = await Promise.all([
-      getPlayerName(playerId),
+    const [profileData, matches, avgApm] = await Promise.all([
+      getPlayerProfileData(playerId),
       fetchRecentMatches(playerId, days),
       getPlayerAvgApm(playerId),
     ]);
     
-    console.log(`  Player: ${playerName}, Found ${matches.length} recent matches, APM: ${avgApm ?? "N/A"}`);
-    return calculateStats(playerId, playerName, matches, period, avgApm);
+    console.log(`  Player: ${profileData.name}, Found ${matches.length} recent matches, APM: ${avgApm ?? "N/A"}, Rank: ${profileData.rank ?? "N/A"}`);
+    return calculateStats(playerId, profileData.name, matches, period, avgApm, profileData.rank);
   });
 
   return Promise.all(statsPromises);

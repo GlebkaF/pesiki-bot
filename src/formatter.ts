@@ -1,5 +1,6 @@
 import type { PlayerStats, HeroMatch, StatsPeriod } from "./stats.js";
 import { getHeroNames } from "./heroes.js";
+import { formatRank } from "./ranks.js";
 
 /**
  * Formats the date in DD.MM.YYYY format
@@ -223,10 +224,11 @@ function formatPlayerCard(
 ): string {
   const emoji = getPerformanceEmoji(stats);
   const playerLink = getOpenDotaLink(stats.playerId, stats.playerName);
+  const rankStr = formatRank(stats.rank);
 
   const lines: string[] = [
     "",
-    `${emoji} <b>${playerLink}</b>`,
+    `${emoji} <b>${playerLink}</b>${rankStr ? ` ${rankStr}` : ""}`,
     `<b>${stats.winRate}%</b> • ${stats.wins}W / ${stats.losses}L`,
   ];
 

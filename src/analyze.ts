@@ -3,6 +3,7 @@ import { PLAYER_IDS } from "./config.js";
 import { fetchRecentMatches, fetchPlayerProfile } from "./opendota.js";
 import { getHeroName } from "./heroes.js";
 import { getItemNames } from "./items.js";
+import { getRankName } from "./ranks.js";
 
 const OPENDOTA_API_BASE = "https://api.opendota.com/api";
 
@@ -10,14 +11,12 @@ const OPENDOTA_API_BASE = "https://api.opendota.com/api";
 // CONFIGURATION
 // ============================================================================
 
-// OpenAI model to use (gpt-5.2 by default for best quality)
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.2";
 
 // Cache for analysis results (match_id -> analysis text)
 const analysisCache = new Map<number, { analysis: string; timestamp: number }>();
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-// Lane names mapping
 const LANE_NAMES: Record<number, string> = {
   1: "Safelane",
   2: "Mid",
@@ -25,9 +24,42 @@ const LANE_NAMES: Record<number, string> = {
   4: "Jungle",
 };
 
-/**
- * Match details from OpenDota API
- */
+const KEY_ITEMS = [
+  "blink", "black_king_bar", "manta", "butterfly", "satanic", "skadi",
+  "hand_of_midas", "battle_fury", "radiance", "aghanims_scepter",
+  "refresher", "sheepstick", "assault", "shivas_guard", "heart",
+  "travel_boots", "bloodthorn", "nullifier", "sphere", "aeon_disk",
+  "desolator", "mjollnir", "greater_crit", "monkey_king_bar",
+];
+
+// ============================================================================
+// Types
+// ============================================================================
+
+interface PurchaseLog {
+  time: number;
+  key: string;
+}
+
+interface Objective {
+  time: number;
+  type: string;
+  key?: string;
+}
+
+interface TeamfightPlayer {
+  deaths: number;
+  damage: number;
+  gold_delta: number;
+}
+
+interface Teamfight {
+  start: number;
+  end: number;
+  deaths: number;
+  players: TeamfightPlayer[];
+}
+
 interface MatchPlayer {
   account_id?: number;
   player_slot: number;
@@ -56,7 +88,7 @@ interface MatchPlayer {
   isRadiant: boolean;
   win: number;
   kda: number;
-  // Parsed match data (only available if match was parsed)
+  rank_tier?: number | null;
   lane?: number | null;
   lane_role?: number | null;
   is_roaming?: boolean | null;
@@ -67,6 +99,11 @@ interface MatchPlayer {
   stuns?: number | null;
   teamfight_participation?: number | null;
   actions_per_min?: number | null;
+  gold_t?: number[];
+  xp_t?: number[];
+  lh_t?: number[];
+  dn_t?: number[];
+  purchase_log?: PurchaseLog[];
   benchmarks?: {
     gold_per_min?: { raw: number; pct: number };
     xp_per_min?: { raw: number; pct: number };
@@ -84,35 +121,34 @@ interface MatchDetails {
   radiant_win: boolean;
   start_time: number;
   game_mode: number;
+  first_blood_time?: number;
+  radiant_score: number;
+  dire_score: number;
+  radiant_gold_adv?: number[];
+  radiant_xp_adv?: number[];
+  objectives?: Objective[];
+  teamfights?: Teamfight[];
   players: MatchPlayer[];
 }
 
-/**
- * Fetches detailed match data from OpenDota
- */
-async function fetchMatchDetails(matchId: number): Promise<MatchDetails> {
-  const url = `${OPENDOTA_API_BASE}/matches/${matchId}`;
-  const response = await fetch(url);
-  
-  if (!response.ok) {
-    throw new Error(`OpenDota API error: ${response.status}`);
-  }
-  
-  return response.json();
-}
+// ============================================================================
+// Helpers
+// ============================================================================
 
-/**
- * Formats duration as MM:SS
- */
 function formatDuration(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = seconds % 60;
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-/**
- * Formats benchmark percentile
- */
+function formatTime(seconds: number): string {
+  const sign = seconds < 0 ? "-" : "";
+  const abs = Math.abs(seconds);
+  const mins = Math.floor(abs / 60);
+  const secs = abs % 60;
+  return `${sign}${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
 function formatBenchmark(pct: number): string {
   const percent = Math.round(pct * 100);
   if (percent >= 80) return `${percent}% 🔥`;
@@ -122,15 +158,20 @@ function formatBenchmark(pct: number): string {
   return `${percent}% 💀`;
 }
 
-/**
- * Finds the last match where any of our players participated
- */
+async function fetchMatchDetails(matchId: number): Promise<MatchDetails> {
+  const url = `${OPENDOTA_API_BASE}/matches/${matchId}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`OpenDota API error: ${response.status}`);
+  }
+  return response.json();
+}
+
 async function findLastPartyMatch(): Promise<{
   matchId: number;
   playerId: number;
   playerName: string;
 } | null> {
-  // Check recent matches for each player and find the most recent one
   let latestMatch: { matchId: number; startTime: number; playerId: number } | null = null;
   
   for (const playerId of PLAYER_IDS) {
@@ -153,7 +194,6 @@ async function findLastPartyMatch(): Promise<{
   
   if (!latestMatch) return null;
   
-  // Get player name
   const profile = await fetchPlayerProfile(latestMatch.playerId as (typeof PLAYER_IDS)[number]);
   const playerName = profile.profile?.personaname || String(latestMatch.playerId);
   
@@ -164,118 +204,154 @@ async function findLastPartyMatch(): Promise<{
   };
 }
 
-/**
- * Builds context for LLM analysis
- */
+// ============================================================================
+// Context Builder
+// ============================================================================
+
 async function buildAnalysisContext(match: MatchDetails): Promise<string> {
-  // Find our players in the match
   const playerIdsSet = new Set<number>(PLAYER_IDS as readonly number[]);
-  const ourPlayers = match.players.filter(p => 
-    p.account_id && playerIdsSet.has(p.account_id)
-  );
+  const ourPlayers = match.players.filter(p => p.account_id && playerIdsSet.has(p.account_id));
+  const isParsed = match.players.some(p => p.gold_t && p.gold_t.length > 0);
   
-  // Get hero names for all players
+  // Get hero names
   const heroNames = new Map<number, string>();
-  for (const player of match.players) {
-    if (!heroNames.has(player.hero_id)) {
-      heroNames.set(player.hero_id, await getHeroName(player.hero_id));
+  for (const p of match.players) {
+    if (!heroNames.has(p.hero_id)) {
+      heroNames.set(p.hero_id, await getHeroName(p.hero_id));
     }
   }
   
-  // Get item names for all players
+  // Get item names
   const playerItems = new Map<number, string>();
-  for (const player of match.players) {
-    const itemIds = [player.item_0, player.item_1, player.item_2, player.item_3, player.item_4, player.item_5]
-      .filter(i => i > 0);
+  for (const p of match.players) {
+    const itemIds = [p.item_0, p.item_1, p.item_2, p.item_3, p.item_4, p.item_5].filter(i => i > 0);
     const itemNames = await getItemNames(itemIds);
-    playerItems.set(player.player_slot, itemNames.filter(n => n).join(", "));
+    playerItems.set(p.player_slot, itemNames.filter(n => n).join(", "));
   }
   
-  const radiantPlayers = match.players.filter(p => p.isRadiant);
-  const direPlayers = match.players.filter(p => !p.isRadiant);
-  
+  // Match overview
+  let context = `
+MATCH: ${match.match_id} | Duration: ${formatDuration(match.duration)} | ${match.radiant_win ? "Radiant Win" : "Dire Win"}
+Score: Radiant ${match.radiant_score} - ${match.dire_score} Dire
+Mode: ${match.game_mode === 23 ? "Turbo" : match.game_mode === 22 ? "All Pick" : `Mode ${match.game_mode}`}
+First Blood: ${match.first_blood_time ? formatTime(match.first_blood_time) : "N/A"}
+Data: ${isParsed ? "PARSED (full data)" : "BASIC"}
+`;
+
+  // Economy timeline (if parsed)
+  if (match.radiant_gold_adv && match.radiant_gold_adv.length > 0) {
+    const goldAdv = match.radiant_gold_adv;
+    const min10 = Math.min(10, goldAdv.length - 1);
+    const min20 = Math.min(20, goldAdv.length - 1);
+    const endMin = goldAdv.length - 1;
+    
+    context += `
+ECONOMY:
+• 10 min: ${goldAdv[min10] > 0 ? "+" : ""}${goldAdv[min10]} Radiant
+• 20 min: ${goldAdv[min20] > 0 ? "+" : ""}${goldAdv[min20]} Radiant
+• End: ${goldAdv[endMin] > 0 ? "+" : ""}${goldAdv[endMin]} Radiant
+`;
+  }
+
+  // Teamfights (if parsed)
+  if (match.teamfights && match.teamfights.length > 0) {
+    const bigFights = match.teamfights
+      .filter(tf => tf.deaths >= 3)
+      .sort((a, b) => b.deaths - a.deaths)
+      .slice(0, 3);
+    
+    if (bigFights.length > 0) {
+      context += `\nKEY TEAMFIGHTS:`;
+      for (const tf of bigFights) {
+        const radiantGold = tf.players.slice(0, 5).reduce((sum, p) => sum + p.gold_delta, 0);
+        const direGold = tf.players.slice(5, 10).reduce((sum, p) => sum + p.gold_delta, 0);
+        const winner = radiantGold > direGold ? "Radiant" : "Dire";
+        context += `\n• ${formatTime(tf.start)}: ${tf.deaths} deaths, ${winner} won (+${Math.abs(radiantGold - direGold)} gold)`;
+      }
+    }
+  }
+
+  // Players
   const formatPlayer = (p: MatchPlayer, isOurs: boolean) => {
     const hero = heroNames.get(p.hero_id) || "Unknown";
     const name = p.personaname || "Anonymous";
     const items = playerItems.get(p.player_slot) || "None";
+    const rank = getRankName(p.rank_tier);
+    const marker = isOurs ? "⭐ [OUR PLAYER] " : "";
     
-    // Lane info (only if parsed)
-    let laneInfo = "";
-    if (p.lane !== null && p.lane !== undefined) {
-      const laneName = LANE_NAMES[p.lane] || `Lane ${p.lane}`;
-      laneInfo = `\n    Lane: ${laneName}`;
-      if (p.lane_efficiency_pct !== null && p.lane_efficiency_pct !== undefined) {
-        laneInfo += ` (${p.lane_efficiency_pct}% efficiency)`;
+    let info = `${marker}${name} (${hero})${rank ? ` [${rank}]` : ""}
+    • KDA: ${p.kills}/${p.deaths}/${p.assists} (${p.kda.toFixed(2)})
+    • GPM: ${p.gold_per_min} | XPM: ${p.xp_per_min} | NW: ${p.net_worth.toLocaleString()}
+    • Hero Damage: ${p.hero_damage.toLocaleString()} | Tower: ${p.tower_damage.toLocaleString()}
+    • Items: ${items}`;
+    
+    // Key item timings (if parsed)
+    if (p.purchase_log && p.purchase_log.length > 0) {
+      const keyPurchases = p.purchase_log.filter(pl => KEY_ITEMS.includes(pl.key));
+      if (keyPurchases.length > 0) {
+        const timings = keyPurchases.slice(0, 4).map(pl => `${pl.key}@${formatTime(pl.time)}`).join(", ");
+        info += `\n    • Timings: ${timings}`;
       }
     }
     
-    // Parsed stats (wards, stacks, stuns, teamfights)
-    let parsedStats = "";
-    if (p.obs_placed !== null || p.stuns !== null || p.teamfight_participation !== null) {
-      const parts: string[] = [];
-      if (p.obs_placed !== null && p.obs_placed !== undefined) {
-        parts.push(`Wards: ${p.obs_placed} obs / ${p.sen_placed ?? 0} sent`);
-      }
-      if (p.camps_stacked !== null && p.camps_stacked !== undefined && p.camps_stacked > 0) {
-        parts.push(`Stacks: ${p.camps_stacked}`);
-      }
-      if (p.stuns !== null && p.stuns !== undefined) {
-        parts.push(`Stuns: ${p.stuns.toFixed(1)}s`);
-      }
-      if (p.teamfight_participation !== null && p.teamfight_participation !== undefined) {
-        parts.push(`Teamfight: ${Math.round(p.teamfight_participation * 100)}%`);
-      }
-      if (p.actions_per_min !== null && p.actions_per_min !== undefined) {
-        parts.push(`APM: ${p.actions_per_min}`);
-      }
-      if (parts.length > 0) {
-        parsedStats = `\n    ${parts.join(" | ")}`;
-      }
-    }
-    
-    let benchmarkInfo = "";
+    // Benchmarks
     if (p.benchmarks) {
       const b = p.benchmarks;
-      benchmarkInfo = `
-    Benchmarks (percentile vs other ${hero} players):
-    - GPM: ${b.gold_per_min ? formatBenchmark(b.gold_per_min.pct) : "N/A"}
-    - XPM: ${b.xp_per_min ? formatBenchmark(b.xp_per_min.pct) : "N/A"}
-    - Hero Damage/min: ${b.hero_damage_per_min ? formatBenchmark(b.hero_damage_per_min.pct) : "N/A"}
-    - Last Hits/min: ${b.last_hits_per_min ? formatBenchmark(b.last_hits_per_min.pct) : "N/A"}`;
+      info += `\n    • Benchmarks: GPM ${b.gold_per_min ? formatBenchmark(b.gold_per_min.pct) : "N/A"}, DMG ${b.hero_damage_per_min ? formatBenchmark(b.hero_damage_per_min.pct) : "N/A"}`;
     }
     
-    return `  ${isOurs ? "⭐ " : ""}${name} (${hero})${isOurs ? " [OUR PLAYER]" : ""}
-    KDA: ${p.kills}/${p.deaths}/${p.assists} (${p.kda.toFixed(2)})
-    GPM: ${p.gold_per_min} | XPM: ${p.xp_per_min} | Level: ${p.level}
-    Net Worth: ${p.net_worth.toLocaleString()} gold
-    Hero Damage: ${p.hero_damage.toLocaleString()} | Tower Damage: ${p.tower_damage.toLocaleString()}
-    Last Hits: ${p.last_hits} | Denies: ${p.denies}
-    Items: ${items}${laneInfo}${parsedStats}${benchmarkInfo}`;
+    // 10 min CS (if parsed)
+    if (p.lh_t && p.lh_t.length >= 10) {
+      info += `\n    • 10 min CS: ${p.lh_t[10] || 0}/${p.dn_t?.[10] || 0}`;
+    }
+    
+    return info;
   };
   
-  const context = `
-MATCH ANALYSIS DATA
-==================
-Match ID: ${match.match_id}
-Duration: ${formatDuration(match.duration)}
-Result: ${match.radiant_win ? "Radiant Victory" : "Dire Victory"}
-Game Mode: ${match.game_mode === 23 ? "Turbo" : match.game_mode === 22 ? "All Pick" : `Mode ${match.game_mode}`}
+  const radiant = match.players.filter(p => p.isRadiant);
+  const dire = match.players.filter(p => !p.isRadiant);
+  
+  context += `
+\nRADIANT ${match.radiant_win ? "(WIN)" : "(LOSE)"}:
+${radiant.map(p => formatPlayer(p, playerIdsSet.has(p.account_id as number))).join("\n\n")}
 
-RADIANT TEAM ${match.radiant_win ? "(WINNERS)" : "(LOSERS)"}:
-${radiantPlayers.map(p => formatPlayer(p, playerIdsSet.has(p.account_id as number))).join("\n\n")}
+DIRE ${!match.radiant_win ? "(WIN)" : "(LOSE)"}:
+${dire.map(p => formatPlayer(p, playerIdsSet.has(p.account_id as number))).join("\n\n")}
 
-DIRE TEAM ${!match.radiant_win ? "(WINNERS)" : "(LOSERS)"}:
-${direPlayers.map(p => formatPlayer(p, playerIdsSet.has(p.account_id as number))).join("\n\n")}
-
-OUR PLAYERS IN THIS MATCH: ${ourPlayers.length > 0 ? ourPlayers.map(p => p.personaname || "Anonymous").join(", ") : "None identified (private profiles)"}
+OUR PLAYERS: ${ourPlayers.map(p => `${p.personaname || "Anon"} (${heroNames.get(p.hero_id)})`).join(", ") || "None identified"}
 `;
 
   return context;
 }
 
-/**
- * Analyzes match using OpenAI
- */
+// ============================================================================
+// LLM Analysis
+// ============================================================================
+
+const SYSTEM_PROMPT = `Ты — токсичный но полезный тренер по Dota 2.
+Фокус на игроках [OUR PLAYER] — их разбираем детально.
+
+СТРУКТУРА (коротко и по делу):
+
+🎯 ВЕРДИКТ (2-3 предложения)
+Почему выиграли/продули + главный перелом матча
+
+👤 РАЗБОР НАШИХ
+Для каждого [OUR PLAYER]:
+• Что хорошо / что плохо (с цифрами из benchmarks)
+• 2-3 конкретных косяка
+• Один совет на следующую игру
+
+💀 ИТОГ
+MVP и LVP матча + токсичный комментарий
+
+ПРАВИЛА:
+• БЕЗ Markdown — только plain text + эмодзи 🔥 ✅ ⚠️ 💀
+• Benchmarks: 80%+ = 🔥, <30% = 💀
+• Русский со сленгом (го, затащить, сфидить)
+• Конкретика: "BKB на 25 мин это поздно" вместо "улучши билд"
+• МАКСИМУМ 300 слов — без воды`;
+
 async function analyzeWithLLM(context: string): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -283,64 +359,27 @@ async function analyzeWithLLM(context: string): Promise<string> {
   }
   
   const openai = new OpenAI({ apiKey });
-  
-  const systemPrompt = `Ты — токсичный но полезный тренер по Dota 2 для группы друзей-дегенератов.
-Твой стиль: прямой, жёсткий, с чёрным юмором, НО с конкретными полезными советами.
-
-ВАЖНО: Фокус на игроках отмеченных [OUR PLAYER] — это наши чуваки, их надо разобрать по косточкам.
-
-Структура ответа:
-
-🎯 ВЕРДИКТ
-1 предложение — почему продули/выиграли
-
-👤 РАЗБОР ИГРОКОВ
-Для каждого [OUR PLAYER]:
-• Имя и герой
-• Что делал хорошо (если есть)
-• Где накосячил (цифры, benchmarks)  
-• Один конкретный совет
-
-🤝 СИНЕРГИЯ ПАТИ
-Как взаимодействовали, что можно было сделать вместе
-
-💡 ГЛАВНЫЙ СОВЕТ
-Один ключевой совет для команды
-
-КРИТИЧЕСКИ ВАЖНО — ФОРМАТИРОВАНИЕ:
-- НЕ ИСПОЛЬЗУЙ Markdown (никаких ** или __ для выделения)
-- Используй ТОЛЬКО plain text без форматирования
-- Можно использовать эмодзи: 🔥 ✅ ⚠️ 💀
-- Разделяй секции пустыми строками
-- Используй • для списков
-
-Правила:
-- Цифры из benchmarks (80%+ = топ 🔥, <30% = позор 💀)
-- Макс 250 слов
-- Конкретные советы: "купи BKB раньше" вместо "улучши итембилд"
-- Пиши на русском со сленгом (го, затащить, сфидить)`;
-
-  console.log(`[ANALYZE] Using model: ${OPENAI_MODEL}`);
-  
-  // GPT-5 models use max_completion_tokens instead of max_tokens
   const isGpt5 = OPENAI_MODEL.startsWith("gpt-5");
+  
+  console.log(`[ANALYZE] Using model: ${OPENAI_MODEL}`);
   
   const response = await openai.chat.completions.create({
     model: OPENAI_MODEL,
     messages: [
-      { role: "system", content: systemPrompt },
+      { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: context },
     ],
     ...(isGpt5 ? { max_completion_tokens: 1500 } : { max_tokens: 1500 }),
-    ...(isGpt5 ? {} : { temperature: 0.7 }), // GPT-5 doesn't support custom temperature
+    ...(isGpt5 ? {} : { temperature: 0.7 }),
   });
   
   return response.choices[0]?.message?.content || "Не удалось получить анализ";
 }
 
-/**
- * Checks if cached analysis is still valid
- */
+// ============================================================================
+// Cache
+// ============================================================================
+
 function getCachedAnalysis(matchId: number): string | null {
   const cached = analysisCache.get(matchId);
   if (!cached) return null;
@@ -353,15 +392,16 @@ function getCachedAnalysis(matchId: number): string | null {
   return cached.analysis;
 }
 
-/**
- * Stores analysis in cache
- */
 function cacheAnalysis(matchId: number, analysis: string): void {
   analysisCache.set(matchId, {
     analysis,
     timestamp: Date.now(),
   });
 }
+
+// ============================================================================
+// Public API
+// ============================================================================
 
 /**
  * Core analyze function - analyzes a specific match by ID
@@ -380,8 +420,8 @@ export async function analyzeMatch(matchId: number): Promise<string> {
   const matchDetails = await fetchMatchDetails(matchId);
   console.log(`[ANALYZE] Match duration: ${formatDuration(matchDetails.duration)}`);
   
-  // Check if match is parsed (has lane data)
-  const isParsed = matchDetails.players.some(p => p.lane !== null && p.lane !== undefined);
+  // Check if match is parsed
+  const isParsed = matchDetails.players.some(p => p.gold_t && p.gold_t.length > 0);
   console.log(`[ANALYZE] Match parsed: ${isParsed}`);
   
   // Build context for LLM
@@ -391,15 +431,24 @@ export async function analyzeMatch(matchId: number): Promise<string> {
   // Analyze with LLM
   const analysis = await analyzeWithLLM(context);
   
-  // Format response with link to OpenDota
+  // Format response
   const matchUrl = `https://www.opendota.com/matches/${matchId}`;
   const header = `🔬 <b>Анализ матча</b> <a href="${matchUrl}">#${matchId}</a>
 ⏱ Длительность: ${formatDuration(matchDetails.duration)}
-🎮 Результат: ${matchDetails.radiant_win ? "Radiant" : "Dire"} победил
-${isParsed ? "📊 Детальная статистика доступна" : ""}
+🎮 Результат: ${matchDetails.radiant_win ? "Radiant" : "Dire"} победил (${matchDetails.radiant_score}:${matchDetails.dire_score})
+${isParsed ? "📊 Полный разбор" : "📊 Базовый анализ"}
+
 `;
 
-  const fullAnalysis = header + analysis;
+  // Footer for non-parsed matches
+  const footer = !isParsed ? `
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 <b>Это базовый анализ</b> — без таймингов предметов и тимфайтов.
+
+Для полного разбора: открой <a href="${matchUrl}">матч на OpenDota</a>, нажми "Request Parse", подожди пару минут и запроси анализ снова!` : "";
+
+  const fullAnalysis = header + analysis + footer;
   
   // Cache the result
   cacheAnalysis(matchId, fullAnalysis);
@@ -414,7 +463,6 @@ ${isParsed ? "📊 Детальная статистика доступна" : "
 export async function analyzeLastMatch(): Promise<string> {
   console.log("[ANALYZE] Finding last party match...");
   
-  // Find the last match
   const lastMatch = await findLastPartyMatch();
   if (!lastMatch) {
     return "❌ Не удалось найти последний матч";

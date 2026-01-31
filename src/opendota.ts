@@ -123,6 +123,7 @@ export interface PlayerProfile {
 
 export interface PlayerData {
   profile: PlayerProfile;
+  rank_tier?: number | null;
 }
 
 export interface PlayerTotal {

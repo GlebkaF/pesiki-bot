@@ -7,6 +7,7 @@ import { analyzeLastMatchCopium, analyzeMatchCopium } from "./analyze-copium.js"
 import { fetchRecentMatches, fetchPlayerProfile } from "./opendota.js";
 import { calculateStats } from "./stats.js";
 import { getHeroNames } from "./heroes.js";
+import { formatRank } from "./ranks.js";
 
 /**
  * Creates and returns a configured Telegram bot instance
@@ -325,7 +326,8 @@ async function handleMeCommand(
     ]);
 
     const playerName = profile.profile?.personaname || player.dotaName;
-    const stats = calculateStats(player.steamId, playerName, matches, "today");
+    const playerRank = profile.rank_tier ?? null;
+    const stats = calculateStats(player.steamId, playerName, matches, "today", undefined, playerRank);
     
     // Get hero names
     const heroIds = stats.heroes.map(h => h.heroId);
@@ -339,7 +341,8 @@ async function handleMeCommand(
 
     // Build message
     const dotaUrl = `https://www.opendota.com/players/${player.steamId}`;
-    const message = `👤 <b><a href="${dotaUrl}">${playerName}</a></b>
+    const rankStr = formatRank(playerRank);
+    const message = `👤 <b><a href="${dotaUrl}">${playerName}</a></b>${rankStr ? ` ${rankStr}` : ""}
 
 📊 <b>Сегодня:</b>
 • Матчей: ${stats.totalMatches}

@@ -15,6 +15,7 @@ export interface PlayerStats {
   heroes: HeroMatch[];
   avgApm?: number;
   avgKda?: number;
+  rank?: number | null;  // Player's rank tier from OpenDota
   // Aggregated stats for nominations
   totalKills: number;
   totalDeaths: number;
@@ -195,7 +196,8 @@ export function calculateStats(
   playerName: string,
   matches: RecentMatch[],
   period: StatsPeriod = "today",
-  avgApm?: number
+  avgApm?: number,
+  rank?: number | null
 ): PlayerStats {
   const filteredMatches = filterMatchesByPeriod(matches, period);
 
@@ -236,6 +238,7 @@ export function calculateStats(
     heroes,
     avgApm,
     avgKda,
+    rank,
     totalKills,
     totalDeaths,
     totalAssists,
