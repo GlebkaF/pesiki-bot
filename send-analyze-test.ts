@@ -18,21 +18,7 @@ const LANE_NAMES: Record<number, string> = {
   1: "Safelane", 2: "Mid", 3: "Offlane", 4: "Jungle",
 };
 
-const ITEM_NAMES: Record<number, string> = {
-  1: "Blink Dagger", 48: "Travel Boots", 50: "Phase Boots", 63: "Power Treads",
-  65: "Tranquil Boots", 77: "Null Talisman", 81: "Wraith Band", 
-  108: "Mekansm", 112: "Aether Lens", 116: "Vanguard", 135: "Skull Basher",
-  139: "Manta Style", 141: "Assault Cuirass", 143: "Shiva's Guard",
-  147: "Eye of Skadi", 152: "Black King Bar", 156: "Satanic",
-  158: "Daedalus", 160: "Butterfly", 168: "Monkey King Bar",
-  174: "Heaven's Halberd", 180: "Octarine Core", 196: "Aeon Disk",
-  204: "Aghanim's Scepter", 206: "Refresher Orb", 208: "Desolator",
-  214: "Lotus Orb", 218: "Ethereal Blade", 220: "Nullifier",
-  223: "Silver Edge", 226: "Bloodthorn", 229: "Gleipnir", 231: "Swift Blink",
-  232: "Arcane Blink", 235: "Witch Blade", 236: "Overwhelming Blink",
-  240: "Meteor Hammer", 250: "Sange and Yasha", 263: "Wraith Pact",
-  600: "Overwhelming Blink", 908: "Radiance", 1097: "Wind Waker", 1466: "Bloodstone",
-};
+import { getItemNames } from "./src/items.js";
 
 interface MatchPlayer {
   account_id?: number;
@@ -97,10 +83,6 @@ function formatBenchmark(pct: number): string {
   return `${percent}% 💀`;
 }
 
-function getItemName(itemId: number): string {
-  return ITEM_NAMES[itemId] || `Item#${itemId}`;
-}
-
 async function fetchMatchDetails(matchId: number): Promise<MatchDetails> {
   const response = await fetch(`${OPENDOTA_API_BASE}/matches/${matchId}`);
   return response.json();
@@ -132,11 +114,18 @@ async function buildContext(match: MatchDetails): Promise<string> {
     if (!heroNames.has(p.hero_id)) heroNames.set(p.hero_id, await getHeroName(p.hero_id));
   }
   
+  // Get item names for all players
+  const playerItems = new Map<number, string>();
+  for (const p of match.players) {
+    const itemIds = [p.item_0, p.item_1, p.item_2, p.item_3, p.item_4, p.item_5].filter(i => i > 0);
+    const itemNames = await getItemNames(itemIds);
+    playerItems.set(p.player_slot, itemNames.filter(n => n).join(", "));
+  }
+  
   const formatPlayer = (p: MatchPlayer, isOurs: boolean) => {
     const hero = heroNames.get(p.hero_id) || "Unknown";
     const name = p.personaname || "Anonymous";
-    const items = [p.item_0, p.item_1, p.item_2, p.item_3, p.item_4, p.item_5]
-      .filter(i => i > 0).map(getItemName).join(", ");
+    const items = playerItems.get(p.player_slot) || "None";
     
     let benchmarkInfo = "";
     if (p.benchmarks) {
@@ -148,7 +137,7 @@ async function buildContext(match: MatchDetails): Promise<string> {
     KDA: ${p.kills}/${p.deaths}/${p.assists} (${p.kda.toFixed(2)})
     GPM: ${p.gold_per_min} | XPM: ${p.xp_per_min} | Net Worth: ${p.net_worth.toLocaleString()}
     Hero Damage: ${p.hero_damage.toLocaleString()} | Tower Damage: ${p.tower_damage.toLocaleString()}
-    Items: ${items || "None"}${benchmarkInfo}`;
+    Items: ${items}${benchmarkInfo}`;
   };
   
   const radiant = match.players.filter(p => p.isRadiant);
