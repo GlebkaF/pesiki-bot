@@ -3,6 +3,7 @@ import { config, findPlayerByTelegramId, PLAYERS, type Player } from "./config.j
 import type { StatsPeriod } from "./stats.js";
 import { getRoastOfTheDay, formatRoastMessage } from "./roast.js";
 import { analyzeLastMatch, analyzeMatch } from "./analyze.js";
+import { analyzeLastMatchCopium, analyzeMatchCopium } from "./analyze-copium.js";
 import { fetchRecentMatches, fetchPlayerProfile } from "./opendota.js";
 import { calculateStats } from "./stats.js";
 import { getHeroNames } from "./heroes.js";
@@ -205,6 +206,82 @@ async function handleAnalyzeCommand(
 }
 
 /**
+ * Handles the /copium command - biased AI analysis that defends our stack
+ * Usage: /copium [match_id] - if no match_id provided, analyzes last match
+ */
+async function handleCopiumCommand(
+  ctx: CommandContext<Context>,
+  onCommandReceived?: () => void,
+): Promise<void> {
+  console.log(
+    `[${new Date().toISOString()}] /copium command received from user ${ctx.from?.id}`,
+  );
+
+  if (onCommandReceived) {
+    onCommandReceived();
+  }
+
+  try {
+    // Parse match_id from command arguments (supports URL or raw ID)
+    const args = ctx.message?.text?.split(/\s+/).slice(1) || [];
+    const matchIdArg = args[0];
+    
+    let analysis: string;
+    let loadingText: string;
+    
+    if (matchIdArg) {
+      // Parse match ID from OpenDota URL or raw number
+      let matchId: number | null = null;
+      
+      const urlMatch = matchIdArg.match(/opendota\.com\/matches\/(\d+)/i);
+      if (urlMatch) {
+        matchId = parseInt(urlMatch[1], 10);
+      } else {
+        const parsed = parseInt(matchIdArg, 10);
+        if (!isNaN(parsed) && parsed > 0) {
+          matchId = parsed;
+        }
+      }
+      
+      if (!matchId) {
+        await ctx.reply(
+          "❌ Не удалось распознать матч.\n\n" +
+          "Примеры:\n" +
+          "• /copium https://www.opendota.com/matches/8670945485\n" +
+          "• /copium 8670945485"
+        );
+        return;
+      }
+      
+      loadingText = `💊 Ищу оправдания для матча #${matchId}...`;
+      const loadingMsg = await ctx.reply(loadingText);
+      
+      analysis = await analyzeMatchCopium(matchId);
+      
+      await ctx.api.deleteMessage(ctx.chat.id, loadingMsg.message_id);
+    } else {
+      // Analyze last match
+      loadingText = "💊 Ищу оправдания для последнего матча...";
+      const loadingMsg = await ctx.reply(loadingText);
+      
+      analysis = await analyzeLastMatchCopium();
+      
+      await ctx.api.deleteMessage(ctx.chat.id, loadingMsg.message_id);
+    }
+
+    await ctx.reply(analysis, {
+      parse_mode: "HTML",
+      link_preview_options: { is_disabled: true },
+    });
+
+    console.log(`[${new Date().toISOString()}] /copium command completed`);
+  } catch (error) {
+    console.error("[ERROR] Failed to handle /copium command:", error);
+    await ctx.reply("❌ Не удалось найти оправдания. Попробуй позже.");
+  }
+}
+
+/**
  * Handles the /me command - shows player's personal stats (linked account only)
  */
 async function handleMeCommand(
@@ -322,6 +399,9 @@ export function setupCommands(
   // Register /analyze command
   bot.command("analyze", (ctx) => handleAnalyzeCommand(ctx, onCommandReceived));
 
+  // Register /copium command (biased analysis)
+  bot.command("copium", (ctx) => handleCopiumCommand(ctx, onCommandReceived));
+
   // Register /me command
   bot.command("me", (ctx) => handleMeCommand(ctx, onCommandReceived));
 
@@ -333,6 +413,7 @@ export function setupCommands(
     { command: "monthly", description: "Get this month's Dota 2 stats" },
     { command: "roast", description: "Roast the worst player of the day" },
     { command: "analyze", description: "AI analysis (or /analyze <url>)" },
+    { command: "copium", description: "💊 Найти оправдания (защищает стак)" },
     { command: "me", description: "Your personal stats" },
   ]);
 }
