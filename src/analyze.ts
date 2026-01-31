@@ -364,28 +364,20 @@ function cacheAnalysis(matchId: number, analysis: string): void {
 }
 
 /**
- * Main analyze function - analyzes the last match of any party member
+ * Core analyze function - analyzes a specific match by ID
  */
-export async function analyzeLastMatch(): Promise<string> {
-  console.log("[ANALYZE] Finding last party match...");
-  
-  // Find the last match
-  const lastMatch = await findLastPartyMatch();
-  if (!lastMatch) {
-    return "❌ Не удалось найти последний матч";
-  }
-  
-  console.log(`[ANALYZE] Found match ${lastMatch.matchId} for player ${lastMatch.playerName}`);
+export async function analyzeMatch(matchId: number): Promise<string> {
+  console.log(`[ANALYZE] Analyzing match ${matchId}...`);
   
   // Check cache first
-  const cachedResult = getCachedAnalysis(lastMatch.matchId);
+  const cachedResult = getCachedAnalysis(matchId);
   if (cachedResult) {
-    console.log(`[ANALYZE] Returning cached analysis for match ${lastMatch.matchId}`);
+    console.log(`[ANALYZE] Returning cached analysis for match ${matchId}`);
     return cachedResult + "\n\n<i>📦 Из кэша</i>";
   }
   
   // Fetch detailed match data
-  const matchDetails = await fetchMatchDetails(lastMatch.matchId);
+  const matchDetails = await fetchMatchDetails(matchId);
   console.log(`[ANALYZE] Match duration: ${formatDuration(matchDetails.duration)}`);
   
   // Check if match is parsed (has lane data)
@@ -400,8 +392,8 @@ export async function analyzeLastMatch(): Promise<string> {
   const analysis = await analyzeWithLLM(context);
   
   // Format response with link to OpenDota
-  const matchUrl = `https://www.opendota.com/matches/${lastMatch.matchId}`;
-  const header = `🔬 <b>Анализ матча</b> <a href="${matchUrl}">#${lastMatch.matchId}</a>
+  const matchUrl = `https://www.opendota.com/matches/${matchId}`;
+  const header = `🔬 <b>Анализ матча</b> <a href="${matchUrl}">#${matchId}</a>
 ⏱ Длительность: ${formatDuration(matchDetails.duration)}
 🎮 Результат: ${matchDetails.radiant_win ? "Radiant" : "Dire"} победил
 ${isParsed ? "📊 Детальная статистика доступна" : ""}
@@ -410,10 +402,27 @@ ${isParsed ? "📊 Детальная статистика доступна" : "
   const fullAnalysis = header + analysis;
   
   // Cache the result
-  cacheAnalysis(lastMatch.matchId, fullAnalysis);
-  console.log(`[ANALYZE] Analysis cached for match ${lastMatch.matchId}`);
+  cacheAnalysis(matchId, fullAnalysis);
+  console.log(`[ANALYZE] Analysis cached for match ${matchId}`);
   
   return fullAnalysis;
+}
+
+/**
+ * Analyzes the last match of any party member
+ */
+export async function analyzeLastMatch(): Promise<string> {
+  console.log("[ANALYZE] Finding last party match...");
+  
+  // Find the last match
+  const lastMatch = await findLastPartyMatch();
+  if (!lastMatch) {
+    return "❌ Не удалось найти последний матч";
+  }
+  
+  console.log(`[ANALYZE] Found match ${lastMatch.matchId} for player ${lastMatch.playerName}`);
+  
+  return analyzeMatch(lastMatch.matchId);
 }
 
 /**

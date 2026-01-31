@@ -2,7 +2,7 @@ import { Bot, type CommandContext, type Context } from "grammy";
 import { config } from "./config.js";
 import type { StatsPeriod } from "./stats.js";
 import { getRoastOfTheDay, formatRoastMessage } from "./roast.js";
-import { analyzeLastMatch } from "./analyze.js";
+import { analyzeLastMatch, analyzeMatch } from "./analyze.js";
 
 /**
  * Creates and returns a configured Telegram bot instance
@@ -125,7 +125,8 @@ async function handleRoastCommand(
 }
 
 /**
- * Handles the /analyze command - AI analysis of last match
+ * Handles the /analyze command - AI analysis of match
+ * Usage: /analyze [match_id] - if no match_id provided, analyzes last match
  */
 async function handleAnalyzeCommand(
   ctx: CommandContext<Context>,
@@ -140,14 +141,36 @@ async function handleAnalyzeCommand(
   }
 
   try {
-    // Send "loading" message
-    const loadingMsg = await ctx.reply("🔬 Анализирую последний матч...");
+    // Parse match_id from command arguments
+    const args = ctx.message?.text?.split(/\s+/).slice(1) || [];
+    const matchIdArg = args[0];
+    
+    let analysis: string;
+    let loadingText: string;
+    
+    if (matchIdArg) {
+      // Analyze specific match
+      const matchId = parseInt(matchIdArg, 10);
+      if (isNaN(matchId) || matchId <= 0) {
+        await ctx.reply("❌ Неверный ID матча. Используй: /analyze 8670945485");
+        return;
+      }
+      loadingText = `🔬 Анализирую матч #${matchId}...`;
+      const loadingMsg = await ctx.reply(loadingText);
+      
+      analysis = await analyzeMatch(matchId);
+      
+      await ctx.api.deleteMessage(ctx.chat.id, loadingMsg.message_id);
+    } else {
+      // Analyze last match
+      loadingText = "🔬 Анализирую последний матч...";
+      const loadingMsg = await ctx.reply(loadingText);
+      
+      analysis = await analyzeLastMatch();
+      
+      await ctx.api.deleteMessage(ctx.chat.id, loadingMsg.message_id);
+    }
 
-    // Get analysis
-    const analysis = await analyzeLastMatch();
-
-    // Delete loading message and send analysis
-    await ctx.api.deleteMessage(ctx.chat.id, loadingMsg.message_id);
     await ctx.reply(analysis, {
       parse_mode: "HTML",
       link_preview_options: { is_disabled: true },
@@ -204,7 +227,7 @@ export function setupCommands(
     { command: "weekly", description: "Get this week's Dota 2 stats" },
     { command: "monthly", description: "Get this month's Dota 2 stats" },
     { command: "roast", description: "Roast the worst player of the day" },
-    { command: "analyze", description: "AI analysis of last match" },
+    { command: "analyze", description: "AI analysis (/analyze or /analyze match_id)" },
   ]);
 }
 
