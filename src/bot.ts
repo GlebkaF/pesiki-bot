@@ -413,7 +413,7 @@ export function setupCommands(
     { command: "monthly", description: "Get this month's Dota 2 stats" },
     { command: "roast", description: "Roast the worst player of the day" },
     { command: "analyze", description: "AI analysis (or /analyze <url>)" },
-    { command: "copium", description: "💊 Найти оправдания (защищает стак)" },
+    { command: "copium", description: "💊 AI-аналитика для стака" },
     { command: "me", description: "Your personal stats" },
   ]);
 }
