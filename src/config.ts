@@ -16,19 +16,19 @@ export interface Player {
  * To find your Telegram ID, use @userinfobot or forward a message to @JsonDumpBot
  */
 export const PLAYERS: Player[] = [
-  { steamId: 93921511,   dotaName: "Unclead",      telegramId: undefined },
+  { steamId: 93921511,   dotaName: "Unclead",      telegramId: 442863557 },
   { steamId: 167818283,  dotaName: "MOX",          telegramId: 55087818, telegramUsername: "alexkim87" },
   { steamId: 94014640,   dotaName: "СделкаУтка",  telegramId: 455412364, telegramUsername: "loothood" },
   { steamId: 1869377945, dotaName: "zladey",       telegramId: 1152640, telegramUsername: "glebkaF" },
   { steamId: 126449680,  dotaName: "Marinad",      telegramId: 44083057, telegramUsername: "marinerius" },
-  { steamId: 92126977,   dotaName: "Stronk doto",  telegramId: undefined },
-  { steamId: 40087920,   dotaName: "mightyBO",     telegramId: undefined },
+  { steamId: 92126977,   dotaName: "Stronk doto",  telegramId: 121460076 },
+  { steamId: 40087920,   dotaName: "mightyBO",     telegramId: 278234366 },
   { steamId: 178693086,  dotaName: "Curiosity",    telegramId: undefined },
-  { steamId: 97643532,   dotaName: "Aoba",         telegramId: undefined },
-  { steamId: 83930539,   dotaName: "Shootema",     telegramId: undefined },
-  { steamId: 76017871,   dotaName: "vedpo",        telegramId: undefined },
-  { steamId: 93253585,   dotaName: "BisMark",      telegramId: undefined },
-  { steamId: 62405887,   dotaName: "che6ka",       telegramId: undefined },
+  { steamId: 97643532,   dotaName: "Aoba",         telegramId: 416994035 },
+  { steamId: 83930539,   dotaName: "Shootema",     telegramId: 439811056 },
+  { steamId: 76017871,   dotaName: "vedpo",        telegramId: 44310713 },
+  { steamId: 93253585,   dotaName: "BisMark",      telegramId: 300064257 },
+  { steamId: 62405887,   dotaName: "che6ka",       telegramId: 186731190 },
 ];
 
 /**
