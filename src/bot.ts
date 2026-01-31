@@ -1,8 +1,11 @@
 import { Bot, type CommandContext, type Context } from "grammy";
-import { config } from "./config.js";
+import { config, findPlayerByTelegramId, PLAYERS, type Player } from "./config.js";
 import type { StatsPeriod } from "./stats.js";
 import { getRoastOfTheDay, formatRoastMessage } from "./roast.js";
 import { analyzeLastMatch, analyzeMatch } from "./analyze.js";
+import { fetchRecentMatches, fetchPlayerProfile } from "./opendota.js";
+import { calculateStats } from "./stats.js";
+import { getHeroNames } from "./heroes.js";
 
 /**
  * Creates and returns a configured Telegram bot instance
@@ -184,6 +187,90 @@ async function handleAnalyzeCommand(
 }
 
 /**
+ * Handles the /me command - shows player's personal stats
+ */
+async function handleMeCommand(
+  ctx: CommandContext<Context>,
+  onCommandReceived?: () => void,
+): Promise<void> {
+  const telegramId = ctx.from?.id;
+  console.log(
+    `[${new Date().toISOString()}] /me command received from user ${telegramId}`,
+  );
+
+  if (onCommandReceived) {
+    onCommandReceived();
+  }
+
+  if (!telegramId) {
+    await ctx.reply("❌ Не удалось определить твой Telegram ID");
+    return;
+  }
+
+  // Find player by Telegram ID
+  const player = findPlayerByTelegramId(telegramId);
+  
+  if (!player) {
+    // Player not linked - show their Telegram ID so they can link
+    const playersList = PLAYERS.map(p => `• ${p.dotaName}`).join("\n");
+    await ctx.reply(
+      `❌ Твой Telegram аккаунт не привязан к Dota профилю.\n\n` +
+      `Твой Telegram ID: <code>${telegramId}</code>\n\n` +
+      `Попроси админа добавить твой ID в config.ts к нужному игроку.\n\n` +
+      `Доступные игроки:\n${playersList}`,
+      { parse_mode: "HTML" }
+    );
+    return;
+  }
+
+  try {
+    const loadingMsg = await ctx.reply(`🔍 Загружаю статистику для ${player.dotaName}...`);
+
+    // Fetch player data
+    const [profile, matches] = await Promise.all([
+      fetchPlayerProfile(player.steamId as any),
+      fetchRecentMatches(player.steamId as any),
+    ]);
+
+    const playerName = profile.profile?.personaname || player.dotaName;
+    const stats = calculateStats(player.steamId, playerName, matches, "today");
+    
+    // Get hero names
+    const heroIds = stats.heroes.map(h => h.heroId);
+    const heroNames = await getHeroNames(heroIds);
+    
+    // Format hero stats
+    const heroStats = stats.heroes.slice(0, 5).map((h, i) => {
+      const result = h.isWin ? "✅" : "❌";
+      return `${result} ${heroNames[i]}`;
+    }).join("\n");
+
+    // Build message
+    const dotaUrl = `https://www.opendota.com/players/${player.steamId}`;
+    const message = `👤 <b><a href="${dotaUrl}">${playerName}</a></b>
+
+📊 <b>Сегодня:</b>
+• Матчей: ${stats.totalMatches}
+• Винрейт: ${stats.winRate}% (${stats.wins}W / ${stats.losses}L)
+• KDA: ${stats.avgKda ?? "N/A"}
+${stats.totalMatches > 0 ? `\n🎮 <b>Последние герои:</b>\n${heroStats}` : ""}
+
+💡 Используй /analyze для AI-разбора последнего матча`;
+
+    await ctx.api.deleteMessage(ctx.chat.id, loadingMsg.message_id);
+    await ctx.reply(message, {
+      parse_mode: "HTML",
+      link_preview_options: { is_disabled: true },
+    });
+
+    console.log(`[${new Date().toISOString()}] /me command completed for ${playerName}`);
+  } catch (error) {
+    console.error("[ERROR] Failed to handle /me command:", error);
+    await ctx.reply("❌ Не удалось загрузить статистику. Попробуй позже.");
+  }
+}
+
+/**
  * Sets up bot commands and handlers
  * @param bot - The bot instance
  * @param fetchStatsHandler - Handler function that fetches and returns formatted stats message for a period
@@ -220,6 +307,9 @@ export function setupCommands(
   // Register /analyze command
   bot.command("analyze", (ctx) => handleAnalyzeCommand(ctx, onCommandReceived));
 
+  // Register /me command
+  bot.command("me", (ctx) => handleMeCommand(ctx, onCommandReceived));
+
   // Set bot commands menu
   bot.api.setMyCommands([
     { command: "stats", description: "Get today's Dota 2 stats" },
@@ -228,6 +318,7 @@ export function setupCommands(
     { command: "monthly", description: "Get this month's Dota 2 stats" },
     { command: "roast", description: "Roast the worst player of the day" },
     { command: "analyze", description: "AI analysis (/analyze or /analyze match_id)" },
+    { command: "me", description: "Your personal Dota 2 stats" },
   ]);
 }
 
