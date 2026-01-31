@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { PLAYER_IDS } from "./config.js";
 import { fetchRecentMatches, fetchPlayerProfile } from "./opendota.js";
 import { getHeroName } from "./heroes.js";
+import { getItemNames } from "./items.js";
 
 const OPENDOTA_API_BASE = "https://api.opendota.com/api";
 
@@ -22,24 +23,6 @@ const LANE_NAMES: Record<number, string> = {
   2: "Mid",
   3: "Offlane",
   4: "Jungle",
-};
-
-// Item IDs to names mapping (common items)
-const ITEM_NAMES: Record<number, string> = {
-  1: "Blink Dagger", 48: "Travel Boots", 50: "Phase Boots", 63: "Power Treads",
-  65: "Tranquil Boots", 77: "Null Talisman", 81: "Wraith Band", 
-  108: "Mekansm", 112: "Aether Lens", 116: "Vanguard", 135: "Skull Basher",
-  139: "Manta Style", 141: "Assault Cuirass", 143: "Shiva's Guard",
-  147: "Eye of Skadi", 152: "Black King Bar", 156: "Satanic",
-  158: "Daedalus", 160: "Butterfly", 168: "Monkey King Bar",
-  174: "Heaven's Halberd", 180: "Octarine Core", 196: "Aeon Disk",
-  204: "Aghanim's Scepter", 206: "Refresher Orb", 208: "Desolator",
-  214: "Lotus Orb", 218: "Ethereal Blade", 220: "Nullifier",
-  223: "Silver Edge", 226: "Bloodthorn", 229: "Gleipnir", 231: "Swift Blink",
-  232: "Arcane Blink", 235: "Witch Blade", 236: "Overwhelming Blink",
-  240: "Meteor Hammer", 250: "Sange and Yasha", 263: "Wraith Pact",
-  600: "Overwhelming Blink", 908: "Radiance",
-  1097: "Wind Waker", 1466: "Bloodstone",
 };
 
 /**
@@ -116,13 +99,6 @@ async function fetchMatchDetails(matchId: number): Promise<MatchDetails> {
   }
   
   return response.json();
-}
-
-/**
- * Gets item name by ID
- */
-function getItemName(itemId: number): string {
-  return ITEM_NAMES[itemId] || `Item#${itemId}`;
 }
 
 /**
@@ -206,16 +182,22 @@ async function buildAnalysisContext(match: MatchDetails): Promise<string> {
     }
   }
   
+  // Get item names for all players
+  const playerItems = new Map<number, string>();
+  for (const player of match.players) {
+    const itemIds = [player.item_0, player.item_1, player.item_2, player.item_3, player.item_4, player.item_5]
+      .filter(i => i > 0);
+    const itemNames = await getItemNames(itemIds);
+    playerItems.set(player.player_slot, itemNames.filter(n => n).join(", "));
+  }
+  
   const radiantPlayers = match.players.filter(p => p.isRadiant);
   const direPlayers = match.players.filter(p => !p.isRadiant);
   
   const formatPlayer = (p: MatchPlayer, isOurs: boolean) => {
     const hero = heroNames.get(p.hero_id) || "Unknown";
     const name = p.personaname || "Anonymous";
-    const items = [p.item_0, p.item_1, p.item_2, p.item_3, p.item_4, p.item_5]
-      .filter(i => i > 0)
-      .map(getItemName)
-      .join(", ");
+    const items = playerItems.get(p.player_slot) || "None";
     
     // Lane info (only if parsed)
     let laneInfo = "";
@@ -268,7 +250,7 @@ async function buildAnalysisContext(match: MatchDetails): Promise<string> {
     Net Worth: ${p.net_worth.toLocaleString()} gold
     Hero Damage: ${p.hero_damage.toLocaleString()} | Tower Damage: ${p.tower_damage.toLocaleString()}
     Last Hits: ${p.last_hits} | Denies: ${p.denies}
-    Items: ${items || "None"}${laneInfo}${parsedStats}${benchmarkInfo}`;
+    Items: ${items}${laneInfo}${parsedStats}${benchmarkInfo}`;
   };
   
   const context = `
