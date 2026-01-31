@@ -253,7 +253,7 @@ async function handleCopiumCommand(
         return;
       }
       
-      loadingText = `💊 Ищу оправдания для матча #${matchId}...`;
+      loadingText = `💊 Анализирую матч #${matchId}...`;
       const loadingMsg = await ctx.reply(loadingText);
       
       analysis = await analyzeMatchCopium(matchId);
@@ -261,7 +261,7 @@ async function handleCopiumCommand(
       await ctx.api.deleteMessage(ctx.chat.id, loadingMsg.message_id);
     } else {
       // Analyze last match
-      loadingText = "💊 Ищу оправдания для последнего матча...";
+      loadingText = "💊 Анализирую последний матч...";
       const loadingMsg = await ctx.reply(loadingText);
       
       analysis = await analyzeLastMatchCopium();
@@ -277,7 +277,7 @@ async function handleCopiumCommand(
     console.log(`[${new Date().toISOString()}] /copium command completed`);
   } catch (error) {
     console.error("[ERROR] Failed to handle /copium command:", error);
-    await ctx.reply("❌ Не удалось найти оправдания. Попробуй позже.");
+    await ctx.reply("❌ Не удалось проанализировать матч. Попробуй позже.");
   }
 }
 
