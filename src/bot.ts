@@ -187,7 +187,63 @@ async function handleAnalyzeCommand(
 }
 
 /**
+ * Parse Steam ID from OpenDota URL or raw ID
+ * Supports: https://www.opendota.com/players/93921511, opendota.com/players/93921511, 93921511
+ */
+function parseSteamId(input: string): number | null {
+  // Try to extract from OpenDota URL
+  const urlMatch = input.match(/opendota\.com\/players\/(\d+)/i);
+  if (urlMatch) {
+    return parseInt(urlMatch[1], 10);
+  }
+  
+  // Try as raw number
+  const num = parseInt(input, 10);
+  if (!isNaN(num) && num > 0) {
+    return num;
+  }
+  
+  return null;
+}
+
+/**
+ * Fetch and format player stats
+ */
+async function fetchPlayerStats(steamId: number): Promise<string> {
+  const [profile, matches] = await Promise.all([
+    fetchPlayerProfile(steamId as any),
+    fetchRecentMatches(steamId as any),
+  ]);
+
+  const playerName = profile.profile?.personaname || `Player ${steamId}`;
+  const stats = calculateStats(steamId, playerName, matches, "today");
+  
+  // Get hero names
+  const heroIds = stats.heroes.map(h => h.heroId);
+  const heroNames = await getHeroNames(heroIds);
+  
+  // Format hero stats
+  const heroStats = stats.heroes.slice(0, 5).map((h, i) => {
+    const result = h.isWin ? "✅" : "❌";
+    return `${result} ${heroNames[i]}`;
+  }).join("\n");
+
+  // Build message
+  const dotaUrl = `https://www.opendota.com/players/${steamId}`;
+  return `👤 <b><a href="${dotaUrl}">${playerName}</a></b>
+
+📊 <b>Сегодня:</b>
+• Матчей: ${stats.totalMatches}
+• Винрейт: ${stats.winRate}% (${stats.wins}W / ${stats.losses}L)
+• KDA: ${stats.avgKda ?? "N/A"}
+${stats.totalMatches > 0 ? `\n🎮 <b>Последние герои:</b>\n${heroStats}` : ""}
+
+💡 Используй /analyze для AI-разбора последнего матча`;
+}
+
+/**
  * Handles the /me command - shows player's personal stats
+ * Usage: /me (linked account), /me <steam_id>, /me <opendota_url>
  */
 async function handleMeCommand(
   ctx: CommandContext<Context>,
@@ -202,60 +258,54 @@ async function handleMeCommand(
     onCommandReceived();
   }
 
-  if (!telegramId) {
-    await ctx.reply("❌ Не удалось определить твой Telegram ID");
-    return;
-  }
+  // Check for argument (URL or Steam ID)
+  const args = ctx.message?.text?.split(/\s+/).slice(1) || [];
+  const arg = args[0];
 
-  // Find player by Telegram ID
-  const player = findPlayerByTelegramId(telegramId);
-  
-  if (!player) {
-    // Player not linked - show their Telegram ID so they can link
-    const playersList = PLAYERS.map(p => `• ${p.dotaName}`).join("\n");
-    await ctx.reply(
-      `❌ Твой Telegram аккаунт не привязан к Dota профилю.\n\n` +
-      `Твой Telegram ID: <code>${telegramId}</code>\n\n` +
-      `Попроси админа добавить твой ID в config.ts к нужному игроку.\n\n` +
-      `Доступные игроки:\n${playersList}`,
-      { parse_mode: "HTML" }
-    );
-    return;
+  let steamId: number | null = null;
+
+  if (arg) {
+    // User provided URL or Steam ID
+    steamId = parseSteamId(arg);
+    if (!steamId) {
+      await ctx.reply(
+        "❌ Не удалось распознать ссылку или ID.\n\n" +
+        "Примеры:\n" +
+        "• /me https://www.opendota.com/players/93921511\n" +
+        "• /me 93921511",
+        { parse_mode: "HTML" }
+      );
+      return;
+    }
+  } else {
+    // No argument - try to find by Telegram ID
+    if (!telegramId) {
+      await ctx.reply("❌ Не удалось определить твой Telegram ID");
+      return;
+    }
+
+    const player = findPlayerByTelegramId(telegramId);
+    
+    if (!player) {
+      const playersList = PLAYERS.map(p => `• ${p.dotaName}`).join("\n");
+      await ctx.reply(
+        `❌ Твой аккаунт не привязан.\n\n` +
+        `<b>Вариант 1:</b> Скинь ссылку на OpenDota:\n` +
+        `/me https://www.opendota.com/players/ТВОЙ_ID\n\n` +
+        `<b>Вариант 2:</b> Попроси админа привязать:\n` +
+        `Твой Telegram ID: <code>${telegramId}</code>\n\n` +
+        `Игроки пати:\n${playersList}`,
+        { parse_mode: "HTML" }
+      );
+      return;
+    }
+
+    steamId = player.steamId;
   }
 
   try {
-    const loadingMsg = await ctx.reply(`🔍 Загружаю статистику для ${player.dotaName}...`);
-
-    // Fetch player data
-    const [profile, matches] = await Promise.all([
-      fetchPlayerProfile(player.steamId as any),
-      fetchRecentMatches(player.steamId as any),
-    ]);
-
-    const playerName = profile.profile?.personaname || player.dotaName;
-    const stats = calculateStats(player.steamId, playerName, matches, "today");
-    
-    // Get hero names
-    const heroIds = stats.heroes.map(h => h.heroId);
-    const heroNames = await getHeroNames(heroIds);
-    
-    // Format hero stats
-    const heroStats = stats.heroes.slice(0, 5).map((h, i) => {
-      const result = h.isWin ? "✅" : "❌";
-      return `${result} ${heroNames[i]}`;
-    }).join("\n");
-
-    // Build message
-    const dotaUrl = `https://www.opendota.com/players/${player.steamId}`;
-    const message = `👤 <b><a href="${dotaUrl}">${playerName}</a></b>
-
-📊 <b>Сегодня:</b>
-• Матчей: ${stats.totalMatches}
-• Винрейт: ${stats.winRate}% (${stats.wins}W / ${stats.losses}L)
-• KDA: ${stats.avgKda ?? "N/A"}
-${stats.totalMatches > 0 ? `\n🎮 <b>Последние герои:</b>\n${heroStats}` : ""}
-
-💡 Используй /analyze для AI-разбора последнего матча`;
+    const loadingMsg = await ctx.reply(`🔍 Загружаю статистику...`);
+    const message = await fetchPlayerStats(steamId);
 
     await ctx.api.deleteMessage(ctx.chat.id, loadingMsg.message_id);
     await ctx.reply(message, {
@@ -263,7 +313,7 @@ ${stats.totalMatches > 0 ? `\n🎮 <b>Последние герои:</b>\n${hero
       link_preview_options: { is_disabled: true },
     });
 
-    console.log(`[${new Date().toISOString()}] /me command completed for ${playerName}`);
+    console.log(`[${new Date().toISOString()}] /me command completed for Steam ID ${steamId}`);
   } catch (error) {
     console.error("[ERROR] Failed to handle /me command:", error);
     await ctx.reply("❌ Не удалось загрузить статистику. Попробуй позже.");
@@ -318,7 +368,7 @@ export function setupCommands(
     { command: "monthly", description: "Get this month's Dota 2 stats" },
     { command: "roast", description: "Roast the worst player of the day" },
     { command: "analyze", description: "AI analysis (/analyze or /analyze match_id)" },
-    { command: "me", description: "Your personal Dota 2 stats" },
+    { command: "me", description: "Stats: /me or /me <opendota_url>" },
   ]);
 }
 
