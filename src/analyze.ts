@@ -13,8 +13,13 @@ const OPENDOTA_API_BASE = "https://api.opendota.com/api";
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.2";
 
-// Cache for analysis results (match_id -> analysis text)
-const analysisCache = new Map<number, { analysis: string; timestamp: number }>();
+// Cache for analysis results (match_id -> analysis + metadata)
+interface AnalysisCacheEntry {
+  analysis: string;
+  timestamp: number;
+  isParsed: boolean; // Track if analysis was done with parsed data
+}
+const analysisCache = new Map<number, AnalysisCacheEntry>();
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const LANE_NAMES: Record<number, string> = {
@@ -380,11 +385,27 @@ async function analyzeWithLLM(context: string): Promise<string> {
 // Cache
 // ============================================================================
 
-function getCachedAnalysis(matchId: number): string | null {
+/**
+ * Gets cached analysis if valid.
+ * Returns null if:
+ * - No cache exists
+ * - Cache is expired
+ * - Cache was created with unparsed data but match is now parsed
+ */
+function getCachedAnalysis(matchId: number, currentlyParsed: boolean): string | null {
   const cached = analysisCache.get(matchId);
   if (!cached) return null;
   
+  // Check TTL
   if (Date.now() - cached.timestamp > CACHE_TTL_MS) {
+    analysisCache.delete(matchId);
+    return null;
+  }
+  
+  // Invalidate cache if match was unparsed before but is now parsed
+  // This allows users to get full analysis after parsing
+  if (!cached.isParsed && currentlyParsed) {
+    console.log(`[ANALYZE] Cache invalidated: match ${matchId} is now parsed`);
     analysisCache.delete(matchId);
     return null;
   }
@@ -392,10 +413,11 @@ function getCachedAnalysis(matchId: number): string | null {
   return cached.analysis;
 }
 
-function cacheAnalysis(matchId: number, analysis: string): void {
+function cacheAnalysis(matchId: number, analysis: string, isParsed: boolean): void {
   analysisCache.set(matchId, {
     analysis,
     timestamp: Date.now(),
+    isParsed,
   });
 }
 
@@ -409,20 +431,20 @@ function cacheAnalysis(matchId: number, analysis: string): void {
 export async function analyzeMatch(matchId: number): Promise<string> {
   console.log(`[ANALYZE] Analyzing match ${matchId}...`);
   
-  // Check cache first
-  const cachedResult = getCachedAnalysis(matchId);
-  if (cachedResult) {
-    console.log(`[ANALYZE] Returning cached analysis for match ${matchId}`);
-    return cachedResult + "\n\n<i>📦 Из кэша</i>";
-  }
-  
-  // Fetch detailed match data
+  // Fetch detailed match data first to check parsed status
   const matchDetails = await fetchMatchDetails(matchId);
   console.log(`[ANALYZE] Match duration: ${formatDuration(matchDetails.duration)}`);
   
   // Check if match is parsed
   const isParsed = matchDetails.players.some(p => p.gold_t && p.gold_t.length > 0);
   console.log(`[ANALYZE] Match parsed: ${isParsed}`);
+  
+  // Check cache (with parsed status to handle re-parsing)
+  const cachedResult = getCachedAnalysis(matchId, isParsed);
+  if (cachedResult) {
+    console.log(`[ANALYZE] Returning cached analysis for match ${matchId}`);
+    return cachedResult + "\n\n<i>📦 Из кэша</i>";
+  }
   
   // Build context for LLM
   const context = await buildAnalysisContext(matchDetails);
@@ -450,9 +472,9 @@ ${isParsed ? "📊 Полный разбор" : "📊 Базовый анали�
 
   const fullAnalysis = header + analysis + footer;
   
-  // Cache the result
-  cacheAnalysis(matchId, fullAnalysis);
-  console.log(`[ANALYZE] Analysis cached for match ${matchId}`);
+  // Cache the result with parsed status
+  cacheAnalysis(matchId, fullAnalysis, isParsed);
+  console.log(`[ANALYZE] Analysis cached for match ${matchId} (parsed: ${isParsed})`);
   
   return fullAnalysis;
 }
