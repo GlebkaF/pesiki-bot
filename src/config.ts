@@ -29,6 +29,7 @@ export const PLAYERS: Player[] = [
   { steamId: 76017871,   dotaName: "vedpo",        telegramId: 44310713 },
   { steamId: 93253585,   dotaName: "BisMark",      telegramId: 300064257 },
   { steamId: 62405887,   dotaName: "che6ka",       telegramId: 186731190 },
+  { steamId: 91407576, dotaName: "Why me?", telegramId: null },
 ];
 
 /**
