@@ -20,6 +20,12 @@ export interface PlayerStats {
   totalKills: number;
   totalDeaths: number;
   totalAssists: number;
+  totalDurationSeconds: number;
+  avgDurationSeconds: number;
+  longMatches: number;
+  longWins: number;
+  nightMatches: number;
+  morningMatches: number;
 }
 
 export type StatsPeriod = "today" | "yesterday" | "week" | "month";
@@ -39,6 +45,7 @@ function isWin(match: RecentMatch): boolean {
  */
 const DAY_START_HOUR_MSK = 6;
 const MSK_OFFSET_HOURS = 3; // UTC+3
+const LONG_MATCH_THRESHOLD_SECONDS = 45 * 60;
 
 /**
  * Gets current MSK time components using UTC methods.
@@ -73,6 +80,14 @@ function mskToUtcTimestamp(
   // Create UTC time for the given components, then subtract MSK offset to get actual UTC
   const utcMillis = Date.UTC(year, month, date, hours, 0, 0, 0);
   return (utcMillis - MSK_OFFSET_HOURS * 60 * 60 * 1000) / 1000;
+}
+
+/**
+ * Gets MSK hour from match start time (UTC seconds)
+ */
+function getMskHourFromStartTime(startTimeSeconds: number): number {
+  const mskTimestamp = startTimeSeconds + MSK_OFFSET_HOURS * 60 * 60;
+  return new Date(mskTimestamp * 1000).getUTCHours();
 }
 
 /**
@@ -216,6 +231,31 @@ export function calculateStats(
   const totalKills = filteredMatches.reduce((sum, m) => sum + m.kills, 0);
   const totalDeaths = filteredMatches.reduce((sum, m) => sum + m.deaths, 0);
   const totalAssists = filteredMatches.reduce((sum, m) => sum + m.assists, 0);
+  const totalDurationSeconds = filteredMatches.reduce(
+    (sum, m) => sum + m.duration,
+    0
+  );
+  const avgDurationSeconds =
+    totalMatches > 0 ? totalDurationSeconds / totalMatches : 0;
+
+  let longMatches = 0;
+  let longWins = 0;
+  let nightMatches = 0;
+  let morningMatches = 0;
+
+  for (const match of filteredMatches) {
+    if (match.duration >= LONG_MATCH_THRESHOLD_SECONDS) {
+      longMatches++;
+      if (isWin(match)) longWins++;
+    }
+
+    const mskHour = getMskHourFromStartTime(match.start_time);
+    if (mskHour >= 0 && mskHour < 6) {
+      nightMatches++;
+    } else if (mskHour >= 6 && mskHour < 12) {
+      morningMatches++;
+    }
+  }
 
   // Calculate average KDA
   let avgKda: number | undefined;
@@ -242,5 +282,11 @@ export function calculateStats(
     totalKills,
     totalDeaths,
     totalAssists,
+    totalDurationSeconds,
+    avgDurationSeconds,
+    longMatches,
+    longWins,
+    nightMatches,
+    morningMatches,
   };
 }

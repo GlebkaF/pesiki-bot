@@ -113,7 +113,7 @@ interface Nomination {
   emoji: string;
   player: PlayerStats;
   value: string; // formatted value for display
-  heroName?: string; // for Clown nomination
+  heroName?: string; // for hero-specific nominations
 }
 
 /**
@@ -196,6 +196,24 @@ function formatGroupedHero(hero: GroupedHero): string {
 function formatHeroesList(heroes: HeroMatch[], heroNames: string[]): string {
   const grouped = groupHeroes(heroes, heroNames);
   return grouped.map(formatGroupedHero).join(", ");
+}
+
+/**
+ * Formats seconds into "Xm" (rounded)
+ */
+function formatMinutes(seconds: number): string {
+  const minutes = Math.round(seconds / 60);
+  return `${minutes}м`;
+}
+
+/**
+ * Formats seconds into "Xч Ym" (rounded minutes)
+ */
+function formatHoursMinutes(seconds: number): string {
+  const totalMinutes = Math.round(seconds / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours}ч ${minutes}м`;
 }
 
 /**
@@ -341,7 +359,7 @@ function formatNominationsSection(nominations: Nomination[]): string[] {
 
   for (const nom of nominations) {
     if (nom.heroName) {
-      // For Clown nomination with hero name
+      // For hero-specific nominations
       lines.push(`${nom.emoji} ${nom.title}: ${nom.player.playerName} (${nom.heroName} ${nom.value})`);
     } else {
       lines.push(`${nom.emoji} ${nom.title}: ${nom.player.playerName} (${nom.value})`);
@@ -364,6 +382,8 @@ function calculateNominations(
   if (activePlayers.length < 2) return [];
 
   const nominations: Nomination[] = [];
+  const NEW_NOMINATION_MIN_MATCHES = 3;
+  const COMEBACK_MIN_LONG_MATCHES = 2;
 
   // Sort helper - for ties, sort by player name alphabetically
   const sortWithTiebreaker = <T>(
@@ -390,12 +410,14 @@ function calculateNominations(
     true // ascending - lowest first
   );
   const loser = sortedByWinRate[0];
-  nominations.push({
-    title: "Лузер",
-    emoji: "💀",
-    player: loser,
-    value: `${loser.winRate}% WR`,
-  });
+  if (loser.winRate <= 49) {
+    nominations.push({
+      title: "Лузер",
+      emoji: "💀",
+      player: loser,
+      value: `${loser.winRate}% WR`,
+    });
+  }
 
   // 2. Фидер (⚰️) - most deaths per game
   const sortedByDeaths = sortWithTiebreaker(
@@ -428,18 +450,19 @@ function calculateNominations(
     });
   }
 
-  // 4. Гей (🏳️‍🌈) - highest assists/kills ratio
+  // 4. Саппорт (🤝) - highest assists/kills ratio
   const playersWithKills = activePlayers.filter((p) => p.totalKills > 0);
   if (playersWithKills.length > 0) {
     const sortedByAssistRatio = sortWithTiebreaker(playersWithKills, (p) =>
       p.totalAssists / p.totalKills
     );
-    const gay = sortedByAssistRatio[0];
-    const ratio = Math.round((gay.totalAssists / gay.totalKills) * 10) / 10;
+    const support = sortedByAssistRatio[0];
+    const ratio =
+      Math.round((support.totalAssists / support.totalKills) * 10) / 10;
     nominations.push({
-      title: "Гей",
-      emoji: "🏳️‍🌈",
-      player: gay,
+      title: "Саппорт",
+      emoji: "🤝",
+      player: support,
       value: `A/K: ${ratio}`,
     });
   }
@@ -521,6 +544,188 @@ function calculateNominations(
       });
       break; // Only one clown
     }
+  }
+
+  // === New nominations (min 3 matches) ===
+  const eligibleForNew = activePlayers.filter(
+    (p) => p.totalMatches >= NEW_NOMINATION_MIN_MATCHES
+  );
+
+  if (eligibleForNew.length > 0) {
+    // 9. Марафонец (🕒) - most total time played
+    const sortedByTotalDuration = sortWithTiebreaker(
+      eligibleForNew,
+      (p) => p.totalDurationSeconds
+    );
+    const marathoner = sortedByTotalDuration[0];
+    nominations.push({
+      title: "Марафонец",
+      emoji: "🕒",
+      player: marathoner,
+      value: formatHoursMinutes(marathoner.totalDurationSeconds),
+    });
+
+    // 10. Спринтер (⚡) - shortest average match duration
+    const sortedByAvgDurationAsc = sortWithTiebreaker(
+      eligibleForNew,
+      (p) => p.avgDurationSeconds,
+      true
+    );
+    const sprinter = sortedByAvgDurationAsc[0];
+    nominations.push({
+      title: "Спринтер",
+      emoji: "⚡",
+      player: sprinter,
+      value: `ср. ${formatMinutes(sprinter.avgDurationSeconds)}`,
+    });
+
+    // 11. Долгожитель (🐢) - longest average match duration
+    const sortedByAvgDurationDesc = sortWithTiebreaker(
+      eligibleForNew,
+      (p) => p.avgDurationSeconds
+    );
+    const survivor = sortedByAvgDurationDesc[0];
+    nominations.push({
+      title: "Долгожитель",
+      emoji: "🐢",
+      player: survivor,
+      value: `ср. ${formatMinutes(survivor.avgDurationSeconds)}`,
+    });
+
+    // 12. Выживальщик (🛡️) - fewest deaths per game
+    const sortedByDeathsPerGame = sortWithTiebreaker(
+      eligibleForNew,
+      (p) => p.totalDeaths / p.totalMatches,
+      true
+    );
+    const tank = sortedByDeathsPerGame[0];
+    const deathsPerGame =
+      Math.round((tank.totalDeaths / tank.totalMatches) * 10) / 10;
+    nominations.push({
+      title: "Выживальщик",
+      emoji: "🛡️",
+      player: tank,
+      value: `${deathsPerGame} смертей/игра`,
+    });
+
+    // 13. Чистильщик (🧹) - best K/D ratio
+    const sortedByKillDeath = sortWithTiebreaker(
+      eligibleForNew,
+      (p) => p.totalKills / Math.max(1, p.totalDeaths)
+    );
+    const cleaner = sortedByKillDeath[0];
+    const kd = Math.round(
+      (cleaner.totalKills / Math.max(1, cleaner.totalDeaths)) * 10
+    ) / 10;
+    nominations.push({
+      title: "Чистильщик",
+      emoji: "🧹",
+      player: cleaner,
+      value: `K/D ${kd}`,
+    });
+
+    // 14. Экспериментатор (🧪) - most unique heroes
+    const sortedByUniqueHeroes = sortWithTiebreaker(
+      eligibleForNew,
+      (p) => new Set(p.heroes.map((h) => h.heroId)).size
+    );
+    const experimenter = sortedByUniqueHeroes[0];
+    const uniqueHeroes = new Set(
+      experimenter.heroes.map((h) => h.heroId)
+    ).size;
+    nominations.push({
+      title: "Экспериментатор",
+      emoji: "🧪",
+      player: experimenter,
+      value: `${uniqueHeroes} героев`,
+    });
+
+    // 15. Мейнер (🧠) - highest share on one hero with 60%+ WR on that hero
+    const mainCandidates = eligibleForNew
+      .map((player) => {
+        const heroNames = heroNamesMap.get(player.playerId) ?? [];
+        const groupedHeroes = groupHeroes(player.heroes, heroNames);
+        if (groupedHeroes.length === 0) return null;
+
+        const mostPlayed = groupedHeroes[0];
+        const totalGames = mostPlayed.wins + mostPlayed.losses;
+        const heroWinRate =
+          totalGames > 0 ? (mostPlayed.wins / totalGames) * 100 : 0;
+        if (heroWinRate < 60) return null;
+
+        return {
+          player,
+          heroName: mostPlayed.name,
+          wins: mostPlayed.wins,
+          losses: mostPlayed.losses,
+          ratio: totalGames / player.totalMatches,
+        };
+      })
+      .filter((c): c is NonNullable<typeof c> => c !== null)
+      .sort((a, b) => {
+        if (b.ratio !== a.ratio) return b.ratio - a.ratio;
+        return a.player.playerName.localeCompare(b.player.playerName);
+      });
+
+    if (mainCandidates.length > 0) {
+      const mainer = mainCandidates[0];
+      nominations.push({
+        title: "Мейнер",
+        emoji: "🧠",
+        player: mainer.player,
+        value: `${mainer.wins}W/${mainer.losses}L`,
+        heroName: mainer.heroName,
+      });
+    }
+
+    // 16. Камбэкер (🔄) - best WR in long matches (45+ min)
+    const comebackCandidates = eligibleForNew.filter(
+      (p) => p.longMatches >= COMEBACK_MIN_LONG_MATCHES
+    );
+    if (comebackCandidates.length > 0) {
+      const sortedByLongWr = [...comebackCandidates].sort((a, b) => {
+        const aWr = (a.longWins / a.longMatches) * 100;
+        const bWr = (b.longWins / b.longMatches) * 100;
+        if (bWr !== aWr) return bWr - aWr;
+        return a.playerName.localeCompare(b.playerName);
+      });
+      const comebacker = sortedByLongWr[0];
+      const longWinRate = Math.round(
+        (comebacker.longWins / comebacker.longMatches) * 100
+      );
+      nominations.push({
+        title: "Камбэкер",
+        emoji: "🔄",
+        player: comebacker,
+        value: `${longWinRate}% в ${comebacker.longMatches} играх`,
+      });
+    }
+
+    // 17. Ночной страж (🌙) - most night matches
+    const sortedByNightMatches = sortWithTiebreaker(
+      eligibleForNew,
+      (p) => p.nightMatches
+    );
+    const nightGuard = sortedByNightMatches[0];
+    nominations.push({
+      title: "Ночной страж",
+      emoji: "🌙",
+      player: nightGuard,
+      value: `${nightGuard.nightMatches} игр ночью`,
+    });
+
+    // 18. Утренний страж (🌅) - most morning matches
+    const sortedByMorningMatches = sortWithTiebreaker(
+      eligibleForNew,
+      (p) => p.morningMatches
+    );
+    const morningGuard = sortedByMorningMatches[0];
+    nominations.push({
+      title: "Утренний страж",
+      emoji: "🌅",
+      player: morningGuard,
+      value: `${morningGuard.morningMatches} игр утром`,
+    });
   }
 
   return nominations;
