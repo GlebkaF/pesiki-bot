@@ -7,6 +7,7 @@ on:
 jobs:
   deploy:
     runs-on: [self-hosted, x260, linux]
+    if: github.repository == 'GlebkaF/pesiki-bot'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
