@@ -64,6 +64,8 @@ async function rateLimitDelay(): Promise<void> {
   lastRequestTime = Date.now();
 }
 
+const FETCH_TIMEOUT_MS = 30000; // 30s - OpenDota can be slow
+
 /**
  * Fetches from OpenDota API with rate limiting and retry logic
  */
@@ -73,7 +75,23 @@ async function fetchWithRateLimit(url: string, context: string): Promise<Respons
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     await rateLimitDelay();
     
-    const response = await fetch(url);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(url, { signal: controller.signal });
+    } catch (err) {
+      clearTimeout(timeout);
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < MAX_RETRIES - 1) {
+        const retryDelay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt);
+        console.warn(`Fetch timeout for ${context}, retry ${attempt + 1}/${MAX_RETRIES} in ${retryDelay}ms`);
+        await new Promise((r) => setTimeout(r, retryDelay));
+        continue;
+      }
+      throw lastError;
+    }
+    clearTimeout(timeout);
     
     if (response.ok) {
       return response;

@@ -20,7 +20,10 @@ export async function fetchItems(): Promise<Map<number, Item>> {
   }
 
   const url = `${OPENDOTA_API_BASE}/constants/items`;
-  const response = await fetch(url);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+  const response = await fetch(url, { signal: controller.signal });
+  clearTimeout(timeout);
 
   if (!response.ok) {
     throw new Error(

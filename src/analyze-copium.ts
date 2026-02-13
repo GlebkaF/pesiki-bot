@@ -156,13 +156,39 @@ function formatBenchmark(pct: number): string {
   return `${percent}% 💀`;
 }
 
+const FETCH_TIMEOUT_MS = 30000; // 30s for OpenDota
+const OPENAI_TIMEOUT_MS = 120000; // 2 min for LLM
+
+async function fetchWithTimeout(url: string, timeoutMs: number = FETCH_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    return response;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function fetchMatchDetails(matchId: number): Promise<MatchDetails> {
   const url = `${OPENDOTA_API_BASE}/matches/${matchId}`;
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`OpenDota API error: ${response.status}`);
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const response = await fetchWithTimeout(url);
+      if (!response.ok) {
+        throw new Error(`OpenDota API error: ${response.status}`);
+      }
+      return response.json();
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < 2) {
+        console.warn(`[COPIUM] fetchMatchDetails attempt ${attempt + 1} failed, retrying...`, lastError.message);
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+    }
   }
-  return response.json();
+  throw lastError || new Error("Failed to fetch match details");
 }
 
 async function findLastPartyMatch(): Promise<{
@@ -432,7 +458,7 @@ async function analyzeWithCopium(context: string): Promise<string> {
     throw new Error("OPENAI_API_KEY not configured");
   }
   
-  const openai = new OpenAI({ apiKey });
+  const openai = new OpenAI({ apiKey, timeout: OPENAI_TIMEOUT_MS });
   const isGpt5 = OPENAI_MODEL.startsWith("gpt-5");
   
   console.log(`[COPIUM] Using model: ${OPENAI_MODEL}`);
@@ -526,8 +552,21 @@ export async function analyzeMatchCopium(matchId: number): Promise<string> {
   const context = await buildBiasedContext(matchDetails);
   console.log("[COPIUM] Biased context built, calling LLM...");
   
-  // Analyze with LLM
-  const analysis = await analyzeWithCopium(context);
+  // Analyze with LLM (with retry for transient timeouts)
+  let analysis: string;
+  try {
+    analysis = await analyzeWithCopium(context);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const causeMsg = err instanceof Error && err.cause instanceof Error ? err.cause.message : "";
+    const isTimeout = /ETIMEDOUT|terminated|timeout|abort/i.test(msg + causeMsg);
+    if (isTimeout) {
+      console.warn("[COPIUM] LLM timeout, retrying once...");
+      analysis = await analyzeWithCopium(context);
+    } else {
+      throw err;
+    }
+  }
   
   // Format response
   const matchUrl = `https://www.opendota.com/matches/${matchId}`;
