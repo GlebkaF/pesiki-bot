@@ -424,17 +424,21 @@ export function setupCommands(
   // Register /me command
   bot.command("me", (ctx) => handleMeCommand(ctx, onCommandReceived));
 
-  // Set bot commands menu
-  bot.api.setMyCommands([
-    { command: "stats", description: "Get today's Dota 2 stats" },
-    { command: "yesterday", description: "Get yesterday's Dota 2 stats" },
-    { command: "weekly", description: "Get this week's Dota 2 stats" },
-    { command: "monthly", description: "Get this month's Dota 2 stats" },
-    { command: "roast", description: "Roast the worst player of the day" },
-    { command: "analyze", description: "AI analysis (or /analyze <url>)" },
-    { command: "copium", description: "💊 AI-аналитика для стака" },
-    { command: "me", description: "Your personal stats" },
-  ]);
+  // Set bot commands menu (optional; 404 can occur with invalid token or custom API)
+  bot.api
+    .setMyCommands([
+      { command: "stats", description: "Get today's Dota 2 stats" },
+      { command: "yesterday", description: "Get yesterday's Dota 2 stats" },
+      { command: "weekly", description: "Get this week's Dota 2 stats" },
+      { command: "monthly", description: "Get this month's Dota 2 stats" },
+      { command: "roast", description: "Roast the worst player of the day" },
+      { command: "analyze", description: "AI analysis (or /analyze <url>)" },
+      { command: "copium", description: "💊 AI-аналитика для стака" },
+      { command: "me", description: "Your personal stats" },
+    ])
+    .catch((err) =>
+      console.warn("[WARN] setMyCommands failed (menu may not show):", err.message),
+    );
 }
 
 /**

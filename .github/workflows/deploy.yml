@@ -1,8 +1,4 @@
 # Push to main → deploy on x260 (self-hosted runner)
-# Env: add secrets in repo → Settings → Secrets and variables → Actions.
-# Required: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, STEAM_API_KEY, OPENAI_API_KEY.
-# Optional: OPENAI_BASE_URL, OPENAI_MODEL, HTTPS_PROXY.
-# New server = add runner only, no manual .env setup.
 
 name: Deploy to x260
 
@@ -27,26 +23,11 @@ jobs:
           docker rm pesiki-bot 2>/dev/null || true
 
       - name: Run container
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
-          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
-          HTTPS_PROXY: ${{ secrets.HTTPS_PROXY }}
-          TZ: Europe/Moscow
         run: |
           docker run -d \
             --name pesiki-bot \
             --restart unless-stopped \
             --network host \
-            -e TELEGRAM_BOT_TOKEN \
-            -e TELEGRAM_CHAT_ID \
-            -e STEAM_API_KEY \
-            -e OPENAI_API_KEY \
-            -e OPENAI_BASE_URL \
-            -e OPENAI_MODEL \
-            -e HTTPS_PROXY \
-            -e TZ \
+            --env-file /opt/pesiki-bot/.env \
+            -e TZ=Europe/Moscow \
             pesiki-bot
