@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { getOpenAIFetch } from "./proxy.js";
 import { PLAYER_IDS } from "./config.js";
 import { fetchRecentMatches, fetchPlayerProfile } from "./opendota.js";
 import { getHeroName } from "./heroes.js";
@@ -458,7 +459,8 @@ async function analyzeWithCopium(context: string): Promise<string> {
     throw new Error("OPENAI_API_KEY not configured");
   }
   const baseURL = process.env.OPENAI_BASE_URL;
-  const openai = new OpenAI({ apiKey, baseURL, timeout: OPENAI_TIMEOUT_MS });
+  const fetch = await getOpenAIFetch();
+  const openai = new OpenAI({ apiKey, baseURL, timeout: OPENAI_TIMEOUT_MS, fetch });
   const isGpt5 = OPENAI_MODEL.startsWith("gpt-5");
   
   console.log(`[COPIUM] Using model: ${OPENAI_MODEL}`);

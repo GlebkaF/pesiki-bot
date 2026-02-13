@@ -1,13 +1,28 @@
 /**
- * Proxy setup for OpenAI (blocked in some regions).
- * Must be imported first, before any fetch/HTTP calls.
- * Set HTTPS_PROXY in .env (e.g. socks5://user:pass@host:1080 or http://host:8080)
- * Optional: NO_PROXY=api.opendota.com to skip proxy for OpenDota (often works from РФ)
+ * Proxy fetch for OpenAI only (blocked in some regions).
+ * OpenDota, Steam etc. use normal fetch (no proxy).
+ * Set HTTPS_PROXY in .env.
  */
 import "dotenv/config";
 
-if (process.env.HTTPS_PROXY || process.env.HTTP_PROXY) {
-  const { setGlobalDispatcher, EnvHttpProxyAgent } = await import("undici");
-  setGlobalDispatcher(new EnvHttpProxyAgent());
-  console.log("[PROXY] Using proxy for outgoing requests");
+let proxyFetch: typeof fetch | null = null;
+
+async function getProxyFetch(): Promise<typeof fetch> {
+  if (proxyFetch) return proxyFetch;
+  const proxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+  if (!proxy) {
+    proxyFetch = globalThis.fetch;
+    return proxyFetch;
+  }
+  const { fetch: undiciFetch, ProxyAgent } = await import("undici");
+  const agent = new ProxyAgent(proxy);
+  proxyFetch = (url: string | URL | Request, init?: RequestInit) =>
+    undiciFetch(url, { ...init, dispatcher: agent });
+  console.log("[PROXY] OpenAI requests will use proxy");
+  return proxyFetch;
+}
+
+/** Use for OpenAI client only. Other APIs use normal fetch. */
+export async function getOpenAIFetch(): Promise<typeof fetch> {
+  return getProxyFetch();
 }
