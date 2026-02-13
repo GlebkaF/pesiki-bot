@@ -292,7 +292,7 @@ async function handleCopiumCommand(
       /OPENAI|api\.openai|proxy|ETIMEDOUT|timeout|fetch failed/i.test(msg);
     const reply =
       isConfigError && msg.length < 200
-        ? `❌ /copium не сработал: ${msg}\n\nПроверь на сервере: OPENAI_API_KEY, HTTPS_PROXY (если нужен), логи: docker logs pesiki-bot"
+        ? `❌ /copium не сработал: ${msg}\n\nПроверь на сервере: OPENAI_API_KEY, HTTPS_PROXY (если нужен), логи: docker logs pesiki-bot`
         : "❌ Не удалось проанализировать матч. Попробуй позже. (Детали в логах бота.)";
     await ctx.reply(reply);
   }
