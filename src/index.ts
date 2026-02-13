@@ -1,3 +1,4 @@
+import "./proxy.js";
 import cron from "node-cron";
 import { config, PLAYER_IDS } from "./config.js";
 import { fetchRecentMatches, fetchPlayerProfile, fetchPlayerTotals } from "./opendota.js";
