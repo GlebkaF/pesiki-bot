@@ -254,14 +254,33 @@ async function runTests() {
     { name: "Has Клоун nomination", pass: message.includes("🤡 Клоун:") },
     { name: "Has Марафонец nomination", pass: message.includes("🕒 Марафонец:") },
     { name: "Has Спринтер nomination", pass: message.includes("⚡ Спринтер:") },
-    { name: "Has Долгожитель nomination", pass: message.includes("🐢 Долгожитель:") },
-    { name: "Has Выживальщик nomination", pass: message.includes("🛡️ Выживальщик:") },
-    { name: "Has Чистильщик nomination", pass: message.includes("🧹 Чистильщик:") },
+    { name: "Has Любитель лейта nomination", pass: message.includes("🐢 Любитель лейта:") },
+    { name: "Has Аккуратист nomination", pass: message.includes("🛡️ Аккуратист:") },
+    { name: "Has Дуэлянт nomination", pass: message.includes("🧹 Дуэлянт:") },
+    { name: "Has Киллер nomination", pass: message.includes("🎯 Киллер:") },
     { name: "Has Экспериментатор nomination", pass: message.includes("🧪 Экспериментатор:") },
     { name: "Has Мейнер nomination", pass: message.includes("🧠 Мейнер:") },
     { name: "Has Камбэкер nomination", pass: message.includes("🔄 Камбэкер:") },
     { name: "Has Ночной страж nomination", pass: message.includes("🌙 Ночной страж:") },
     { name: "Has Утренний страж nomination", pass: message.includes("🌅 Утренний страж:") },
+    {
+      name: "No player has more than two nominations",
+      pass: (() => {
+        const nominationLines = plainMessage
+          .split("\n")
+          .filter((line) => /^\p{Emoji_Presentation}|^[\u{1F300}-\u{1FAFF}]/u.test(line.trim()));
+        const counts = new Map<string, number>();
+
+        for (const line of nominationLines) {
+          const match = line.match(/:\s([^()]+)\s\(/);
+          if (!match) continue;
+          const playerName = match[1].trim();
+          counts.set(playerName, (counts.get(playerName) ?? 0) + 1);
+        }
+
+        return [...counts.values()].every((count) => count <= 2);
+      })(),
+    },
   ];
 
   console.log("Verification checks:");
