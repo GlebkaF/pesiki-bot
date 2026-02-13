@@ -1,3 +1,5 @@
+import { getAppFetch } from "./proxy.js";
+
 const OPENDOTA_API_BASE = "https://api.opendota.com/api";
 
 // Rate limiting configuration
@@ -77,9 +79,10 @@ async function fetchWithRateLimit(url: string, context: string): Promise<Respons
     
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    const fetchFn = await getAppFetch();
     let response: Response;
     try {
-      response = await fetch(url, { signal: controller.signal });
+      response = await fetchFn(url, { signal: controller.signal });
     } catch (err) {
       clearTimeout(timeout);
       lastError = err instanceof Error ? err : new Error(String(err));

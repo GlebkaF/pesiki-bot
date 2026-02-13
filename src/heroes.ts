@@ -1,3 +1,5 @@
+import { getAppFetch } from "./proxy.js";
+
 const OPENDOTA_API_BASE = "https://api.opendota.com/api";
 
 export interface Hero {
@@ -21,7 +23,8 @@ export async function fetchHeroes(): Promise<Map<number, Hero>> {
   const url = `${OPENDOTA_API_BASE}/heroes`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000);
-  const response = await fetch(url, { signal: controller.signal });
+  const fetchFn = await getAppFetch();
+  const response = await fetchFn(url, { signal: controller.signal });
   clearTimeout(timeout);
 
   if (!response.ok) {

@@ -25,6 +25,7 @@ jobs:
           docker run -d \
             --name pesiki-bot \
             --restart unless-stopped \
+            --network host \
             --env-file /opt/pesiki-bot/.env \
             -e TZ=Europe/Moscow \
             pesiki-bot

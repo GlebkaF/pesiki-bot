@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { getOpenAIFetch } from "./proxy.js";
+import { getAppFetch, getOpenAIFetch } from "./proxy.js";
 import { PLAYER_IDS } from "./config.js";
 import { fetchRecentMatches, fetchPlayerProfile } from "./opendota.js";
 import { getHeroName } from "./heroes.js";
@@ -166,7 +166,8 @@ function formatBenchmark(pct: number): string {
 
 async function fetchMatchDetails(matchId: number): Promise<MatchDetails> {
   const url = `${OPENDOTA_API_BASE}/matches/${matchId}`;
-  const response = await fetch(url);
+  const fetchFn = await getAppFetch();
+  const response = await fetchFn(url);
   if (!response.ok) {
     throw new Error(`OpenDota API error: ${response.status}`);
   }

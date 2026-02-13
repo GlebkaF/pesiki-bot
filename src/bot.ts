@@ -202,7 +202,15 @@ async function handleAnalyzeCommand(
     console.log(`[${new Date().toISOString()}] /analyze command completed`);
   } catch (error) {
     console.error("[ERROR] Failed to handle /analyze command:", error);
-    await ctx.reply("❌ Не удалось проанализировать матч. Попробуй позже.");
+    const msg = error instanceof Error ? error.message : String(error);
+    const isConfigError =
+      /OPENAI_API_KEY not configured/i.test(msg) ||
+      /OPENAI|api\.openai|proxy|ETIMEDOUT|timeout|fetch failed/i.test(msg);
+    const reply =
+      isConfigError && msg.length < 200
+        ? `❌ /analyze не сработал: ${msg}\n\nПроверь на сервере: OPENAI_API_KEY, HTTPS_PROXY (если нужен), логи: docker logs pesiki-bot`
+        : "❌ Не удалось проанализировать матч. Попробуй позже. (Детали в логах бота.)";
+    await ctx.reply(reply);
   }
 }
 
@@ -278,7 +286,15 @@ async function handleCopiumCommand(
     console.log(`[${new Date().toISOString()}] /copium command completed`);
   } catch (error) {
     console.error("[ERROR] Failed to handle /copium command:", error);
-    await ctx.reply("❌ Не удалось проанализировать матч. Попробуй позже.");
+    const msg = error instanceof Error ? error.message : String(error);
+    const isConfigError =
+      /OPENAI_API_KEY not configured/i.test(msg) ||
+      /OPENAI|api\.openai|proxy|ETIMEDOUT|timeout|fetch failed/i.test(msg);
+    const reply =
+      isConfigError && msg.length < 200
+        ? `❌ /copium не сработал: ${msg}\n\nПроверь на сервере: OPENAI_API_KEY, HTTPS_PROXY (если нужен), логи: docker logs pesiki-bot"
+        : "❌ Не удалось проанализировать матч. Попробуй позже. (Детали в логах бота.)";
+    await ctx.reply(reply);
   }
 }
 

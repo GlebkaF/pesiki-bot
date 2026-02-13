@@ -1,3 +1,5 @@
+import { getAppFetch } from "./proxy.js";
+
 const STEAM_API_BASE = "https://api.steampowered.com";
 
 // Dota 2 game ID on Steam
@@ -68,7 +70,8 @@ export async function getPlayerSummaries(
 
   const url = `${STEAM_API_BASE}/ISteamUser/GetPlayerSummaries/v0002/?key=${apiKey}&steamids=${steam64Ids.join(",")}`;
 
-  const response = await fetch(url);
+  const fetchFn = await getAppFetch();
+  const response = await fetchFn(url);
 
   if (!response.ok) {
     throw new Error(`Steam API error: ${response.status} ${response.statusText}`);

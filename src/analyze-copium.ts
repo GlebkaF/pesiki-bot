@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import { getOpenAIFetch } from "./proxy.js";
+import { getAppFetch, getOpenAIFetch } from "./proxy.js";
 import { PLAYER_IDS } from "./config.js";
 import { fetchRecentMatches, fetchPlayerProfile } from "./opendota.js";
 import { getHeroName } from "./heroes.js";
@@ -161,10 +161,11 @@ const FETCH_TIMEOUT_MS = 30000; // 30s for OpenDota
 const OPENAI_TIMEOUT_MS = 120000; // 2 min for LLM
 
 async function fetchWithTimeout(url: string, timeoutMs: number = FETCH_TIMEOUT_MS): Promise<Response> {
+  const fetchFn = await getAppFetch();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetchFn(url, { signal: controller.signal });
     return response;
   } finally {
     clearTimeout(timeout);
