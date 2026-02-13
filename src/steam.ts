@@ -1,4 +1,4 @@
-import { getAppFetch } from "./proxy.js";
+import { getDirectFetch } from "./proxy.js";
 
 const STEAM_API_BASE = "https://api.steampowered.com";
 
@@ -70,23 +70,47 @@ export async function getPlayerSummaries(
 
   const url = `${STEAM_API_BASE}/ISteamUser/GetPlayerSummaries/v0002/?key=${apiKey}&steamids=${steam64Ids.join(",")}`;
 
-  const fetchFn = await getAppFetch();
-  const response = await fetchFn(url);
+  const fetchFn = getDirectFetch();
+  const maxAttempts = 3;
+  const retryDelayMs = 2000;
 
-  if (!response.ok) {
-    throw new Error(`Steam API error: ${response.status} ${response.statusText}`);
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await fetchFn(url);
+
+      // Retry on 502 (proxy/upstream) and 503
+      if ((response.status === 502 || response.status === 503) && attempt < maxAttempts) {
+        lastError = new Error(`Steam API error: ${response.status} ${response.statusText}`);
+        await new Promise((r) => setTimeout(r, retryDelayMs));
+        continue;
+      }
+
+      if (!response.ok) {
+        throw new Error(`Steam API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data: GetPlayerSummariesResponse = await response.json();
+
+      // Create map from Steam32 ID to player data
+      const result = new Map<number, SteamPlayer>();
+      for (const player of data.response.players) {
+        const steam32Id = steam64ToSteam32(player.steamid);
+        result.set(steam32Id, player);
+      }
+
+      return result;
+    } catch (err) {
+      lastError = err;
+      if (attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, retryDelayMs));
+        continue;
+      }
+      throw err;
+    }
   }
 
-  const data: GetPlayerSummariesResponse = await response.json();
-
-  // Create map from Steam32 ID to player data
-  const result = new Map<number, SteamPlayer>();
-  for (const player of data.response.players) {
-    const steam32Id = steam64ToSteam32(player.steamid);
-    result.set(steam32Id, player);
-  }
-
-  return result;
+  throw lastError;
 }
 
 /**

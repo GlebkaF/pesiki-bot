@@ -1,34 +1,39 @@
 /**
- * Proxy fetch for outbound HTTP when HTTPS_PROXY is set.
- * Used for OpenAI, OpenDota, Steam, etc. to avoid connectivity issues in restricted networks.
- * Set HTTPS_PROXY in .env.
+ * Two fetch clients: proxied (when HTTPS_PROXY set) and direct (no proxy).
+ * Use getProxiedFetch for OpenAI, OpenDota, heroes, items. Use getDirectFetch for Steam (avoids proxy 502).
  */
 import "dotenv/config";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let proxyFetch: any = null;
+let proxiedFetch: any = null;
 
-async function getProxyFetch(): Promise<typeof fetch> {
-  if (proxyFetch) return proxyFetch;
+/** Proxied fetch: uses HTTPS_PROXY when set, otherwise global fetch. For OpenAI, OpenDota, heroes, items. */
+export async function getProxiedFetch(): Promise<typeof fetch> {
+  if (proxiedFetch) return proxiedFetch;
   const proxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
   if (!proxy) {
-    proxyFetch = globalThis.fetch;
-    return proxyFetch;
+    proxiedFetch = globalThis.fetch;
+    return proxiedFetch;
   }
   const undici = await import("undici");
   const agent = new undici.ProxyAgent(proxy);
-  proxyFetch = (input: RequestInfo | URL, init?: RequestInit) =>
+  proxiedFetch = (input: RequestInfo | URL, init?: RequestInit) =>
     undici.fetch(String(input), { ...init, dispatcher: agent } as Parameters<typeof undici.fetch>[1]);
-  console.log("[PROXY] Outbound requests (OpenAI, OpenDota, etc.) will use proxy");
-  return proxyFetch;
+  console.log("[PROXY] Proxied fetch: OpenAI, OpenDota, heroes, items use proxy");
+  return proxiedFetch;
+}
+
+/** Direct fetch: always no proxy. Use for Steam API (LFG) to avoid proxy 502. */
+export function getDirectFetch(): typeof fetch {
+  return globalThis.fetch;
 }
 
 /** Use for OpenAI client. */
 export async function getOpenAIFetch(): Promise<typeof fetch> {
-  return getProxyFetch();
+  return getProxiedFetch();
 }
 
-/** Use for OpenDota, Steam, heroes/items APIs — same proxy when HTTPS_PROXY is set. */
+/** Use for OpenDota, heroes, items APIs. */
 export async function getAppFetch(): Promise<typeof fetch> {
-  return getProxyFetch();
+  return getProxiedFetch();
 }
