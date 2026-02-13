@@ -5,7 +5,8 @@
  */
 import "dotenv/config";
 
-let proxyFetch: typeof fetch | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let proxyFetch: any = null;
 
 async function getProxyFetch(): Promise<typeof fetch> {
   if (proxyFetch) return proxyFetch;
@@ -14,10 +15,10 @@ async function getProxyFetch(): Promise<typeof fetch> {
     proxyFetch = globalThis.fetch;
     return proxyFetch;
   }
-  const { fetch: undiciFetch, ProxyAgent } = await import("undici");
-  const agent = new ProxyAgent(proxy);
-  proxyFetch = (url: string | URL | Request, init?: RequestInit) =>
-    undiciFetch(url, { ...init, dispatcher: agent });
+  const undici = await import("undici");
+  const agent = new undici.ProxyAgent(proxy);
+  proxyFetch = (input: RequestInfo | URL, init?: RequestInit) =>
+    undici.fetch(String(input), { ...init, dispatcher: agent } as Parameters<typeof undici.fetch>[1]);
   console.log("[PROXY] OpenAI requests will use proxy");
   return proxyFetch;
 }

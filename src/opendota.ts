@@ -64,7 +64,7 @@ async function rateLimitDelay(): Promise<void> {
   lastRequestTime = Date.now();
 }
 
-const FETCH_TIMEOUT_MS = 30000; // 30s - OpenDota can be slow
+const FETCH_TIMEOUT_MS = 60000; // 60s - OpenDota can be slow
 
 /**
  * Fetches from OpenDota API with rate limiting and retry logic
