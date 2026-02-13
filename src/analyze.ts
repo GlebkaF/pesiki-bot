@@ -369,8 +369,8 @@ async function analyzeWithLLM(context: string): Promise<string> {
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY not configured");
   }
-  
-  const openai = new OpenAI({ apiKey });
+  const baseURL = process.env.OPENAI_BASE_URL;
+  const openai = new OpenAI({ apiKey, baseURL });
   const isGpt5 = OPENAI_MODEL.startsWith("gpt-5");
   
   console.log(`[ANALYZE] Using model: ${OPENAI_MODEL}`);

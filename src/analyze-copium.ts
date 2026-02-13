@@ -457,8 +457,8 @@ async function analyzeWithCopium(context: string): Promise<string> {
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY not configured");
   }
-  
-  const openai = new OpenAI({ apiKey, timeout: OPENAI_TIMEOUT_MS });
+  const baseURL = process.env.OPENAI_BASE_URL;
+  const openai = new OpenAI({ apiKey, baseURL, timeout: OPENAI_TIMEOUT_MS });
   const isGpt5 = OPENAI_MODEL.startsWith("gpt-5");
   
   console.log(`[COPIUM] Using model: ${OPENAI_MODEL}`);
