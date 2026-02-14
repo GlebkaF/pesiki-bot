@@ -394,42 +394,69 @@ export async function getProMetaByRole(): Promise<string> {
 
   let topHeroesByRole: Map<Role, MetaHero[]> | null = null;
   let sourceInfo: MetaSourceInfo = { provider: "OpenDota" };
+  let fallbackError: unknown = null;
 
-  const proTrackerPayload = await fetchProTrackerApiPayload();
-  const proTrackerMetaHeroes = parseProTrackerMetaHeroes(proTrackerPayload);
-  if (proTrackerMetaHeroes) {
-    topHeroesByRole = groupTopHeroesByRoleFromList(proTrackerMetaHeroes);
-    sourceInfo = { provider: "Dota2ProTracker API" };
+  try {
+    const proTrackerPayload = await fetchProTrackerApiPayload();
+    const proTrackerMetaHeroes = parseProTrackerMetaHeroes(proTrackerPayload);
+    if (proTrackerMetaHeroes) {
+      topHeroesByRole = groupTopHeroesByRoleFromList(proTrackerMetaHeroes);
+      sourceInfo = { provider: "Dota2ProTracker API" };
+    }
+  } catch (error) {
+    console.warn("[META] Failed to load Dota2ProTracker data:", error);
   }
 
   if (!topHeroesByRole) {
-    const proMatchesRaw = await fetchProMatches(PRO_MATCH_SAMPLE_SIZE);
-    const proMatches = filterMatchesByLastWeek(proMatchesRaw);
-    const matchDetails = await Promise.all(proMatches.map((m) => fetchMatchDetails(m.match_id)));
+    try {
+      const proMatchesRaw = await fetchProMatches(PRO_MATCH_SAMPLE_SIZE);
+      const proMatches = filterMatchesByLastWeek(proMatchesRaw);
+      const matchDetails = await Promise.all(proMatches.map((m) => fetchMatchDetails(m.match_id)));
 
-    const roleStats = buildRoleStats(matchDetails);
-    const allHeroIds = new Set<number>();
-    for (const heroMap of roleStats.values()) {
-      for (const heroId of heroMap.keys()) {
-        allHeroIds.add(heroId);
+      const roleStats = buildRoleStats(matchDetails);
+      const allHeroIds = new Set<number>();
+      for (const heroMap of roleStats.values()) {
+        for (const heroId of heroMap.keys()) {
+          allHeroIds.add(heroId);
+        }
       }
+
+      const heroIdList = Array.from(allHeroIds);
+      const heroNamesList = await getHeroNames(heroIdList);
+      const heroNames = new Map(heroIdList.map((id, index) => [id, heroNamesList[index]]));
+
+      const items = await fetchItems();
+      const itemNames = new Map<number, string>();
+      for (const [itemId, item] of items.entries()) {
+        itemNames.set(itemId, item.dname);
+      }
+
+      topHeroesByRole = pickTopHeroesByRole(roleStats, heroNames, itemNames);
+      sourceInfo = {
+        provider: "OpenDota",
+        note: "Dota2ProTracker API недоступен или вернул неожиданный формат, использую fallback.",
+      };
+    } catch (error) {
+      fallbackError = error;
+      console.error("[META] Failed to load OpenDota fallback data:", error);
+    }
+  }
+
+  if (!topHeroesByRole) {
+    if (metaCache) {
+      console.warn("[META] Returning stale meta cache because live fetch failed");
+      return `${metaCache.text}
+
+<i>⚠️ Показаны старые данные: источники временно недоступны.</i>`;
     }
 
-    const heroIdList = Array.from(allHeroIds);
-    const heroNamesList = await getHeroNames(heroIdList);
-    const heroNames = new Map(heroIdList.map((id, index) => [id, heroNamesList[index]]));
-
-    const items = await fetchItems();
-    const itemNames = new Map<number, string>();
-    for (const [itemId, item] of items.entries()) {
-      itemNames.set(itemId, item.dname);
-    }
-
-    topHeroesByRole = pickTopHeroesByRole(roleStats, heroNames, itemNames);
-    sourceInfo = {
-      provider: "OpenDota",
-      note: "Dota2ProTracker API недоступен или вернул неожиданный формат, использую fallback.",
-    };
+    const errorMessage = fallbackError instanceof Error ? fallbackError.message : "Неизвестная ошибка";
+    return [
+      "📈 <b>Meta по ролям (топ-4 героя + билды)</b>",
+      "❌ Не удалось получить данные меты из Dota2ProTracker и OpenDota.",
+      `<i>Техническая причина: ${errorMessage}</i>`,
+      "Попробуй позже.",
+    ].join("\n");
   }
 
   const aiLineups = await generateAiLineups(topHeroesByRole);
@@ -471,3 +498,4 @@ export async function getProMetaByRole(): Promise<string> {
 
   return text;
 }
+
