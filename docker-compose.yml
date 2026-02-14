@@ -1,5 +1,5 @@
 # Deploy: docker compose up -d --build
-# Env: workflow creates .env from GitHub Secrets (in checkout dir)
+# Env: workflow passes GitHub Secrets directly to container
 
 services:
   pesiki-bot:
@@ -8,6 +8,11 @@ services:
     container_name: pesiki-bot
     restart: unless-stopped
     network_mode: host
-    env_file: .env
     environment:
       - TZ=Europe/Moscow
+      - STEAM_API_KEY=${STEAM_API_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - HTTPS_PROXY=${HTTPS_PROXY}
+      - NO_PROXY=${NO_PROXY}

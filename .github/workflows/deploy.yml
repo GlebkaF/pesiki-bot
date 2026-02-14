@@ -17,17 +17,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Create .env from secrets
-        run: |
-          cat > .env << ENVEOF
-          STEAM_API_KEY=$STEAM_API_KEY
-          TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
-          TELEGRAM_CHAT_ID=$TELEGRAM_CHAT_ID
-          TZ=Europe/Moscow
-          OPENAI_API_KEY=$OPENAI_API_KEY
-          ENVEOF
-          [ -n "$HTTPS_PROXY" ] && echo "HTTPS_PROXY=$HTTPS_PROXY" >> .env
-          [ -n "$NO_PROXY" ] && echo "NO_PROXY=$NO_PROXY" >> .env
+      - name: Build and run with docker compose
+        run: docker compose up -d --build
         env:
           STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -35,6 +26,3 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           HTTPS_PROXY: ${{ secrets.HTTPS_PROXY }}
           NO_PROXY: ${{ secrets.NO_PROXY }}
-
-      - name: Build and run with docker compose
-        run: docker compose up -d --build
