@@ -8,6 +8,7 @@ import { fetchRecentMatches, fetchPlayerProfile } from "./opendota.js";
 import { calculateStats } from "./stats.js";
 import { getHeroNames } from "./heroes.js";
 import { formatRank } from "./ranks.js";
+import { getProMetaByRole } from "./meta.js";
 
 /**
  * Creates and returns a configured Telegram bot instance
@@ -382,6 +383,39 @@ ${stats.totalMatches > 0 ? `\n🎮 <b>Последние герои:</b>\n${hero
 }
 
 /**
+ * Handles /meta command - top 3 meta heroes by role from recent pro matches
+ */
+async function handleMetaCommand(
+  ctx: CommandContext<Context>,
+  onCommandReceived?: () => void,
+): Promise<void> {
+  console.log(
+    `[${new Date().toISOString()}] /meta command received from user ${ctx.from?.id}`,
+  );
+
+  if (onCommandReceived) {
+    onCommandReceived();
+  }
+
+  try {
+    const loadingMsg = await ctx.reply("📈 Собираю мету с Pro Tracker...");
+
+    const message = await getProMetaByRole();
+
+    await ctx.api.deleteMessage(ctx.chat.id, loadingMsg.message_id);
+    await ctx.reply(message, {
+      parse_mode: "HTML",
+      link_preview_options: { is_disabled: true },
+    });
+
+    console.log(`[${new Date().toISOString()}] /meta command completed`);
+  } catch (error) {
+    console.error("[ERROR] Failed to handle /meta command:", error);
+    await ctx.reply("❌ Не удалось собрать мету. Попробуй позже.");
+  }
+}
+
+/**
  * Sets up bot commands and handlers
  * @param bot - The bot instance
  * @param fetchStatsHandler - Handler function that fetches and returns formatted stats message for a period
@@ -424,6 +458,9 @@ export function setupCommands(
   // Register /me command
   bot.command("me", (ctx) => handleMeCommand(ctx, onCommandReceived));
 
+  // Register /meta command
+  bot.command("meta", (ctx) => handleMetaCommand(ctx, onCommandReceived));
+
   // Set bot commands menu (optional; 404 can occur with invalid token or custom API)
   bot.api
     .setMyCommands([
@@ -435,6 +472,7 @@ export function setupCommands(
       { command: "analyze", description: "AI analysis (or /analyze <url>)" },
       { command: "copium", description: "💊 AI-аналитика для стака" },
       { command: "me", description: "Your personal stats" },
+      { command: "meta", description: "Top-3 мета героев по ролям + билд" },
     ])
     .catch((err) =>
       console.warn("[WARN] setMyCommands failed (menu may not show):", err.message),
