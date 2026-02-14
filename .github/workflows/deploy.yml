@@ -14,5 +14,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Stop and remove old container
+        run: |
+          docker stop pesiki-bot 2>/dev/null || true
+          docker rm pesiki-bot 2>/dev/null || true
+
       - name: Build and run with docker compose
         run: docker compose up -d --build
