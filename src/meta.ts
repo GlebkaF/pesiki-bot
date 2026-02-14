@@ -16,6 +16,14 @@ const META_CACHE_TTL_MS = 10 * 60 * 1000;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.2";
 const TOP_HEROES_PER_ROLE = 4;
 
+const STATIC_META_FALLBACK: Record<Role, string[]> = {
+  pos1: ["Morphling", "Luna", "Ursa", "Troll Warlord"],
+  pos2: ["Ember Spirit", "Storm Spirit", "Queen of Pain", "Puck"],
+  pos3: ["Mars", "Axe", "Underlord", "Dawnbreaker"],
+  pos4: ["Rubick", "Tusk", "Earth Spirit", "Hoodwink"],
+  pos5: ["Crystal Maiden", "Disruptor", "Warlock", "Treant Protector"],
+};
+
 type Role = "pos1" | "pos2" | "pos3" | "pos4" | "pos5";
 
 const ROLE_ALIASES: Record<Role, string[]> = {
@@ -79,7 +87,7 @@ interface MetaCacheEntry {
 }
 
 interface MetaSourceInfo {
-  provider: "OpenDota" | "Dota2ProTracker API";
+  provider: "OpenDota" | "Dota2ProTracker API" | "Встроенный fallback";
   note?: string;
 }
 
@@ -450,13 +458,25 @@ export async function getProMetaByRole(): Promise<string> {
 <i>⚠️ Показаны старые данные: источники временно недоступны.</i>`;
     }
 
-    const errorMessage = fallbackError instanceof Error ? fallbackError.message : "Неизвестная ошибка";
-    return [
-      "📈 <b>Meta по ролям (топ-4 героя + билды)</b>",
-      "❌ Не удалось получить данные меты из Dota2ProTracker и OpenDota.",
-      `<i>Техническая причина: ${errorMessage}</i>`,
-      "Попробуй позже.",
-    ].join("\n");
+    console.warn("[META] Returning static fallback meta because live sources are unavailable", fallbackError);
+    topHeroesByRole = new Map<Role, MetaHero[]>();
+    (Object.keys(ROLE_LABELS) as Role[]).forEach((role) => {
+      const heroes = STATIC_META_FALLBACK[role].map((heroName) => ({
+        role,
+        heroId: 0,
+        heroName,
+        games: 0,
+        wins: 0,
+        winRate: 0,
+        build: "Открой Dota2ProTracker для актуального билда",
+      }));
+      topHeroesByRole!.set(role, heroes);
+    });
+
+    sourceInfo = {
+      provider: "Встроенный fallback",
+      note: "Live-источники недоступны, показан безопасный базовый пул.",
+    };
   }
 
   const aiLineups = await generateAiLineups(topHeroesByRole);
@@ -479,8 +499,13 @@ export async function getProMetaByRole(): Promise<string> {
     }
 
     topHeroes.forEach((hero, index) => {
+      const statsLabel =
+        hero.games > 0
+          ? `WR: <b>${hero.winRate.toFixed(1)}%</b> (${hero.wins}/${hero.games})`
+          : "Статистика: <b>нет live-данных</b>";
+
       lines.push(
-        `${index + 1}. <b>${hero.heroName}</b> — WR: <b>${hero.winRate.toFixed(1)}%</b> (${hero.wins}/${hero.games})`,
+        `${index + 1}. <b>${hero.heroName}</b> — ${statsLabel}`,
         `   Билд: ${hero.build}`,
       );
     });
