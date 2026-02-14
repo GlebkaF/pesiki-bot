@@ -1,5 +1,5 @@
 # Deploy: docker compose up -d --build
-# Env: workflow writes /opt/pesiki-bot/.env from GitHub Secrets
+# Env: workflow creates .env from GitHub Secrets (in checkout dir)
 
 services:
   pesiki-bot:
@@ -8,6 +8,6 @@ services:
     container_name: pesiki-bot
     restart: unless-stopped
     network_mode: host
-    env_file: /opt/pesiki-bot/.env
+    env_file: .env
     environment:
       - TZ=Europe/Moscow

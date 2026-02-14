@@ -19,15 +19,15 @@ jobs:
 
       - name: Create .env from secrets
         run: |
-          cat > /opt/pesiki-bot/.env << ENVEOF
+          cat > .env << ENVEOF
           STEAM_API_KEY=$STEAM_API_KEY
           TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
           TELEGRAM_CHAT_ID=$TELEGRAM_CHAT_ID
           TZ=Europe/Moscow
           OPENAI_API_KEY=$OPENAI_API_KEY
           ENVEOF
-          [ -n "$HTTPS_PROXY" ] && echo "HTTPS_PROXY=$HTTPS_PROXY" >> /opt/pesiki-bot/.env
-          [ -n "$NO_PROXY" ] && echo "NO_PROXY=$NO_PROXY" >> /opt/pesiki-bot/.env
+          [ -n "$HTTPS_PROXY" ] && echo "HTTPS_PROXY=$HTTPS_PROXY" >> .env
+          [ -n "$NO_PROXY" ] && echo "NO_PROXY=$NO_PROXY" >> .env
         env:
           STEAM_API_KEY: ${{ secrets.STEAM_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
