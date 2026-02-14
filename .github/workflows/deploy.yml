@@ -25,4 +25,3 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           HTTPS_PROXY: ${{ secrets.HTTPS_PROXY }}
-          NO_PROXY: ${{ secrets.NO_PROXY }}
