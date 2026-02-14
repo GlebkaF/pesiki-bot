@@ -1,5 +1,5 @@
 # Deploy: docker compose up -d --build
-# Env file lives at /opt/pesiki-bot/.env (not in repo)
+# Env: workflow writes /opt/pesiki-bot/.env from GitHub Secrets
 
 services:
   pesiki-bot:
