@@ -6,6 +6,29 @@ import "dotenv/config";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let proxiedFetch: any = null;
+let appFetch: typeof fetch | null = null;
+
+function errorContainsProxyHints(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+
+  const errorWithMessage = error as { message?: unknown; cause?: unknown };
+  const message = typeof errorWithMessage.message === "string" ? errorWithMessage.message.toLowerCase() : "";
+
+  if (
+    message.includes("proxy") ||
+    message.includes("http tunneling") ||
+    message.includes("und_err_aborted")
+  ) {
+    return true;
+  }
+
+  return errorContainsProxyHints(errorWithMessage.cause);
+}
+
+function isProxyTransportError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return errorContainsProxyHints(error);
+}
 
 /** Proxied fetch: uses HTTPS_PROXY when set, otherwise global fetch. For OpenAI, OpenDota, heroes, items. */
 export async function getProxiedFetch(): Promise<typeof fetch> {
@@ -35,5 +58,28 @@ export async function getOpenAIFetch(): Promise<typeof fetch> {
 
 /** Use for OpenDota, heroes, items APIs. */
 export async function getAppFetch(): Promise<typeof fetch> {
-  return getProxiedFetch();
+  if (appFetch) return appFetch;
+
+  const proxied = await getProxiedFetch();
+  const direct = getDirectFetch();
+
+  if (proxied === direct) {
+    appFetch = direct;
+    return appFetch;
+  }
+
+  appFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    try {
+      return await proxied(input, init);
+    } catch (error) {
+      if (!isProxyTransportError(error)) {
+        throw error;
+      }
+
+      console.warn("[PROXY] App request failed via proxy, retrying direct connection");
+      return direct(input, init);
+    }
+  }) as typeof fetch;
+
+  return appFetch;
 }
