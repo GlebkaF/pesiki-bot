@@ -1,0 +1,13 @@
+# Deploy: docker compose up -d --build
+# Env file lives at /opt/pesiki-bot/.env (not in repo)
+
+services:
+  pesiki-bot:
+    build: .
+    image: pesiki-bot
+    container_name: pesiki-bot
+    restart: unless-stopped
+    network_mode: host
+    env_file: /opt/pesiki-bot/.env
+    environment:
+      - TZ=Europe/Moscow

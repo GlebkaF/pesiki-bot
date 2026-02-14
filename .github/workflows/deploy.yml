@@ -14,20 +14,5 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build image
-        run: docker build -t pesiki-bot .
-
-      - name: Stop and remove old container
-        run: |
-          docker stop pesiki-bot 2>/dev/null || true
-          docker rm pesiki-bot 2>/dev/null || true
-
-      - name: Run container
-        run: |
-          docker run -d \
-            --name pesiki-bot \
-            --restart unless-stopped \
-            --network host \
-            --env-file /opt/pesiki-bot/.env \
-            -e TZ=Europe/Moscow \
-            pesiki-bot
+      - name: Build and run with docker compose
+        run: docker compose up -d --build
