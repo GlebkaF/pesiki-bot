@@ -1,12 +1,23 @@
-import { getAppFetch, getOpenAIFetch } from "./proxy.js";
+import OpenAI from "openai";
 import { getHeroNames } from "./heroes.js";
 import { fetchItems } from "./items.js";
-import OpenAI from "openai";
+import { getAppFetch, getOpenAIFetch } from "./proxy.js";
+
+const OPENDOTA_API_BASE = "https://api.opendota.com/api";
+const PROTRACKER_BASE = "https://dota2protracker.com";
 const PROTRACKER_API_ENDPOINTS = [
   `${PROTRACKER_BASE}/api/heroes`,
   `${PROTRACKER_BASE}/api/meta`,
   `${PROTRACKER_BASE}/api/v1/heroes`,
 ];
+const PRO_MATCH_SAMPLE_SIZE = 20;
+const META_LOOKBACK_DAYS = 7;
+const META_CACHE_TTL_MS = 10 * 60 * 1000;
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.2";
+const TOP_HEROES_PER_ROLE = 4;
+
+type Role = "pos1" | "pos2" | "pos3" | "pos4" | "pos5";
+
 const ROLE_ALIASES: Record<Role, string[]> = {
   pos1: ["pos1", "1", "carry", "safe", "safelane"],
   pos2: ["pos2", "2", "mid", "middle"],
@@ -15,6 +26,64 @@ const ROLE_ALIASES: Record<Role, string[]> = {
   pos5: ["pos5", "5", "hard", "hardsupport", "support5"],
 };
 
+const ROLE_LABELS: Record<Role, string> = {
+  pos1: "🟢 Pos 1 (Carry)",
+  pos2: "🟠 Pos 2 (Mid)",
+  pos3: "🔵 Pos 3 (Offlane)",
+  pos4: "🟣 Pos 4 (Soft Support)",
+  pos5: "⚪ Pos 5 (Hard Support)",
+};
+
+interface ProMatch {
+  match_id: number;
+  start_time?: number;
+}
+
+interface MatchPlayer {
+  hero_id: number;
+  net_worth: number;
+  isRadiant: boolean;
+  win: number;
+  item_0: number;
+  item_1: number;
+  item_2: number;
+  item_3: number;
+  item_4: number;
+  item_5: number;
+}
+
+interface MatchDetails {
+  players: MatchPlayer[];
+}
+
+interface HeroRoleStats {
+  heroId: number;
+  games: number;
+  wins: number;
+  itemCounts: Map<number, number>;
+}
+
+interface MetaHero {
+  role: Role;
+  heroId: number;
+  heroName: string;
+  games: number;
+  wins: number;
+  winRate: number;
+  build: string;
+}
+
+interface MetaCacheEntry {
+  text: string;
+  expiresAt: number;
+}
+
+interface MetaSourceInfo {
+  provider: "OpenDota" | "Dota2ProTracker API";
+  note?: string;
+}
+
+let metaCache: MetaCacheEntry | null = null;
 
 async function getFetchForProTracker(): Promise<typeof fetch> {
   const proxyUrl = process.env.PROTRACKER_PROXY_URL;
@@ -44,17 +113,15 @@ async function fetchProTrackerApiPayload(): Promise<unknown | null> {
           "User-Agent": "pesiki-bot/1.0",
         },
       });
-      if (!response.ok) {
-        continue;
-      }
+
+      if (!response.ok) continue;
+
       const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-      if (!contentType.includes("application/json")) {
-        continue;
-      }
+      if (!contentType.includes("application/json")) continue;
 
       return response.json();
     } catch {
-      // Try next endpoint
+      // try next endpoint
     }
   }
 
@@ -82,9 +149,7 @@ function parseNumber(value: unknown): number | null {
 }
 
 function parseProTrackerMetaHeroes(payload: unknown): MetaHero[] | null {
-  if (!Array.isArray(payload)) {
-    return null;
-  }
+  if (!Array.isArray(payload)) return null;
 
   const result: MetaHero[] = [];
   for (const raw of payload) {
@@ -110,9 +175,7 @@ function parseProTrackerMetaHeroes(payload: unknown): MetaHero[] | null {
     const games = parseNumber(record.games ?? record.matches ?? record.picks);
     const winRateRaw = parseNumber(record.winrate ?? record.winRate ?? record.wr);
 
-    if (!heroName || !role || games === null || winRateRaw === null) {
-      continue;
-    }
+    if (!heroName || !role || games === null || winRateRaw === null) continue;
 
     const winRate = winRateRaw > 1 ? winRateRaw : winRateRaw * 100;
     const wins = Math.round((winRate / 100) * games);
@@ -148,73 +211,9 @@ function groupTopHeroesByRoleFromList(metaHeroes: MetaHero[]): Map<Role, MetaHer
   return result;
 }
 
-  return matches.filter((match) => {
-const META_CACHE_TTL_MS = 10 * 60 * 1000;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.2";
-const TOP_HEROES_PER_ROLE = 4;
-
-interface ProMatch {
-  match_id: number;
-  start_time?: number;
-}
-
-interface MatchPlayer {
-  hero_id: number;
-  player_slot: number;
-  net_worth: number;
-  isRadiant: boolean;
-  win: number;
-  item_0: number;
-  item_1: number;
-  item_2: number;
-  item_3: number;
-  item_4: number;
-  item_5: number;
-}
-
-interface MatchDetails {
-  match_id: number;
-  players: MatchPlayer[];
-}
-
-type Role = "pos1" | "pos2" | "pos3" | "pos4" | "pos5";
-
-const ROLE_LABELS: Record<Role, string> = {
-  pos1: "🟢 Pos 1 (Carry)",
-  pos2: "🟠 Pos 2 (Mid)",
-  pos3: "🔵 Pos 3 (Offlane)",
-  pos4: "🟣 Pos 4 (Soft Support)",
-  pos5: "⚪ Pos 5 (Hard Support)",
-};
-
-interface HeroRoleStats {
-  heroId: number;
-  games: number;
-  wins: number;
-  itemCounts: Map<number, number>;
-}
-
-interface MetaHero {
-  role: Role;
-  heroId: number;
-  heroName: string;
-  games: number;
-  wins: number;
-  winRate: number;
-  build: string;
-}
-
-interface MetaCacheEntry {
-  text: string;
-  expiresAt: number;
-}
-
-let metaCache: MetaCacheEntry | null = null;
-
 async function fetchProMatches(limit: number): Promise<ProMatch[]> {
   const fetchFn = await getAppFetch();
-  const url = `${OPENDOTA_API_BASE}/proMatches`;
-  const response = await fetchFn(url);
+  const response = await fetchFn(`${OPENDOTA_API_BASE}/proMatches`);
   if (!response.ok) {
     throw new Error(`OpenDota API error for /proMatches: ${response.status}`);
   }
@@ -227,18 +226,15 @@ function filterMatchesByLastWeek(matches: ProMatch[]): ProMatch[] {
   const now = Math.floor(Date.now() / 1000);
   const minStartTime = now - META_LOOKBACK_DAYS * 24 * 60 * 60;
 
-  const filtered = matches.filter((match) => {
+  return matches.filter((match) => {
     if (!match.start_time) return true;
     return match.start_time >= minStartTime;
   });
-
-  return filtered;
 }
 
 async function fetchMatchDetails(matchId: number): Promise<MatchDetails> {
   const fetchFn = await getAppFetch();
-  const url = `${OPENDOTA_API_BASE}/matches/${matchId}`;
-  const response = await fetchFn(url);
+  const response = await fetchFn(`${OPENDOTA_API_BASE}/matches/${matchId}`);
   if (!response.ok) {
     throw new Error(`OpenDota API error for /matches/${matchId}: ${response.status}`);
   }
@@ -253,36 +249,22 @@ function getRoleByNetWorthOrder(orderIndex: number): Role {
   return "pos5";
 }
 
-function addPlayerToStats(
-  roleStats: Map<Role, Map<number, HeroRoleStats>>,
-  role: Role,
-  player: MatchPlayer,
-): void {
+function addPlayerToStats(roleStats: Map<Role, Map<number, HeroRoleStats>>, role: Role, player: MatchPlayer): void {
   const heroMap = roleStats.get(role);
   if (!heroMap) return;
 
   let hero = heroMap.get(player.hero_id);
   if (!hero) {
-    hero = {
-      heroId: player.hero_id,
-      games: 0,
-      wins: 0,
-      itemCounts: new Map<number, number>(),
-    };
+    hero = { heroId: player.hero_id, games: 0, wins: 0, itemCounts: new Map<number, number>() };
     heroMap.set(player.hero_id, hero);
   }
 
   hero.games += 1;
   hero.wins += player.win;
 
-  const items = [
-    player.item_0,
-    player.item_1,
-    player.item_2,
-    player.item_3,
-    player.item_4,
-    player.item_5,
-  ].filter((itemId) => itemId > 0);
+  const items = [player.item_0, player.item_1, player.item_2, player.item_3, player.item_4, player.item_5].filter(
+    (itemId) => itemId > 0,
+  );
 
   for (const itemId of items) {
     hero.itemCounts.set(itemId, (hero.itemCounts.get(itemId) ?? 0) + 1);
@@ -299,12 +281,8 @@ function buildRoleStats(matches: MatchDetails[]): Map<Role, Map<number, HeroRole
   ]);
 
   for (const match of matches) {
-    const radiant = match.players
-      .filter((p) => p.isRadiant)
-      .sort((a, b) => (b.net_worth ?? 0) - (a.net_worth ?? 0));
-    const dire = match.players
-      .filter((p) => !p.isRadiant)
-      .sort((a, b) => (b.net_worth ?? 0) - (a.net_worth ?? 0));
+    const radiant = match.players.filter((p) => p.isRadiant).sort((a, b) => (b.net_worth ?? 0) - (a.net_worth ?? 0));
+    const dire = match.players.filter((p) => !p.isRadiant).sort((a, b) => (b.net_worth ?? 0) - (a.net_worth ?? 0));
 
     radiant.forEach((player, i) => addPlayerToStats(stats, getRoleByNetWorthOrder(i), player));
     dire.forEach((player, i) => addPlayerToStats(stats, getRoleByNetWorthOrder(i), player));
@@ -359,6 +337,28 @@ function pickTopHeroesByRole(
   return result;
 }
 
+async function generateAiLineups(topHeroesByRole: Map<Role, MetaHero[]>): Promise<string> {
+  if (!process.env.OPENAI_API_KEY) {
+    return "🤖 <b>AI-пулы лайнапов</b>\n• OPENAI_API_KEY не задан, поэтому AI-рекомендации временно отключены.";
+  }
+
+  const roleInput = (Object.keys(ROLE_LABELS) as Role[])
+    .map((role) => {
+      const heroes = topHeroesByRole.get(role) ?? [];
+      const list = heroes.map((h) => `${h.heroName} (WR ${h.winRate.toFixed(1)}%, ${h.games} игр)`).join(", ");
+      return `${role}: ${list || "нет данных"}`;
+    })
+    .join("\n");
+
+  const prompt = `Ты аналитик Dota 2. Есть метовые герои по ролям за последнюю неделю.
+
+${roleInput}
+
+Собери 2 разных лайнапа (по 5 героев, по одному на роль pos1-pos5) только из этого списка.
+Для каждого лайнапа дай:
+1) Короткую идею победы (1 строка)
+2) Ключевые тайминги (до 3 пунктов)
+3) Что жать и на что смотреть в драках (до 4 пунктов, конкретно)
 
 Пиши на русском, максимально практично, без воды.
 Форматируй как HTML для Telegram: <b>, <i>, списки через "•".
@@ -392,19 +392,16 @@ export async function getProMetaByRole(): Promise<string> {
     return metaCache.text;
   }
 
-  const proMatchesRaw = await fetchProMatches(PRO_MATCH_SAMPLE_SIZE);
-  const proMatches = filterMatchesByLastWeek(proMatchesRaw);
-  const matchDetails = await Promise.all(proMatches.map((m) => fetchMatchDetails(m.match_id)));
-
-  const roleStats = buildRoleStats(matchDetails);
   let topHeroesByRole: Map<Role, MetaHero[]> | null = null;
   let sourceInfo: MetaSourceInfo = { provider: "OpenDota" };
+
   const proTrackerPayload = await fetchProTrackerApiPayload();
   const proTrackerMetaHeroes = parseProTrackerMetaHeroes(proTrackerPayload);
-
   if (proTrackerMetaHeroes) {
     topHeroesByRole = groupTopHeroesByRoleFromList(proTrackerMetaHeroes);
     sourceInfo = { provider: "Dota2ProTracker API" };
+  }
+
   if (!topHeroesByRole) {
     const proMatchesRaw = await fetchProMatches(PRO_MATCH_SAMPLE_SIZE);
     const proMatches = filterMatchesByLastWeek(proMatchesRaw);
@@ -427,14 +424,19 @@ export async function getProMetaByRole(): Promise<string> {
     for (const [itemId, item] of items.entries()) {
       itemNames.set(itemId, item.dname);
     }
+
     topHeroesByRole = pickTopHeroesByRole(roleStats, heroNames, itemNames);
     sourceInfo = {
       provider: "OpenDota",
       note: "Dota2ProTracker API недоступен или вернул неожиданный формат, использую fallback.",
     };
+  }
 
   const aiLineups = await generateAiLineups(topHeroesByRole);
+
+  const lines: string[] = [
     "📈 <b>Meta по ролям (топ-4 героя + билды)</b>",
+    `<i>Источник: ${sourceInfo.provider}${sourceInfo.note ? ` (${sourceInfo.note})` : ""}</i>`,
     `<i>Период: последние ${META_LOOKBACK_DAYS} дней</i>`,
     "",
   ];
@@ -450,9 +452,8 @@ export async function getProMetaByRole(): Promise<string> {
     }
 
     topHeroes.forEach((hero, index) => {
-      const winRate = hero.winRate.toFixed(1);
       lines.push(
-        `${index + 1}. <b>${hero.heroName}</b> — WR: <b>${winRate}%</b> (${hero.wins}/${hero.games})`,
+        `${index + 1}. <b>${hero.heroName}</b> — WR: <b>${hero.winRate.toFixed(1)}%</b> (${hero.wins}/${hero.games})`,
         `   Билд: ${hero.build}`,
       );
     });
