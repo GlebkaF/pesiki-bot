@@ -1,13 +1,19 @@
 import { getAppFetch } from "./proxy.js";
 import { getHeroNames } from "./heroes.js";
 import { fetchItems } from "./items.js";
+import OpenAI from "openai";
+import { getOpenAIFetch } from "./proxy.js";
 
 const OPENDOTA_API_BASE = "https://api.opendota.com/api";
-const PRO_MATCH_SAMPLE_SIZE = 12;
+const PRO_MATCH_SAMPLE_SIZE = 80;
+const META_LOOKBACK_DAYS = 7;
 const META_CACHE_TTL_MS = 10 * 60 * 1000;
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.2";
+const TOP_HEROES_PER_ROLE = 4;
 
 interface ProMatch {
   match_id: number;
+  start_time?: number;
 }
 
 interface MatchPlayer {
@@ -46,6 +52,16 @@ interface HeroRoleStats {
   itemCounts: Map<number, number>;
 }
 
+interface MetaHero {
+  role: Role;
+  heroId: number;
+  heroName: string;
+  games: number;
+  wins: number;
+  winRate: number;
+  build: string;
+}
+
 interface MetaCacheEntry {
   text: string;
   expiresAt: number;
@@ -63,6 +79,18 @@ async function fetchProMatches(limit: number): Promise<ProMatch[]> {
 
   const data: ProMatch[] = await response.json();
   return data.slice(0, limit);
+}
+
+function filterMatchesByLastWeek(matches: ProMatch[]): ProMatch[] {
+  const now = Math.floor(Date.now() / 1000);
+  const minStartTime = now - META_LOOKBACK_DAYS * 24 * 60 * 60;
+
+  const filtered = matches.filter((match) => {
+    if (!match.start_time) return true;
+    return match.start_time >= minStartTime;
+  });
+
+  return filtered;
 }
 
 async function fetchMatchDetails(matchId: number): Promise<MatchDetails> {
@@ -152,12 +180,102 @@ function formatBuild(itemCounts: Map<number, number>, itemNames: Map<number, str
   return topItems.length > 0 ? topItems.join(" → ") : "Нет данных";
 }
 
+function pickTopHeroesByRole(
+  roleStats: Map<Role, Map<number, HeroRoleStats>>,
+  heroNames: Map<number, string>,
+  itemNames: Map<number, string>,
+): Map<Role, MetaHero[]> {
+  const result = new Map<Role, MetaHero[]>();
+
+  (Object.keys(ROLE_LABELS) as Role[]).forEach((role) => {
+    const heroMap = roleStats.get(role);
+    if (!heroMap || heroMap.size === 0) {
+      result.set(role, []);
+      return;
+    }
+
+    const heroes = Array.from(heroMap.values())
+      .filter((h) => h.games >= 2)
+      .sort((a, b) => {
+        if (b.games !== a.games) return b.games - a.games;
+        return b.wins / b.games - a.wins / a.games;
+      })
+      .slice(0, TOP_HEROES_PER_ROLE)
+      .map((hero) => ({
+        role,
+        heroId: hero.heroId,
+        heroName: heroNames.get(hero.heroId) ?? `Hero #${hero.heroId}`,
+        games: hero.games,
+        wins: hero.wins,
+        winRate: (hero.wins / hero.games) * 100,
+        build: formatBuild(hero.itemCounts, itemNames),
+      }));
+
+    result.set(role, heroes);
+  });
+
+  return result;
+}
+
+async function generateAiLineups(topHeroesByRole: Map<Role, MetaHero[]>): Promise<string> {
+  if (!process.env.OPENAI_API_KEY) {
+    return "🤖 <b>AI-пулы лайнапов</b>\n• OPENAI_API_KEY не задан, поэтому AI-рекомендации временно отключены.";
+  }
+
+  const roleInput = (Object.keys(ROLE_LABELS) as Role[])
+    .map((role) => {
+      const heroes = topHeroesByRole.get(role) ?? [];
+      const list = heroes
+        .map((h) => `${h.heroName} (WR ${h.winRate.toFixed(1)}%, ${h.games} игр)`)
+        .join(", ");
+      return `${role}: ${list || "нет данных"}`;
+    })
+    .join("\n");
+
+  const prompt = `Ты аналитик Dota 2. Есть метовые герои по ролям за последнюю неделю.
+
+${roleInput}
+
+Собери 2 разных лайнапа (по 5 героев, по одному на роль pos1-pos5) только из этого списка.
+Для каждого лайнапа дай:
+1) Короткую идею победы (1 строка)
+2) Ключевые тайминги (до 3 пунктов)
+3) Что жать и на что смотреть в драках (до 4 пунктов, конкретно)
+
+Пиши на русском, максимально практично, без воды.
+Форматируй как HTML для Telegram: <b>, <i>, списки через "•".
+Ограничение: до 1400 символов.`;
+
+  try {
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, fetch: await getOpenAIFetch() });
+    const completion = await client.chat.completions.create({
+      model: OPENAI_MODEL,
+      temperature: 0.6,
+      messages: [
+        { role: "system", content: "Ты тренер по Dota 2 и объясняешь просто, конкретно и по делу." },
+        { role: "user", content: prompt },
+      ],
+    });
+
+    const text = completion.choices[0]?.message?.content?.trim();
+    if (!text) {
+      return "🤖 <b>AI-пулы лайнапов</b>\n• Не удалось получить ответ от OpenAI.";
+    }
+
+    return `🤖 <b>AI-пулы лайнапов</b>\n${text}`;
+  } catch (error) {
+    console.error("[META] Failed to generate AI lineup suggestions:", error);
+    return "🤖 <b>AI-пулы лайнапов</b>\n• OpenAI сейчас недоступен, попробуй позже.";
+  }
+}
+
 export async function getProMetaByRole(): Promise<string> {
   if (metaCache && Date.now() < metaCache.expiresAt) {
     return metaCache.text;
   }
 
-  const proMatches = await fetchProMatches(PRO_MATCH_SAMPLE_SIZE);
+  const proMatchesRaw = await fetchProMatches(PRO_MATCH_SAMPLE_SIZE);
+  const proMatches = filterMatchesByLastWeek(proMatchesRaw);
   const matchDetails = await Promise.all(proMatches.map((m) => fetchMatchDetails(m.match_id)));
 
   const roleStats = buildRoleStats(matchDetails);
@@ -178,9 +296,12 @@ export async function getProMetaByRole(): Promise<string> {
     itemNames.set(itemId, item.dname);
   }
 
+  const topHeroesByRole = pickTopHeroesByRole(roleStats, heroNames, itemNames);
+  const aiLineups = await generateAiLineups(topHeroesByRole);
+
   const lines: string[] = [
-    "📈 <b>Pro Tracker Meta (топ-3 героя по ролям)</b>",
-    `<i>Выборка: последние ${proMatches.length} pro-матчей OpenDota</i>`,
+    "📈 <b>Meta по ролям (топ-4 героя + билды)</b>",
+    `<i>Выборка: ${proMatches.length} pro-матчей OpenDota за последние ${META_LOOKBACK_DAYS} дней</i>`,
     "",
   ];
 
@@ -191,13 +312,7 @@ export async function getProMetaByRole(): Promise<string> {
       return;
     }
 
-    const topHeroes = Array.from(heroMap.values())
-      .filter((h) => h.games >= 2)
-      .sort((a, b) => {
-        if (b.games !== a.games) return b.games - a.games;
-        return b.wins / b.games - a.wins / a.games;
-      })
-      .slice(0, 3);
+    const topHeroes = topHeroesByRole.get(role) ?? [];
 
     lines.push(`<b>${ROLE_LABELS[role]}</b>`);
 
@@ -207,17 +322,17 @@ export async function getProMetaByRole(): Promise<string> {
     }
 
     topHeroes.forEach((hero, index) => {
-      const heroName = heroNames.get(hero.heroId) ?? `Hero #${hero.heroId}`;
-      const winRate = ((hero.wins / hero.games) * 100).toFixed(1);
-      const build = formatBuild(hero.itemCounts, itemNames);
+      const winRate = hero.winRate.toFixed(1);
       lines.push(
-        `${index + 1}. <b>${heroName}</b> — WR: <b>${winRate}%</b> (${hero.wins}/${hero.games})`,
-        `   Билд: ${build}`,
+        `${index + 1}. <b>${hero.heroName}</b> — WR: <b>${winRate}%</b> (${hero.wins}/${hero.games})`,
+        `   Билд: ${hero.build}`,
       );
     });
 
     lines.push("");
   });
+
+  lines.push(aiLineups);
 
   const text = lines.join("\n").trim();
   metaCache = {

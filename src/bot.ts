@@ -383,7 +383,7 @@ ${stats.totalMatches > 0 ? `\n🎮 <b>Последние герои:</b>\n${hero
 }
 
 /**
- * Handles /meta command - top 3 meta heroes by role from recent pro matches
+ * Handles /meta command - top meta heroes by role + AI lineup ideas
  */
 async function handleMetaCommand(
   ctx: CommandContext<Context>,
@@ -398,7 +398,7 @@ async function handleMetaCommand(
   }
 
   try {
-    const loadingMsg = await ctx.reply("📈 Собираю мету с Pro Tracker...");
+    const loadingMsg = await ctx.reply("📈 Собираю мету и AI-лайнапы...");
 
     const message = await getProMetaByRole();
 
@@ -472,7 +472,7 @@ export function setupCommands(
       { command: "analyze", description: "AI analysis (or /analyze <url>)" },
       { command: "copium", description: "💊 AI-аналитика для стака" },
       { command: "me", description: "Your personal stats" },
-      { command: "meta", description: "Top-3 мета героев по ролям + билд" },
+      { command: "meta", description: "Топ-4 мета героев + AI лайнапы" },
     ])
     .catch((err) =>
       console.warn("[WARN] setMyCommands failed (menu may not show):", err.message),
