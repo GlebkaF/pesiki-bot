@@ -5,6 +5,7 @@ import { fetchRecentMatches, fetchPlayerProfile } from "./opendota.js";
 import { getHeroName } from "./heroes.js";
 import { getItemNames } from "./items.js";
 import { getRankName } from "./ranks.js";
+import { maybeAppendOutcomeCanonStrophe } from "./canon.js";
 
 const OPENDOTA_API_BASE = "https://api.opendota.com/api";
 
@@ -452,7 +453,8 @@ ${`• Если выиграли: "враги были неплохи, но на
   - "решающий момент"
   - "повезло/не повезло"
 • Юмор и самоирония приветствуются
-• МАКСИМУМ 350 слов`;
+• Пиши компактно, без длинных вступлений
+• МАКСИМУМ 260 слов`;
 
 async function analyzeWithCopium(context: string): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -540,16 +542,14 @@ export async function analyzeMatchCopium(matchId: number): Promise<string> {
   
   // Check cache (with parsed status to handle re-parsing)
   const cachedResult = getCachedAnalysis(matchId, isParsed);
-  if (cachedResult) {
-    console.log(`[COPIUM] Returning cached analysis for match ${matchId}`);
-    return cachedResult + "\n\n<i>📦 Из кэша</i>";
-  }
-  
-  // Determine if we won
   const playerIdsSet = new Set<number>(PLAYER_IDS as readonly number[]);
   const ourPlayers = matchDetails.players.filter(p => p.account_id && playerIdsSet.has(p.account_id));
   const weAreRadiant = ourPlayers.length > 0 ? ourPlayers[0].isRadiant : true;
   const weWon = weAreRadiant ? matchDetails.radiant_win : !matchDetails.radiant_win;
+  if (cachedResult) {
+    console.log(`[COPIUM] Returning cached analysis for match ${matchId}`);
+    return maybeAppendOutcomeCanonStrophe(cachedResult + "\n\n<i>📦 Из кэша</i>", weWon);
+  }
   
   // Build biased context for LLM
   const context = await buildBiasedContext(matchDetails);
@@ -579,25 +579,17 @@ export async function analyzeMatchCopium(matchId: number): Promise<string> {
   const header = `💊 <b>COPIUM-анализ матча</b> <a href="${matchUrl}">#${matchId}</a>
 ${resultEmoji} <b>${resultText}</b>
 ⏱ Длительность: ${formatDuration(matchDetails.duration)}
-${isParsed ? "📊 Полный разбор" : "📊 Базовый анализ"}
+${isParsed ? "📊 Полный" : "📊 Базовый"}
 
 `;
 
-  // Footer for non-parsed matches
-  const footer = !isParsed ? `
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📌 <b>Это базовый анализ</b> — без таймингов предметов и тимфайтов.
-
-Для полного разбора: открой <a href="${matchUrl}">матч на OpenDota</a>, нажми "Request Parse", подожди пару минут и запроси анализ снова!` : "";
-
-  const fullAnalysis = header + analysis + footer;
+  const fullAnalysis = header + analysis;
   
   // Cache the result with parsed status
   cacheAnalysis(matchId, fullAnalysis, isParsed);
   console.log(`[COPIUM] Analysis cached for match ${matchId} (parsed: ${isParsed})`);
   
-  return fullAnalysis;
+  return maybeAppendOutcomeCanonStrophe(fullAnalysis, weWon);
 }
 
 /**

@@ -5,6 +5,7 @@ import { fetchRecentMatches, fetchPlayerProfile } from "./opendota.js";
 import { getHeroName } from "./heroes.js";
 import { getItemNames } from "./items.js";
 import { getRankName } from "./ranks.js";
+import { maybeAppendOutcomeCanonStrophe } from "./canon.js";
 
 const OPENDOTA_API_BASE = "https://api.opendota.com/api";
 
@@ -364,7 +365,8 @@ MVP и LVP матча + токсичный комментарий
 • Benchmarks: 80%+ = 🔥, <30% = 💀
 • Русский со сленгом (го, затащить, сфидить)
 • Конкретика: "BKB на 25 мин это поздно" вместо "улучши билд"
-• МАКСИМУМ 300 слов — без воды`;
+• Пиши компактно, без длинных вступлений
+• МАКСИМУМ 220 слов — без воды`;
 
 async function analyzeWithLLM(context: string): Promise<string> {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -451,9 +453,13 @@ export async function analyzeMatch(matchId: number): Promise<string> {
   
   // Check cache (with parsed status to handle re-parsing)
   const cachedResult = getCachedAnalysis(matchId, isParsed);
+  const playerIdsSet = new Set<number>(PLAYER_IDS as readonly number[]);
+  const ourPlayers = matchDetails.players.filter(p => p.account_id && playerIdsSet.has(p.account_id));
+  const weAreRadiant = ourPlayers.length > 0 ? ourPlayers[0].isRadiant : true;
+  const weWon = weAreRadiant ? matchDetails.radiant_win : !matchDetails.radiant_win;
   if (cachedResult) {
     console.log(`[ANALYZE] Returning cached analysis for match ${matchId}`);
-    return cachedResult + "\n\n<i>📦 Из кэша</i>";
+    return maybeAppendOutcomeCanonStrophe(cachedResult + "\n\n<i>📦 Из кэша</i>", weWon);
   }
   
   // Build context for LLM
@@ -468,25 +474,17 @@ export async function analyzeMatch(matchId: number): Promise<string> {
   const header = `🔬 <b>Анализ матча</b> <a href="${matchUrl}">#${matchId}</a>
 ⏱ Длительность: ${formatDuration(matchDetails.duration)}
 🎮 Результат: ${matchDetails.radiant_win ? "Radiant" : "Dire"} победил (${matchDetails.radiant_score}:${matchDetails.dire_score})
-${isParsed ? "📊 Полный разбор" : "📊 Базовый анализ"}
+${isParsed ? "📊 Полный" : "📊 Базовый"}
 
 `;
 
-  // Footer for non-parsed matches
-  const footer = !isParsed ? `
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📌 <b>Это базовый анализ</b> — без таймингов предметов и тимфайтов.
-
-Для полного разбора: открой <a href="${matchUrl}">матч на OpenDota</a>, нажми "Request Parse", подожди пару минут и запроси анализ снова!` : "";
-
-  const fullAnalysis = header + analysis + footer;
+  const fullAnalysis = header + analysis;
   
   // Cache the result with parsed status
   cacheAnalysis(matchId, fullAnalysis, isParsed);
   console.log(`[ANALYZE] Analysis cached for match ${matchId} (parsed: ${isParsed})`);
   
-  return fullAnalysis;
+  return maybeAppendOutcomeCanonStrophe(fullAnalysis, weWon);
 }
 
 /**
