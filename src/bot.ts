@@ -1,14 +1,8 @@
 import { Bot, type CommandContext, type Context } from "grammy";
-import { config, findPlayerByTelegramId, PLAYERS, type Player } from "./config.js";
+import { config } from "./config.js";
 import type { StatsPeriod } from "./stats.js";
-import { getRoastOfTheDay, formatRoastMessage } from "./roast.js";
 import { analyzeLastMatch, analyzeMatch } from "./analyze.js";
 import { analyzeLastMatchCopium, analyzeMatchCopium } from "./analyze-copium.js";
-import { fetchRecentMatches, fetchPlayerProfile } from "./opendota.js";
-import { calculateStats } from "./stats.js";
-import { getHeroNames } from "./heroes.js";
-import { formatRank } from "./ranks.js";
-import { getProMetaByRole } from "./meta.js";
 
 /**
  * Creates and returns a configured Telegram bot instance
@@ -88,45 +82,6 @@ async function handleStatsCommand(
   } catch (error) {
     console.error(`[ERROR] Failed to handle /${commandName} command:`, error);
     await ctx.reply("❌ Error fetching stats. Please try again later.");
-  }
-}
-
-/**
- * Handles the /roast command
- */
-async function handleRoastCommand(
-  ctx: CommandContext<Context>,
-  onCommandReceived?: () => void,
-): Promise<void> {
-  console.log(
-    `[${new Date().toISOString()}] /roast command received from user ${ctx.from?.id}`,
-  );
-
-  if (onCommandReceived) {
-    onCommandReceived();
-  }
-
-  try {
-    // Send "loading" message
-    const loadingMsg = await ctx.reply("🔥 Ищу кого прожарить...");
-
-    // Get roast of the day
-    const roast = await getRoastOfTheDay();
-    const message = formatRoastMessage(roast);
-
-    // Delete loading message and send roast
-    await ctx.api.deleteMessage(ctx.chat.id, loadingMsg.message_id);
-    await ctx.reply(message, {
-      parse_mode: "HTML",
-      link_preview_options: { is_disabled: true },
-    });
-
-    console.log(
-      `[${new Date().toISOString()}] /roast command completed - victim: ${roast.playerName}`,
-    );
-  } catch (error) {
-    console.error("[ERROR] Failed to handle /roast command:", error);
-    await ctx.reply("❌ Не удалось найти кого прожарить. Попробуй позже.");
   }
 }
 
@@ -300,122 +255,6 @@ async function handleCopiumCommand(
 }
 
 /**
- * Handles the /me command - shows player's personal stats (linked account only)
- */
-async function handleMeCommand(
-  ctx: CommandContext<Context>,
-  onCommandReceived?: () => void,
-): Promise<void> {
-  const telegramId = ctx.from?.id;
-  console.log(
-    `[${new Date().toISOString()}] /me command received from user ${telegramId}`,
-  );
-
-  if (onCommandReceived) {
-    onCommandReceived();
-  }
-
-  if (!telegramId) {
-    await ctx.reply("❌ Не удалось определить твой Telegram ID");
-    return;
-  }
-
-  const player = findPlayerByTelegramId(telegramId);
-  
-  if (!player) {
-    const playersList = PLAYERS.map(p => `• ${p.dotaName}`).join("\n");
-    await ctx.reply(
-      `❌ Твой аккаунт не привязан.\n\n` +
-      `Твой Telegram ID: <code>${telegramId}</code>\n` +
-      `Попроси админа привязать к нужному игроку.\n\n` +
-      `Игроки пати:\n${playersList}`,
-      { parse_mode: "HTML" }
-    );
-    return;
-  }
-
-  try {
-    const loadingMsg = await ctx.reply(`🔍 Загружаю статистику для ${player.dotaName}...`);
-
-    const [profile, matches] = await Promise.all([
-      fetchPlayerProfile(player.steamId as any),
-      fetchRecentMatches(player.steamId as any),
-    ]);
-
-    const playerName = profile.profile?.personaname || player.dotaName;
-    const playerRank = profile.rank_tier ?? null;
-    const stats = calculateStats(player.steamId, playerName, matches, "today", undefined, playerRank);
-    
-    // Get hero names
-    const heroIds = stats.heroes.map(h => h.heroId);
-    const heroNames = await getHeroNames(heroIds);
-    
-    // Format hero stats
-    const heroStats = stats.heroes.slice(0, 5).map((h, i) => {
-      const result = h.isWin ? "✅" : "❌";
-      return `${result} ${heroNames[i]}`;
-    }).join("\n");
-
-    // Build message
-    const dotaUrl = `https://www.opendota.com/players/${player.steamId}`;
-    const rankStr = formatRank(playerRank);
-    const message = `👤 <b><a href="${dotaUrl}">${playerName}</a></b>${rankStr ? ` ${rankStr}` : ""}
-
-📊 <b>Сегодня:</b>
-• Матчей: ${stats.totalMatches}
-• Винрейт: ${stats.winRate}% (${stats.wins}W / ${stats.losses}L)
-• KDA: ${stats.avgKda ?? "N/A"}
-${stats.totalMatches > 0 ? `\n🎮 <b>Последние герои:</b>\n${heroStats}` : ""}
-
-💡 Используй /analyze для AI-разбора последнего матча`;
-
-    await ctx.api.deleteMessage(ctx.chat.id, loadingMsg.message_id);
-    await ctx.reply(message, {
-      parse_mode: "HTML",
-      link_preview_options: { is_disabled: true },
-    });
-
-    console.log(`[${new Date().toISOString()}] /me command completed for ${playerName}`);
-  } catch (error) {
-    console.error("[ERROR] Failed to handle /me command:", error);
-    await ctx.reply("❌ Не удалось загрузить статистику. Попробуй позже.");
-  }
-}
-
-/**
- * Handles /meta command - top meta heroes by role + AI lineup ideas
- */
-async function handleMetaCommand(
-  ctx: CommandContext<Context>,
-  onCommandReceived?: () => void,
-): Promise<void> {
-  console.log(
-    `[${new Date().toISOString()}] /meta command received from user ${ctx.from?.id}`,
-  );
-
-  if (onCommandReceived) {
-    onCommandReceived();
-  }
-
-  try {
-    const loadingMsg = await ctx.reply("📈 Собираю мету и AI-лайнапы...");
-
-    const message = await getProMetaByRole();
-
-    await ctx.api.deleteMessage(ctx.chat.id, loadingMsg.message_id);
-    await ctx.reply(message, {
-      parse_mode: "HTML",
-      link_preview_options: { is_disabled: true },
-    });
-
-    console.log(`[${new Date().toISOString()}] /meta command completed`);
-  } catch (error) {
-    console.error("[ERROR] Failed to handle /meta command:", error);
-    await ctx.reply("❌ Не удалось собрать мету. Попробуй позже.");
-  }
-}
-
-/**
  * Sets up bot commands and handlers
  * @param bot - The bot instance
  * @param fetchStatsHandler - Handler function that fetches and returns formatted stats message for a period
@@ -436,43 +275,19 @@ export function setupCommands(
     handleStatsCommand(ctx, "yesterday", fetchStatsHandler, onCommandReceived),
   );
 
-  // Register /weekly command
-  bot.command("weekly", (ctx) =>
-    handleStatsCommand(ctx, "week", fetchStatsHandler, onCommandReceived),
-  );
-
-  // Register /monthly command
-  bot.command("monthly", (ctx) =>
-    handleStatsCommand(ctx, "month", fetchStatsHandler, onCommandReceived),
-  );
-
-  // Register /roast command
-  bot.command("roast", (ctx) => handleRoastCommand(ctx, onCommandReceived));
-
   // Register /analyze command
   bot.command("analyze", (ctx) => handleAnalyzeCommand(ctx, onCommandReceived));
 
   // Register /copium command (biased analysis)
   bot.command("copium", (ctx) => handleCopiumCommand(ctx, onCommandReceived));
 
-  // Register /me command
-  bot.command("me", (ctx) => handleMeCommand(ctx, onCommandReceived));
-
-  // Register /meta command
-  bot.command("meta", (ctx) => handleMetaCommand(ctx, onCommandReceived));
-
   // Set bot commands menu (optional; 404 can occur with invalid token or custom API)
   bot.api
     .setMyCommands([
       { command: "stats", description: "Get today's Dota 2 stats" },
       { command: "yesterday", description: "Get yesterday's Dota 2 stats" },
-      { command: "weekly", description: "Get this week's Dota 2 stats" },
-      { command: "monthly", description: "Get this month's Dota 2 stats" },
-      { command: "roast", description: "Roast the worst player of the day" },
       { command: "analyze", description: "AI analysis (or /analyze <url>)" },
       { command: "copium", description: "💊 AI-аналитика для стака" },
-      { command: "me", description: "Your personal stats" },
-      { command: "meta", description: "Топ-4 мета героев + AI лайнапы" },
     ])
     .catch((err) =>
       console.warn("[WARN] setMyCommands failed (menu may not show):", err.message),
