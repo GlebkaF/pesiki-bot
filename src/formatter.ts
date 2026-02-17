@@ -1,6 +1,7 @@
 import type { PlayerStats, HeroMatch, StatsPeriod } from "./stats.js";
 import { getHeroNames } from "./heroes.js";
 import { formatRank } from "./ranks.js";
+import { maybeAppendCanonStrophe } from "./canon.js";
 
 /**
  * Formats the date in DD.MM.YYYY format
@@ -832,7 +833,8 @@ export async function formatStatsMessage(
   
   lines.push(`<b>Team Summary:</b> ${summaryData.join(" • ")}`);
 
-  return lines.join("\n");
+  const message = lines.join("\n");
+  return maybeAppendCanonStrophe(message, 0.3);
 }
 
 /**
