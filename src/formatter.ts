@@ -1,7 +1,7 @@
 import type { PlayerStats, HeroMatch, StatsPeriod } from "./stats.js";
 import { getHeroNames } from "./heroes.js";
 import { formatRank } from "./ranks.js";
-import { maybeAppendCanonStrophe } from "./canon.js";
+import { getMskTimeComponents } from "./utils.js";
 
 /**
  * Formats the date in DD.MM.YYYY format
@@ -18,24 +18,6 @@ function formatDate(date: Date): string {
  * Must match DAY_START_HOUR_MSK in stats.ts
  */
 const DAY_START_HOUR_MSK = 6;
-const MSK_OFFSET_HOURS = 3;
-
-/**
- * Gets current MSK time components
- */
-function getMskTimeComponents() {
-  const now = new Date();
-  const mskTime = now.getTime() + MSK_OFFSET_HOURS * 60 * 60 * 1000;
-  const mskDate = new Date(mskTime);
-
-  return {
-    year: mskDate.getUTCFullYear(),
-    month: mskDate.getUTCMonth(),
-    date: mskDate.getUTCDate(),
-    hours: mskDate.getUTCHours(),
-    day: mskDate.getUTCDay(),
-  };
-}
 
 /**
  * Gets the period title for the stats message
@@ -448,12 +430,12 @@ function calculateNominations(
     (p) => p.winRate,
     true // ascending - lowest first
   );
-  const loser = sortedByWinRate[0];
-  if (loser.winRate <= 49) {
-    addNomination("Лузер", "💀", [{
-      player: loser,
-      value: `${loser.winRate}% WR`,
-    }]);
+  const loserCandidates = sortedByWinRate.filter((p) => p.winRate <= 49);
+  if (loserCandidates.length > 0) {
+    addNomination("Лузер", "💀", loserCandidates.map((p) => ({
+      player: p,
+      value: `${p.winRate}% WR`,
+    })));
   }
 
   // 2. Фидер (⚰️) - most deaths per game
@@ -461,13 +443,10 @@ function calculateNominations(
     activePlayers,
     (p) => p.totalDeaths / p.totalMatches
   );
-  const feeder = sortedByDeaths[0];
-  const deathsPerGame =
-    Math.round((feeder.totalDeaths / feeder.totalMatches) * 10) / 10;
-  addNomination("Фидер", "⚰️", [{
-    player: feeder,
-    value: `${deathsPerGame} смертей/игра`,
-  }]);
+  addNomination("Фидер", "⚰️", sortedByDeaths.map((p) => ({
+    player: p,
+    value: `${Math.round((p.totalDeaths / p.totalMatches) * 10) / 10} смертей/игра`,
+  })));
 
   // 3. Тащер (💪) - best KDA
   const playersWithKda = activePlayers.filter((p) => p.avgKda !== undefined);
@@ -476,11 +455,10 @@ function calculateNominations(
       playersWithKda,
       (p) => p.avgKda ?? 0
     );
-    const carry = sortedByKda[0];
-    addNomination("Тащер", "💪", [{
-      player: carry,
-      value: `KDA ${carry.avgKda}`,
-    }]);
+    addNomination("Тащер", "💪", sortedByKda.map((p) => ({
+      player: p,
+      value: `KDA ${p.avgKda}`,
+    })));
   }
 
   // 4. Саппорт (🤝) - highest assists/kills ratio
@@ -489,13 +467,10 @@ function calculateNominations(
     const sortedByAssistRatio = sortWithTiebreaker(playersWithKills, (p) =>
       p.totalAssists / p.totalKills
     );
-    const support = sortedByAssistRatio[0];
-    const ratio =
-      Math.round((support.totalAssists / support.totalKills) * 10) / 10;
-    addNomination("Саппорт", "🤝", [{
-      player: support,
-      value: `A/K: ${ratio}`,
-    }]);
+    addNomination("Саппорт", "🤝", sortedByAssistRatio.map((p) => ({
+      player: p,
+      value: `A/K: ${Math.round((p.totalAssists / p.totalKills) * 10) / 10}`,
+    })));
   }
 
   // 5. Бот (🤖) - lowest (kills + assists) per game, only if < 10
@@ -504,16 +479,14 @@ function calculateNominations(
     (p) => (p.totalKills + p.totalAssists) / p.totalMatches,
     true // ascending - lowest first
   );
-  const bot = sortedByParticipation[0];
-  const avgKillsAssists =
-    Math.round(((bot.totalKills + bot.totalAssists) / bot.totalMatches) * 10) /
-    10;
-  // Only award if truly low participation (< 10 K+A per game)
-  if (avgKillsAssists < 10) {
-    addNomination("Бот", "🤖", [{
-      player: bot,
-      value: `${avgKillsAssists} K+A за игру`,
-    }]);
+  const botCandidates = sortedByParticipation.filter(
+    (p) => Math.round(((p.totalKills + p.totalAssists) / p.totalMatches) * 10) / 10 < 10
+  );
+  if (botCandidates.length > 0) {
+    addNomination("Бот", "🤖", botCandidates.map((p) => ({
+      player: p,
+      value: `${Math.round(((p.totalKills + p.totalAssists) / p.totalMatches) * 10) / 10} K+A за игру`,
+    })));
   }
 
   // 6. Задрот (🎮) - most matches
@@ -521,52 +494,46 @@ function calculateNominations(
     activePlayers,
     (p) => p.totalMatches
   );
-  const grinder = sortedByMatches[0];
-  addNomination("Задрот", "🎮", [{
-    player: grinder,
-    value: `${grinder.totalMatches} игр`,
-  }]);
+  addNomination("Задрот", "🎮", sortedByMatches.map((p) => ({
+    player: p,
+    value: `${p.totalMatches} игр`,
+  })));
 
   // 7. Везунчик (🍀) - high WR (>= 60%) with low KDA (< 2)
   const luckyPlayers = activePlayers.filter(
     (p) => p.winRate >= 60 && p.avgKda !== undefined && p.avgKda < 2
   );
   if (luckyPlayers.length > 0) {
-    // Sort by win rate descending, then by KDA ascending (lower KDA = luckier)
     const sortedLucky = [...luckyPlayers].sort((a, b) => {
       if (b.winRate !== a.winRate) return b.winRate - a.winRate;
       return (a.avgKda ?? 0) - (b.avgKda ?? 0);
     });
-    const lucky = sortedLucky[0];
-    addNomination("Везунчик", "🍀", [{
-      player: lucky,
-      value: `${lucky.winRate}% WR, KDA ${lucky.avgKda}`,
-    }]);
+    addNomination("Везунчик", "🍀", sortedLucky.map((p) => ({
+      player: p,
+      value: `${p.winRate}% WR, KDA ${p.avgKda}`,
+    })));
   }
 
   // 8. Клоун (🤡) - plays 70%+ games on one hero with WR < 50% on that hero
+  const clownCandidates: NominationCandidate[] = [];
   for (const player of activePlayers) {
     const heroNames = heroNamesMap.get(player.playerId) ?? [];
     const groupedHeroes = groupHeroes(player.heroes, heroNames);
-
     if (groupedHeroes.length === 0) continue;
-
-    // Find most played hero
-    const mostPlayed = groupedHeroes[0]; // already sorted by total games
+    const mostPlayed = groupedHeroes[0];
     const totalGames = mostPlayed.wins + mostPlayed.losses;
     const heroRatio = totalGames / player.totalMatches;
-    const heroWinRate =
-      totalGames > 0 ? (mostPlayed.wins / totalGames) * 100 : 0;
-
-    // 70%+ games on one hero AND win rate < 50% on that hero
+    const heroWinRate = totalGames > 0 ? (mostPlayed.wins / totalGames) * 100 : 0;
     if (heroRatio >= 0.7 && heroWinRate < 50) {
-      addNomination("Клоун", "🤡", [{
+      clownCandidates.push({
         player,
         value: `${mostPlayed.wins}W/${mostPlayed.losses}L`,
         heroName: mostPlayed.name,
-      }]);
-      break; // Only one clown
+      });
     }
+  }
+  if (clownCandidates.length > 0) {
+    addNomination("Клоун", "🤡", clownCandidates);
   }
 
   // === New nominations (min 3 matches) ===
@@ -580,11 +547,10 @@ function calculateNominations(
       eligibleForNew,
       (p) => p.totalDurationSeconds
     );
-    const marathoner = sortedByTotalDuration[0];
-    addNomination("Марафонец", "🕒", [{
-      player: marathoner,
-      value: formatHoursMinutes(marathoner.totalDurationSeconds),
-    }]);
+    addNomination("Марафонец", "🕒", sortedByTotalDuration.map((p) => ({
+      player: p,
+      value: formatHoursMinutes(p.totalDurationSeconds),
+    })));
 
     // 10. Спринтер (⚡) - shortest average match duration
     const sortedByAvgDurationAsc = sortWithTiebreaker(
@@ -592,22 +558,20 @@ function calculateNominations(
       (p) => p.avgDurationSeconds,
       true
     );
-    const sprinter = sortedByAvgDurationAsc[0];
-    addNomination("Спринтер", "⚡", [{
-      player: sprinter,
-      value: `ср. ${formatMinutes(sprinter.avgDurationSeconds)}`,
-    }]);
+    addNomination("Спринтер", "⚡", sortedByAvgDurationAsc.map((p) => ({
+      player: p,
+      value: `ср. ${formatMinutes(p.avgDurationSeconds)}`,
+    })));
 
     // 11. Любитель лейта (🐢) - longest average match duration
     const sortedByAvgDurationDesc = sortWithTiebreaker(
       eligibleForNew,
       (p) => p.avgDurationSeconds
     );
-    const lateEnjoyer = sortedByAvgDurationDesc[0];
-    addNomination("Любитель лейта", "🐢", [{
-      player: lateEnjoyer,
-      value: `ср. ${formatMinutes(lateEnjoyer.avgDurationSeconds)}`,
-    }]);
+    addNomination("Любитель лейта", "🐢", sortedByAvgDurationDesc.map((p) => ({
+      player: p,
+      value: `ср. ${formatMinutes(p.avgDurationSeconds)}`,
+    })));
 
     // 12. Аккуратист (🛡️) - fewest deaths per game
     const sortedByDeathsPerGame = sortWithTiebreaker(
@@ -615,54 +579,40 @@ function calculateNominations(
       (p) => p.totalDeaths / p.totalMatches,
       true
     );
-    const careful = sortedByDeathsPerGame[0];
-    const deathsPerGame =
-      Math.round((careful.totalDeaths / careful.totalMatches) * 10) / 10;
-    addNomination("Аккуратист", "🛡️", [{
-      player: careful,
-      value: `${deathsPerGame} смертей/игра`,
-    }]);
+    addNomination("Аккуратист", "🛡️", sortedByDeathsPerGame.map((p) => ({
+      player: p,
+      value: `${Math.round((p.totalDeaths / p.totalMatches) * 10) / 10} смертей/игра`,
+    })));
 
     // 13. Дуэлянт (🧹) - best K/D ratio
     const sortedByKillDeath = sortWithTiebreaker(
       eligibleForNew,
       (p) => p.totalKills / Math.max(1, p.totalDeaths)
     );
-    const duelist = sortedByKillDeath[0];
-    const kd = Math.round(
-      (duelist.totalKills / Math.max(1, duelist.totalDeaths)) * 10
-    ) / 10;
-    addNomination("Дуэлянт", "🧹", [{
-      player: duelist,
-      value: `K/D ${kd}`,
-    }]);
+    addNomination("Дуэлянт", "🧹", sortedByKillDeath.map((p) => ({
+      player: p,
+      value: `K/D ${Math.round((p.totalKills / Math.max(1, p.totalDeaths)) * 10) / 10}`,
+    })));
 
     // 14. Киллер (🎯) - most kills per game
     const sortedByKillsPerGame = sortWithTiebreaker(
       eligibleForNew,
       (p) => p.totalKills / p.totalMatches
     );
-    const killer = sortedByKillsPerGame[0];
-    const killsPerGame =
-      Math.round((killer.totalKills / killer.totalMatches) * 10) / 10;
-    addNomination("Киллер", "🎯", [{
-      player: killer,
-      value: `${killsPerGame} убийств/игра`,
-    }]);
+    addNomination("Киллер", "🎯", sortedByKillsPerGame.map((p) => ({
+      player: p,
+      value: `${Math.round((p.totalKills / p.totalMatches) * 10) / 10} убийств/игра`,
+    })));
 
     // 15. Экспериментатор (🧪) - most unique heroes
     const sortedByUniqueHeroes = sortWithTiebreaker(
       eligibleForNew,
       (p) => new Set(p.heroes.map((h) => h.heroId)).size
     );
-    const experimenter = sortedByUniqueHeroes[0];
-    const uniqueHeroes = new Set(
-      experimenter.heroes.map((h) => h.heroId)
-    ).size;
-    addNomination("Экспериментатор", "🧪", [{
-      player: experimenter,
-      value: `${uniqueHeroes} героев`,
-    }]);
+    addNomination("Экспериментатор", "🧪", sortedByUniqueHeroes.map((p) => ({
+      player: p,
+      value: `${new Set(p.heroes.map((h) => h.heroId)).size} героев`,
+    })));
 
     // 16. Мейнер (🧠) - highest share on one hero with 60%+ WR on that hero
     const mainCandidates = eligibleForNew
@@ -670,14 +620,11 @@ function calculateNominations(
         const heroNames = heroNamesMap.get(player.playerId) ?? [];
         const groupedHeroes = groupHeroes(player.heroes, heroNames);
         if (groupedHeroes.length === 0) return null;
-
         const mostPlayed = groupedHeroes[0];
         const totalGames = mostPlayed.wins + mostPlayed.losses;
         if (totalGames < MAINER_MIN_HERO_GAMES) return null;
-        const heroWinRate =
-          totalGames > 0 ? (mostPlayed.wins / totalGames) * 100 : 0;
+        const heroWinRate = totalGames > 0 ? (mostPlayed.wins / totalGames) * 100 : 0;
         if (heroWinRate < 60) return null;
-
         return {
           player,
           heroName: mostPlayed.name,
@@ -693,15 +640,14 @@ function calculateNominations(
       });
 
     if (mainCandidates.length > 0) {
-      const mainer = mainCandidates[0];
-      addNomination("Мейнер", "🧠", [{
-        player: mainer.player,
-        value: `${mainer.wins}W/${mainer.losses}L`,
-        heroName: mainer.heroName,
-      }]);
+      addNomination("Мейнер", "🧠", mainCandidates.map((c) => ({
+        player: c.player,
+        value: `${c.wins}W/${c.losses}L`,
+        heroName: c.heroName,
+      })));
     }
 
-    // 16. Камбэкер (🔄) - best WR in long matches (45+ min)
+    // 17. Камбэкер (🔄) - best WR in long matches (45+ min)
     const comebackCandidates = eligibleForNew.filter(
       (p) => p.longMatches >= COMEBACK_MIN_LONG_MATCHES
     );
@@ -712,14 +658,10 @@ function calculateNominations(
         if (bWr !== aWr) return bWr - aWr;
         return a.playerName.localeCompare(b.playerName);
       });
-      const comebacker = sortedByLongWr[0];
-      const longWinRate = Math.round(
-        (comebacker.longWins / comebacker.longMatches) * 100
-      );
-      addNomination("Камбэкер", "🔄", [{
-        player: comebacker,
-        value: `${longWinRate}% в ${comebacker.longMatches} играх`,
-      }]);
+      addNomination("Камбэкер", "🔄", sortedByLongWr.map((p) => ({
+        player: p,
+        value: `${Math.round((p.longWins / p.longMatches) * 100)}% в ${p.longMatches} играх`,
+      })));
     }
 
     // 18. Ночной страж (🌙) - most night matches (minimum 3)
@@ -727,12 +669,11 @@ function calculateNominations(
       eligibleForNew.filter((p) => p.nightMatches >= TIME_GUARD_MIN_MATCHES),
       (p) => p.nightMatches
     );
-    const nightGuard = sortedByNightMatches[0];
-    if (nightGuard) {
-      addNomination("Ночной страж", "🌙", [{
-        player: nightGuard,
-        value: `${nightGuard.nightMatches} игр ночью`,
-      }]);
+    if (sortedByNightMatches.length > 0) {
+      addNomination("Ночной страж", "🌙", sortedByNightMatches.map((p) => ({
+        player: p,
+        value: `${p.nightMatches} игр ночью`,
+      })));
     }
 
     // 19. Утренний страж (🌅) - most morning matches (minimum 3)
@@ -740,12 +681,11 @@ function calculateNominations(
       eligibleForNew.filter((p) => p.morningMatches >= TIME_GUARD_MIN_MATCHES),
       (p) => p.morningMatches
     );
-    const morningGuard = sortedByMorningMatches[0];
-    if (morningGuard) {
-      addNomination("Утренний страж", "🌅", [{
-        player: morningGuard,
-        value: `${morningGuard.morningMatches} игр утром`,
-      }]);
+    if (sortedByMorningMatches.length > 0) {
+      addNomination("Утренний страж", "🌅", sortedByMorningMatches.map((p) => ({
+        player: p,
+        value: `${p.morningMatches} игр утром`,
+      })));
     }
   }
 
@@ -833,8 +773,7 @@ export async function formatStatsMessage(
   
   lines.push(`<b>Team Summary:</b> ${summaryData.join(" • ")}`);
 
-  const message = lines.join("\n");
-  return maybeAppendCanonStrophe(message, 0.3);
+  return lines.join("\n");
 }
 
 /**

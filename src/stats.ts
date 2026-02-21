@@ -1,4 +1,6 @@
 import type { RecentMatch } from "./opendota.js";
+import { MSK_OFFSET_HOURS } from "./constants.js";
+import { getMskTimeComponents } from "./utils.js";
 
 export interface HeroMatch {
   heroId: number;
@@ -44,28 +46,7 @@ function isWin(match: RecentMatch): boolean {
  * Day is considered to start at 6:00 MSK, not midnight
  */
 const DAY_START_HOUR_MSK = 6;
-const MSK_OFFSET_HOURS = 3; // UTC+3
 const LONG_MATCH_THRESHOLD_SECONDS = 45 * 60;
-
-/**
- * Gets current MSK time components using UTC methods.
- * By adding MSK offset to UTC time and using getUTC* methods,
- * we correctly get MSK time regardless of server timezone.
- */
-function getMskTimeComponents() {
-  const now = new Date();
-  const mskTime = now.getTime() + MSK_OFFSET_HOURS * 60 * 60 * 1000;
-  const mskDate = new Date(mskTime);
-
-  // Use getUTC* methods since we've shifted the time to make UTC act like MSK
-  return {
-    year: mskDate.getUTCFullYear(),
-    month: mskDate.getUTCMonth(),
-    date: mskDate.getUTCDate(),
-    hours: mskDate.getUTCHours(),
-    day: mskDate.getUTCDay(),
-  };
-}
 
 /**
  * Creates a UTC timestamp (in seconds) for a specific MSK time.
@@ -193,14 +174,6 @@ function filterMatchesByPeriod(
     if (periodEnd !== null && match.start_time >= periodEnd) return false;
     return true;
   });
-}
-
-/**
- * Filters matches to only include those from today (local time)
- * @deprecated Use filterMatchesByPeriod with "today" period instead
- */
-function filterTodayMatches(matches: RecentMatch[]): RecentMatch[] {
-  return filterMatchesByPeriod(matches, "today");
 }
 
 /**
