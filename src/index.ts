@@ -3,6 +3,7 @@ import { config, PLAYER_IDS } from "./config.js";
 import { fetchRecentMatches, fetchPlayerProfile, fetchPlayerTotals } from "./opendota.js";
 import { calculateStats, type PlayerStats, type StatsPeriod } from "./stats.js";
 import { createBot, sendMessage, setupCommands, startBot } from "./bot.js";
+import type { Bot } from "grammy";
 import { formatStatsMessage, stripHtml } from "./formatter.js";
 import { startLfgPolling, getLfgStats } from "./lfg.js";
 
@@ -157,7 +158,7 @@ async function getFormattedStats(period: StatsPeriod = "today"): Promise<string>
 /**
  * Sends daily stats to Telegram (used by cron job)
  */
-async function sendDailyStats(): Promise<void> {
+async function sendDailyStats(bot: Bot): Promise<void> {
   console.log(`[${new Date().toISOString()}] Sending daily stats...`);
 
   try {
@@ -168,7 +169,6 @@ async function sendDailyStats(): Promise<void> {
 
     // Send to Telegram
     console.log("Sending message to Telegram...");
-    const bot = createBot();
     await sendMessage(bot, message);
     console.log("Message sent successfully!");
     incrementDailyStatsCounter();
@@ -202,7 +202,7 @@ async function main(): Promise<void> {
   // 0 6 = 0 6 MSK for some reason in railway
   console.log("📅 Daily stats scheduled for 06:00 MSK (03:00 UTC)");
   cron.schedule("0 6 * * *", () => {
-    sendDailyStats();
+    sendDailyStats(bot);
   });
 
   // Start periodic health check logging
@@ -212,7 +212,7 @@ async function main(): Promise<void> {
   // Send stats immediately if RUN_NOW environment variable is set (for testing)
   if (process.env.RUN_NOW === "true") {
     console.log("🚀 RUN_NOW=true detected, sending stats immediately...");
-    await sendDailyStats();
+    await sendDailyStats(bot);
   }
 
   // Log initial health check before starting blocking bot polling

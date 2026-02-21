@@ -1,6 +1,5 @@
 import { getAppFetch } from "./proxy.js";
-
-const OPENDOTA_API_BASE = "https://api.opendota.com/api";
+import { OPENDOTA_API_BASE } from "./constants.js";
 
 export interface Hero {
   id: number;

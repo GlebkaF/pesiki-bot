@@ -8,7 +8,7 @@ import "dotenv/config";
 let proxiedFetch: any = null;
 let appFetch: typeof fetch | null = null;
 
-function errorContainsProxyHints(error: unknown): boolean {
+function isProxyTransportError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
 
   const errorWithMessage = error as { message?: unknown; cause?: unknown };
@@ -22,12 +22,7 @@ function errorContainsProxyHints(error: unknown): boolean {
     return true;
   }
 
-  return errorContainsProxyHints(errorWithMessage.cause);
-}
-
-function isProxyTransportError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false;
-  return errorContainsProxyHints(error);
+  return isProxyTransportError(errorWithMessage.cause);
 }
 
 /** Proxied fetch: uses HTTPS_PROXY when set, otherwise global fetch. For OpenAI, OpenDota, heroes, items. */
