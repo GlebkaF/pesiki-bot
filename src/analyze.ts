@@ -6,6 +6,7 @@ import { getHeroName } from "./heroes.js";
 import { getItemNames } from "./items.js";
 import { getRankName } from "./ranks.js";
 import { maybeAppendOutcomeCanonStrophe } from "./canon.js";
+import { escapeHtml } from "./telegram-html.js";
 
 const OPENDOTA_API_BASE = "https://api.opendota.com/api";
 
@@ -469,7 +470,7 @@ export async function analyzeMatch(matchId: number): Promise<string> {
   // Analyze with LLM
   const analysis = await analyzeWithLLM(context);
   
-  // Format response
+  // Format response (escape AI output to prevent Telegram HTML parse errors on < > &)
   const matchUrl = `https://www.opendota.com/matches/${matchId}`;
   const header = `🔬 <b>Анализ матча</b> <a href="${matchUrl}">#${matchId}</a>
 ⏱ Длительность: ${formatDuration(matchDetails.duration)}
@@ -478,7 +479,7 @@ ${isParsed ? "📊 Полный" : "📊 Базовый"}
 
 `;
 
-  const fullAnalysis = header + analysis;
+  const fullAnalysis = header + escapeHtml(analysis);
   
   // Cache the result with parsed status
   cacheAnalysis(matchId, fullAnalysis, isParsed);
