@@ -11,7 +11,7 @@ import { escapeHtml } from "./telegram-html.js";
 const OPENDOTA_API_BASE = "https://api.opendota.com/api";
 
 // ============================================================================
-// CONFIGURATION
+// CONFIGURATION1
 // ============================================================================
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.2";
