@@ -17,12 +17,12 @@ export async function createBot(): Promise<Bot> {
   if (proxy) {
     const undici = await import("undici");
     const agent = new undici.ProxyAgent(proxy);
+    const proxyFetch = ((url: string | URL | Request, init?: RequestInit) =>
+      undici.fetch(String(url), { ...init, dispatcher: agent } as Parameters<typeof undici.fetch>[1])) as unknown as typeof fetch;
     console.log("[PROXY] Telegram API will use proxy");
     return new Bot(config.telegramBotToken, {
       client: {
-        baseFetchConfig: {
-          dispatcher: agent,
-        } as RequestInit,
+        fetch: proxyFetch,
       },
     });
   }
