@@ -168,7 +168,7 @@ async function sendDailyStats(): Promise<void> {
 
     // Send to Telegram
     console.log("Sending message to Telegram...");
-    const bot = createBot();
+    const bot = await createBot();
     await sendMessage(bot, message);
     console.log("Message sent successfully!");
     incrementDailyStatsCounter();
@@ -189,7 +189,7 @@ async function main(): Promise<void> {
   console.log(`[STARTUP] Health check interval: ${HEALTH_CHECK_INTERVAL_MS / 1000}s`);
 
   // Create bot instance
-  const bot = createBot();
+  const bot = await createBot();
 
   // Set up /stats command handler with callback to track commands
   setupCommands(bot, getFormattedStats, incrementCommandCounter);

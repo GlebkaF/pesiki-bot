@@ -6,11 +6,27 @@ import { analyzeLastMatchCopium, analyzeMatchCopium } from "./analyze-copium.js"
 
 /**
  * Creates and returns a configured Telegram bot instance
+ * Uses HTTPS_PROXY for Telegram API when configured
  */
-export function createBot(): Bot {
+export async function createBot(): Promise<Bot> {
   if (!config.telegramBotToken) {
     throw new Error("TELEGRAM_BOT_TOKEN is not set in environment variables");
   }
+
+  const proxy = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+  if (proxy) {
+    const undici = await import("undici");
+    const agent = new undici.ProxyAgent(proxy);
+    console.log("[PROXY] Telegram API will use proxy");
+    return new Bot(config.telegramBotToken, {
+      client: {
+        baseFetchConfig: {
+          dispatcher: agent,
+        } as RequestInit,
+      },
+    });
+  }
+
   return new Bot(config.telegramBotToken);
 }
 
