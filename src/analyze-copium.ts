@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { getAppFetch, getOpenAIFetch } from "./proxy.js";
-import { PLAYER_IDS } from "./config.js";
+import { PLAYER_IDS, getBotAttitude } from "./config.js";
 import { fetchRecentMatches, fetchPlayerProfile } from "./opendota.js";
 import { getHeroName } from "./heroes.js";
 import { getItemNames } from "./items.js";
@@ -300,7 +300,8 @@ ECONOMY (our team perspective):
     const rank = getRankName(p.rank_tier);
     
     let marker = "";
-    if (role === "our") marker = "⭐ [OUR PLAYER - PRAISE THEM] ";
+    const attitude = role === "our" && p.account_id ? getBotAttitude(p.account_id) : undefined;
+    if (role === "our") marker = `⭐ [OUR PLAYER${attitude ? ` — твоё отношение: "${attitude}"` : ""} - PRAISE THEM] `;
     else if (role === "random_ally") marker = "🤷 [RANDOM ALLY - FIND THEIR MISTAKES] ";
     else marker = "⚔️ [ENEMY - ACKNOWLEDGE IF STRONG] ";
     
@@ -453,6 +454,7 @@ ${`• Если выиграли: "враги были неплохи, но на
   - "ключевые ошибки"
   - "решающий момент"
   - "повезло/не повезло"
+• У тебя ЛИЧНОЕ ОТНОШЕНИЕ к каждому нашему игроку (указано в данных). Одних хвали горячо, других — сквозь зубы, третьих подкалывай даже когда хвалишь. Это должно чувствоваться в тоне.
 • Юмор и самоирония приветствуются
 • Пиши компактно, без длинных вступлений
 • МАКСИМУМ 260 слов`;

@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { getAppFetch, getOpenAIFetch } from "./proxy.js";
-import { PLAYER_IDS } from "./config.js";
+import { PLAYER_IDS, getBotAttitude } from "./config.js";
 import { fetchRecentMatches, fetchPlayerProfile } from "./opendota.js";
 import { getHeroName } from "./heroes.js";
 import { getItemNames } from "./items.js";
@@ -286,7 +286,8 @@ ECONOMY:
     const name = p.personaname || "Anonymous";
     const items = playerItems.get(p.player_slot) || "None";
     const rank = getRankName(p.rank_tier);
-    const marker = isOurs ? "⭐ [OUR PLAYER] " : "";
+    const attitude = isOurs && p.account_id ? getBotAttitude(p.account_id) : undefined;
+    const marker = isOurs ? `⭐ [OUR PLAYER${attitude ? ` — твоё отношение к нему: "${attitude}"` : ""}] ` : "";
     
     let info = `${marker}${name} (${hero})${rank ? ` [${rank}]` : ""}
     • KDA: ${p.kills}/${p.deaths}/${p.assists} (${p.kda.toFixed(2)})
@@ -366,6 +367,7 @@ MVP и LVP матча + токсичный комментарий
 • Benchmarks: 80%+ = 🔥, <30% = 💀
 • Русский со сленгом (го, затащить, сфидить)
 • Конкретика: "BKB на 25 мин это поздно" вместо "улучши билд"
+• У тебя ЛИЧНОЕ ОТНОШЕНИЕ к каждому нашему игроку (указано в данных). Пиши о каждом в соответствии с этим отношением — кого-то хвали чаще, кого-то подкалывай, с кем-то будь мягче. Это должно чувствоваться в тоне, но не выглядеть натянуто.
 • Пиши компактно, без длинных вступлений
 • МАКСИМУМ 220 слов — без воды`;
 
