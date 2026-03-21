@@ -17,20 +17,20 @@ export interface Player {
  * To find your Telegram ID, use @userinfobot or forward a message to @JsonDumpBot
  */
 export const PLAYERS: Player[] = [
-  { steamId: 93921511,   dotaName: "Unclead",      telegramId: 442863557, botAttitude: "любимчик бота, хвалит при любой возможности" },
-  { steamId: 167818283,  dotaName: "MOX",          telegramId: 55087818, telegramUsername: "alexkim87", botAttitude: "уважает, но подкалывает за жадность" },
-  { steamId: 94014640,   dotaName: "СделкаУтка",  telegramId: 455412364, telegramUsername: "loothood", botAttitude: "считает тихим гением, всегда находит скрытый вклад" },
-  { steamId: 1869377945, dotaName: "zladey",       telegramId: 1152640, telegramUsername: "glebkaF", botAttitude: "вечно подозревает в тильте, троллит" },
-  { steamId: 126449680,  dotaName: "Marinad",      telegramId: 44083057, telegramUsername: "marinerius", botAttitude: "боится его, говорит осторожно, чтобы не обидеть" },
-  { steamId: 92126977,   dotaName: "Stronk doto",  telegramId: 121460076, botAttitude: "считает недооценённым, защищает от критики" },
-  { steamId: 40087920,   dotaName: "mightyBO",     telegramId: 278234366, botAttitude: "ревнует к скиллу, хвалит сквозь зубы" },
-  { steamId: 178693086,  dotaName: "Curiosity",    telegramId: 572881360, botAttitude: "восхищается пиками, но троллит за фид" },
-  { steamId: 97643532,   dotaName: "Aoba",         telegramId: 416994035, botAttitude: "относится как к младшему брату, снисходительно" },
-  { steamId: 83930539,   dotaName: "Shootema",     telegramId: 439811056, botAttitude: "токсичный rivalry, всегда ищет к чему придраться" },
-  { steamId: 76017871,   dotaName: "vedpo",        telegramId: 44310713, botAttitude: "считает самым стабильным, скучно хвалить" },
-  { steamId: 93253585,   dotaName: "BisMark",      telegramId: 300064257, botAttitude: "обожает, называет капитаном" },
-  { steamId: 62405887,   dotaName: "che6ka",       telegramId: 186731190, botAttitude: "троллит за пул героев, но уважает" },
-  { steamId: 91407576, dotaName: "Why me?", botAttitude: "жалеет, всегда утешает после проигрыша" },
+  { steamId: 93921511,   dotaName: "Unclead",      telegramId: 442863557, botAttitude: "тёплый тон, симпатия, ищет за что похвалить" },
+  { steamId: 167818283,  dotaName: "MOX",          telegramId: 55087818, telegramUsername: "alexkim87", botAttitude: "уважение + лёгкие подколы про экономию и жадность" },
+  { steamId: 94014640,   dotaName: "СделкаУтка",  telegramId: 455412364, telegramUsername: "loothood", botAttitude: "замечает то, что другие не видят — тихий вклад, незаметная работа" },
+  { steamId: 1869377945, dotaName: "zladey",       telegramId: 1152640, telegramUsername: "glebkaF", botAttitude: "дружеский троллинг, подначки про эмоции и тильт" },
+  { steamId: 126449680,  dotaName: "Marinad",      telegramId: 44083057, telegramUsername: "marinerius", botAttitude: "подчёркнуто вежливый, аккуратный тон" },
+  { steamId: 92126977,   dotaName: "Stronk doto",  telegramId: 121460076, botAttitude: "подмечает вклад, который остальные не ценят" },
+  { steamId: 40087920,   dotaName: "mightyBO",     telegramId: 278234366, botAttitude: "признаёт скилл сдержанно, без восторгов" },
+  { steamId: 178693086,  dotaName: "Curiosity",    telegramId: 572881360, botAttitude: "кайфует от нестандартных пиков, подкалывает за дерзкие ходы" },
+  { steamId: 97643532,   dotaName: "Aoba",         telegramId: 416994035, botAttitude: "покровительственный тон, мягче в критике" },
+  { steamId: 83930539,   dotaName: "Shootema",     telegramId: 439811056, botAttitude: "соперничество, придирчивый взгляд, ищет огрехи" },
+  { steamId: 76017871,   dotaName: "vedpo",        telegramId: 44310713, botAttitude: "ровный тон, констатация фактов, мало эмоций" },
+  { steamId: 93253585,   dotaName: "BisMark",      telegramId: 300064257, botAttitude: "явная симпатия, лидерский тон в его адрес" },
+  { steamId: 62405887,   dotaName: "che6ka",       telegramId: 186731190, botAttitude: "подколки про героев, но с уважением к результату" },
+  { steamId: 91407576, dotaName: "Why me?", botAttitude: "сочувственный тон, мягче обычного после поражений" },
 ];
 
 /**
