@@ -231,7 +231,58 @@ export async function fetchPlayerTotals(
 
   const response = await fetchWithRateLimit(url, `totals for ${accountId}`);
   const data = await response.json();
-  
+
+  setCache(cacheKey, data, CACHE_TTL.TOTALS);
+  return data;
+}
+
+export interface WinLoss {
+  win: number;
+  lose: number;
+}
+
+export async function fetchWinLoss(
+  accountId: number,
+  date?: number
+): Promise<WinLoss> {
+  const cacheKey = `wl:${accountId}:${date ?? "all"}`;
+  const cached = getFromCache<WinLoss>(cacheKey);
+  if (cached) return cached;
+
+  let url = `${OPENDOTA_API_BASE}/players/${accountId}/wl`;
+  if (date !== undefined) {
+    url += `?date=${date}`;
+  }
+
+  const response = await fetchWithRateLimit(url, `wl for ${accountId}`);
+  const data = await response.json();
+
+  setCache(cacheKey, data, CACHE_TTL.TOTALS);
+  return data;
+}
+
+export interface PlayerHeroStats {
+  hero_id: number;
+  games: number;
+  win: number;
+}
+
+export async function fetchTopHeroes(
+  accountId: number,
+  date?: number
+): Promise<PlayerHeroStats[]> {
+  const cacheKey = `heroes:${accountId}:${date ?? "all"}`;
+  const cached = getFromCache<PlayerHeroStats[]>(cacheKey);
+  if (cached) return cached;
+
+  let url = `${OPENDOTA_API_BASE}/players/${accountId}/heroes`;
+  if (date !== undefined) {
+    url += `?date=${date}`;
+  }
+
+  const response = await fetchWithRateLimit(url, `heroes for ${accountId}`);
+  const data = await response.json();
+
   setCache(cacheKey, data, CACHE_TTL.TOTALS);
   return data;
 }
