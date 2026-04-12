@@ -5,6 +5,7 @@ import { calculateStats, type PlayerStats, type StatsPeriod } from "./stats.js";
 import { createBot, sendMessage, setupCommands, startBot } from "./bot.js";
 import { formatStatsMessage, stripHtml } from "./formatter.js";
 import { startLfgPolling, getLfgStats } from "./lfg.js";
+import { checkAndSendBirthdayGreetings } from "./birthday.js";
 
 // Health check configuration
 const HEALTH_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -203,6 +204,12 @@ async function main(): Promise<void> {
   console.log("📅 Daily stats scheduled for 06:00 MSK (03:00 UTC)");
   cron.schedule("0 6 * * *", () => {
     sendDailyStats();
+  });
+
+  // Birthday greetings at 19:00 MSK
+  console.log("🎂 Birthday greetings scheduled for 19:00 MSK");
+  cron.schedule("0 19 * * *", () => {
+    checkAndSendBirthdayGreetings(bot);
   });
 
   // Start periodic health check logging
