@@ -6,6 +6,7 @@ import { createBot, sendMessage, setupCommands, startBot } from "./bot.js";
 import { formatStatsMessage, stripHtml } from "./formatter.js";
 import { startLfgPolling, getLfgStats } from "./lfg.js";
 import { checkAndSendBirthdayGreetings } from "./birthday.js";
+import { startWebServer } from "./web/server.js";
 
 // Health check configuration
 const HEALTH_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -211,6 +212,11 @@ async function main(): Promise<void> {
   cron.schedule("0 19 * * *", () => {
     checkAndSendBirthdayGreetings(bot);
   });
+
+  // Веб-витрина матчей: работает в этом же процессе рядом с ботом
+  if (process.env.WEB_ENABLED !== "false") {
+    startWebServer();
+  }
 
   // Start periodic health check logging
   setInterval(logHealthCheck, HEALTH_CHECK_INTERVAL_MS);

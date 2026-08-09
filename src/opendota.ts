@@ -286,3 +286,51 @@ export async function fetchTopHeroes(
   setCache(cacheKey, data, CACHE_TTL.TOTALS);
   return data;
 }
+
+export interface MatchApiPlayer {
+  account_id?: number;
+  player_slot: number;
+  hero_id: number;
+  personaname?: string;
+  kills: number;
+  deaths: number;
+  assists: number;
+  last_hits?: number;
+  denies?: number;
+  gold_per_min?: number;
+  xp_per_min?: number;
+  net_worth?: number;
+  hero_damage?: number;
+  tower_damage?: number;
+  level?: number;
+  item_0?: number; item_1?: number; item_2?: number;
+  item_3?: number; item_4?: number; item_5?: number;
+}
+
+export interface MatchApi {
+  match_id: number;
+  duration: number;
+  start_time: number;
+  radiant_win: boolean;
+  radiant_score: number;
+  dire_score: number;
+  game_mode?: number;
+  cluster?: number;
+  replay_salt?: number;
+  players: MatchApiPlayer[];
+}
+
+/** Полные данные матча из API — нужны для страницы матча, даже когда реплея нет. */
+export async function fetchMatchApi(matchId: number): Promise<MatchApi> {
+  const cacheKey = `match:${matchId}`;
+  const cached = getFromCache<MatchApi>(cacheKey);
+  if (cached) return cached;
+
+  const response = await fetchWithRateLimit(
+    `${OPENDOTA_API_BASE}/matches/${matchId}`,
+    `match ${matchId}`,
+  );
+  const data = (await response.json()) as MatchApi;
+  setCache(cacheKey, data, CACHE_TTL.TOTALS);
+  return data;
+}

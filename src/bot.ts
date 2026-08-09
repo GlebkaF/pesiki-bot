@@ -3,6 +3,7 @@ import { config } from "./config.js";
 import type { StatsPeriod } from "./stats.js";
 import { analyzeLastMatch, analyzeMatch } from "./analyze.js";
 import { analyzeLastMatchCopium, analyzeMatchCopium } from "./analyze-copium.js";
+import { analyzeMatchV2 } from "./analyze-v2.js";
 
 /**
  * Creates and returns a configured Telegram bot instance
@@ -270,6 +271,72 @@ async function handleCopiumCommand(
   }
 }
 
+/** Человекочитаемые подписи стадий разбора по реплею. */
+const V2_STAGE_TEXT: Record<string, string> = {
+  locating: "🔎 Ищу реплей матча...",
+  requesting: "📡 Запрашиваю реплей у Valve (до минуты)...",
+  downloading: "⬇️ Качаю реплей с серверов Valve (это 40-80 МБ)...",
+  unpacking: "📦 Распаковываю...",
+  parsing: "⚙️ Разбираю реплей: линии, тимфайты, тайминги...",
+  done: "🧠 Пишу разбор...",
+};
+
+/**
+ * /analyze2 — разбор по собственному парсеру реплея.
+ * Прогресс показываем правкой одного сообщения, чтобы не спамить в чат.
+ */
+async function handleAnalyzeV2Command(
+  ctx: CommandContext<Context>,
+  onCommandReceived?: () => void,
+): Promise<void> {
+  console.log(`[${new Date().toISOString()}] /analyze2 from ${ctx.from?.id}`);
+  onCommandReceived?.();
+
+  const arg = ctx.message?.text?.split(/\s+/)[1];
+  const matchId = arg
+    ? Number(arg.match(/opendota\.com\/matches\/(\d+)/i)?.[1] ?? arg)
+    : NaN;
+
+  if (!matchId || Number.isNaN(matchId)) {
+    await ctx.reply(
+      "Нужен номер матча: /analyze2 8895443601\n" +
+        "(разбор идёт по самому реплею, это занимает 1-2 минуты)",
+    );
+    return;
+  }
+
+  const progressMsg = await ctx.reply("🔎 Ищу реплей матча...");
+  let lastText = "";
+  const editProgress = async (text: string) => {
+    if (text === lastText) return;
+    lastText = text;
+    try {
+      await ctx.api.editMessageText(ctx.chat.id, progressMsg.message_id, text);
+    } catch {
+      // сообщение могли удалить — прогресс не критичен
+    }
+  };
+
+  try {
+    const analysis = await analyzeMatchV2(matchId, (stage) => {
+      void editProgress(V2_STAGE_TEXT[stage] ?? "⏳ Работаю...");
+    });
+    await ctx.api.deleteMessage(ctx.chat.id, progressMsg.message_id).catch(() => {});
+    await ctx.reply(analysis, {
+      parse_mode: "HTML",
+      link_preview_options: { is_disabled: true },
+    });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("[ERROR] /analyze2:", msg);
+    await editProgress(
+      msg.includes("gcdata")
+        ? `❌ ${msg}\n\nПока такие матчи разбирает только старый /analyze.`
+        : `❌ Не смог разобрать реплей: ${msg.slice(0, 200)}`,
+    );
+  }
+}
+
 /**
  * Sets up bot commands and handlers
  * @param bot - The bot instance
@@ -297,6 +364,9 @@ export function setupCommands(
   // Register /copium command (biased analysis)
   bot.command("copium", (ctx) => handleCopiumCommand(ctx, onCommandReceived));
 
+  // Register /analyze2 command (replay-based analysis)
+  bot.command("analyze2", (ctx) => handleAnalyzeV2Command(ctx, onCommandReceived));
+
   // Set bot commands menu (optional; 404 can occur with invalid token or custom API)
   bot.api
     .setMyCommands([
@@ -304,6 +374,7 @@ export function setupCommands(
       { command: "yesterday", description: "Get yesterday's Dota 2 stats" },
       { command: "analyze", description: "AI analysis (or /analyze <url>)" },
       { command: "copium", description: "💊 AI-аналитика для стака" },
+      { command: "analyze2", description: "🔬 Разбор по реплею (v2)" },
     ])
     .catch((err) =>
       console.warn("[WARN] setMyCommands failed (menu may not show):", err.message),

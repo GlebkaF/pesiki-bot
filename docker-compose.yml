@@ -15,3 +15,8 @@ services:
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - HTTPS_PROXY=${HTTPS_PROXY}
+      - WEB_PORT=${WEB_PORT:-3000}
+      - SITE_URL=${SITE_URL}
+    volumes:
+      # разобранные реплеи и готовые разборы не теряются при передеплое
+      - ./data:/app/data

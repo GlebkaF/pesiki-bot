@@ -9,7 +9,8 @@
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx src/test-formatter.ts"
+    "test": "tsx src/test-formatter.ts",
+    "web": "tsx src/web/standalone.ts"
   },
   "keywords": [
     "dota2",
