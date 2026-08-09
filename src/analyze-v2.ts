@@ -266,6 +266,10 @@ export function analyseParsedMatch(parsed: ParsedMatch): MatchAnalysis {
 
 function describePlayer(p: ParsedPlayer, cfg?: Player): string {
   const tag = cfg ? `[НАШ: ${cfg.dotaName}]` : "";
+  // Ники в Dota меняются; в тексте зовём человека так, как его знают в чате.
+  const shownName = cfg
+    ? cfg.dotaName + (p.name && p.name !== cfg.dotaName ? ` (в игре сейчас ${p.name})` : "")
+    : p.name;
   const items = (p.item_timings ?? []).slice(0, 8).map((i) => `${i.item}@${fmtTime(i.min)}`).join(", ");
   const deaths = (p.death_times_min ?? []).length
     ? (p.death_times_min ?? []).map((d) => fmtTime(d)).join(", ")
@@ -278,7 +282,7 @@ function describePlayer(p: ParsedPlayer, cfg?: Player): string {
     : "";
 
   return [
-    `${tag} ${p.name} (${p.hero}) ${p.lane}/${p.lane_role} ур.${p.level_final}`,
+    `${tag} ${shownName} (${p.hero}) ${p.lane}/${p.lane_role} ур.${p.level_final}`,
     `  KDA ${p.kills}/${p.deaths}/${p.assists} (официальный) | CS ${p.last_hits}(+${p.denies} денаев) | CS@10 ${p.cs_at_10} | CS@20 ${p.cs_at_20}`,
     `  NW: 10мин ${p.networth_at_10} -> 20мин ${p.networth_at_20} -> итог ${p.networth_final} | GPM ${p.gpm} | XPM ${p.xpm}`,
     `  урон по героям ${p.hero_damage} | получил ${p.damage_taken} | лечение ${p.healing} | по башням ${p.tower_damage}`,
