@@ -18,5 +18,9 @@ services:
       - WEB_PORT=${WEB_PORT:-3000}
       - SITE_URL=${SITE_URL}
     volumes:
-      # разобранные реплеи и готовые разборы не теряются при передеплое
-      - ./data:/app/data
+      # Именованный том, а не bind-mount: контейнер пишет от root, и папка в рабочей
+      # директории GitHub-раннера ломала бы ему checkout при следующем деплое.
+      - pesiki-data:/app/data
+
+volumes:
+  pesiki-data:
