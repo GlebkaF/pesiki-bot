@@ -13,7 +13,7 @@ import { fetchHeroes } from "./heroes.js";
 import { PLAYERS, getBotAttitude, type Player } from "./config.js";
 import { fetchAndParseReplay, toSteam32, type ParsedMatch, type ParsedPlayer, type ParseProgress } from "./replay.js";
 import { escapeHtml } from "./telegram-html.js";
-import { CHAT_SLANG, BANNED_WORDS, TONE_EXAMPLES, sanitizeAnalysis } from "./lexicon.js";
+import { CHAT_SLANG, BANNED_WORDS, TONE_EXAMPLES, sanitizeAnalysis, lintAnalysis } from "./lexicon.js";
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL_V2 || process.env.OPENAI_MODEL || "gpt-5.2";
 /** Адрес витрины. Пустой — значит ссылку в пост не добавляем. */
@@ -39,8 +39,11 @@ export const FORMATS = [
     id: "enemy",
     title: "взгляд с той стороны",
     brief:
-      "Ты саппорт вражеской команды, который после игры пишет своим в дискорд, что это были за соперники. " +
-      "Кого боялись, кого фармили, кто был бесплатным золотом.",
+      "Ты саппорт вражеской команды, который после игры пишет своим в дискорд про соперников. " +
+      "Кого боялись, кого фармили, кто был бесплатным золотом. " +
+      "ВАЖНО: про команду чата говори только в третьем лице — «эти», «они», по именам. " +
+      "Про свою сторону не рассказывай вообще и не пиши «у нас»: все цифры в данных описывают " +
+      "команду чата, и если приписать их себе, знаки перевернутся и текст будет врать.",
   },
   {
     id: "gaben",
@@ -271,11 +274,18 @@ function describePlayer(p: ParsedPlayer, cfg?: Player): string {
     ? cfg.dotaName + (p.name && p.name !== cfg.dotaName ? ` (в игре сейчас ${p.name})` : "")
     : p.name;
   const items = (p.item_timings ?? []).slice(0, 8).map((i) => `${i.item}@${fmtTime(i.min)}`).join(", ");
-  const deaths = (p.death_times_min ?? []).length
-    ? (p.death_times_min ?? []).map((d) => fmtTime(d)).join(", ")
-    : "не умирал";
+  const deathTimes = p.death_times_min ?? [];
+  const deaths = deathTimes.length ? deathTimes.map((d) => fmtTime(d)).join(", ") : "не умирал";
+  // Официальный счётчик и список таймингов иногда расходятся на одну смерть.
+  const deathNote =
+    deathTimes.length && deathTimes.length !== p.deaths
+      ? ` (официально смертей ${p.deaths}, таймингов известно ${deathTimes.length} — считай по официальному)`
+      : "";
+  const MULTI_NAMES: Record<string, string> = { x2: "дабл-килл", x3: "трипл-килл", x4: "квадра", x5: "рампейдж" };
   const multi = p.multikills
-    ? Object.entries(p.multikills).map(([k, v]) => `${k}:${v}`).join(" ")
+    ? Object.entries(p.multikills)
+        .map(([size, times]) => `${MULTI_NAMES[size] ?? size} x${times}`)
+        .join(", ")
     : "";
   const killedBy = p.killed_by
     ? Object.entries(p.killed_by).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k}x${v}`).join(", ")
@@ -294,7 +304,7 @@ function describePlayer(p: ParsedPlayer, cfg?: Player): string {
       ? `  варды ${p.obs_wards_placed}обс/${p.sentry_wards_placed}сент | снёс вардов ${p.wards_killed}`
       : "",
     `  предметы: ${items || "нет данных"}`,
-    `  умирал в: ${deaths}${killedBy ? ` | чаще убивал его: ${killedBy}` : ""}`,
+    `  умирал в: ${deaths}${deathNote}${killedBy ? ` | чаще убивал его: ${killedBy}` : ""}`,
     p.killed && Object.keys(p.killed).length
       ? `  сам убивал: ${Object.entries(p.killed).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k}x${v}`).join(", ")}`
       : "",
@@ -324,6 +334,25 @@ function describePlayer(p: ParsedPlayer, cfg?: Player): string {
     .join("\n");
 }
 
+/** Лидеры по метрикам, посчитанные кодом: модель на сравнении чисел ошибается. */
+function buildLeaders(parsed: ParsedMatch, ourTeam: "radiant" | "dire"): string {
+  const ours = parsed.players.filter((p) => p.team === ourTeam);
+  const top = (label: string, pick: (p: ParsedPlayer) => number, unit = "") => {
+    const sorted = [...ours].sort((a, b) => pick(b) - pick(a)).filter((p) => pick(p) > 0);
+    if (!sorted.length) return "";
+    return `  ${label}: ` + sorted.slice(0, 3).map((p) => `${p.hero} ${pick(p)}${unit}`).join(" > ");
+  };
+  return [
+    top("урон по героям", (p) => p.hero_damage),
+    top("нетворс", (p) => p.networth_final),
+    top("крипы", (p) => p.last_hits),
+    top("смерти", (p) => p.deaths),
+    top("обсы", (p) => p.obs_wards_placed),
+    top("сентри", (p) => p.sentry_wards_placed),
+    top("урон по башням", (p) => p.tower_damage),
+  ].filter(Boolean).join("\n");
+}
+
 export function buildContext(a: MatchAnalysis): string {
   const { parsed } = a;
   const ourSteamIds = new Set(a.ours.map((o) => o.parsed.steam_id));
@@ -347,11 +376,17 @@ export function buildContext(a: MatchAnalysis): string {
     .join("\n");
 
   const towers = (parsed.buildings ?? [])
-    .filter((b) => b.name.includes("tower"))
-    .slice(0, 12)
+    .filter((b) => b.name.includes("tower") || b.name.includes("rax") || b.name.includes("fort"))
+    .slice(0, 14)
     .map((b) => {
       const oursKilled = b.killed_by_team === a.ourTeam;
-      const short = b.name.replace("npc_dota_", "").replace("goodguys_", "radiant ").replace("badguys_", "dire ");
+      const short = b.name
+        .replace("npc_dota_", "")
+        .replace("goodguys_", "radiant ")
+        .replace("badguys_", "dire ")
+        .replace("fort", "ТРОН")
+        .replace("_melee_rax", " казармы ближнего боя")
+        .replace("_range_rax", " казармы дальнего боя");
       return `${fmtTime(b.min)} ${short} (${oursKilled ? "снесли МЫ" : "снесли ОНИ"})`;
     })
     .join(", ");
@@ -375,6 +410,10 @@ ${a.laneReport.map((l) => `  ${l}`).join("\n") || "  нет данных"}
 ${fights || "  крупных замесов не было"}
 
 БАШНИ: ${towers || "нет данных"}
+
+ЛИДЕРЫ В НАШЕЙ КОМАНДЕ (посчитано кодом, порядок от большего к меньшему —
+пользуйся этим вместо того, чтобы сравнивать числа самому):
+${buildLeaders(parsed, a.ourTeam)}
 
 ПОСЧИТАНО КОДОМ (не пересматривай, используй как факт):
   MVP матча: ${a.mvp ? `${a.mvp.name} (${a.mvp.hero})` : "н/д"}
@@ -411,7 +450,13 @@ const BASE_RULES = `ЖЁСТКИЕ ПРАВИЛА:
   на пятерых, чем пять пустых советов. Не пиши слово «совет» и не нумеруй.
 • Telegram-текст без Markdown. Эмодзи — точечно, максимум 5 штук на весь разбор.
 • 150-250 слов. Плотно, без вступлений и без воды.
-• Не выдумывай метрику, которой нет в данных: если написано «нетворс/мин», это не GPM.`;
+• Не выдумывай метрику, которой нет в данных: если написано «нетворс/мин», это не GPM.
+• Прежде чем написать «топ в команде», «больше всех», «единственный, кто», «он один работал» —
+  сверься с блоком ЛИДЕРЫ. Если игрок не первый в нужной строке, превосходную степень не пиши.
+• Числительное словом («дважды», «трижды», «оба раза») должно совпадать с количеством фактов,
+  которые ты сам перечисляешь рядом. Пересчитай, прежде чем писать.
+• Мультикиллы уже расписаны словами. «дабл-килл x3» значит три дабл-килла, а не три убийства
+  за раз и не трипл-килл.`;
 
 export function buildPrompt(format: (typeof FORMATS)[number]): string {
   return `Ты — Песик, бот дотерского чата. Разбираешь катку своего стака.
@@ -457,9 +502,15 @@ export async function generateAnalysis(
     ],
     max_completion_tokens: 4000,
   });
-  const text = res.choices[0]?.message?.content || "Не удалось получить разбор";
+  const raw = res.choices[0]?.message?.content || "Не удалось получить разбор";
   // Служебные метки протекают в текст даже при прямом запрете в промпте — чистим отдельно.
-  return sanitizeAnalysis(text);
+  const text = sanitizeAnalysis(raw);
+
+  const banned = lintAnalysis(text);
+  if (banned.length) {
+    console.warn(`[ANALYZE-V2] в тексте проскочили запрещённые слова: ${banned.join(", ")}`);
+  }
+  return text;
 }
 
 /** Разбор матча по реплею. Прогресс отдаётся наружу, чтобы бот мог обновлять сообщение. */
