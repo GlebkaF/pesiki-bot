@@ -99,21 +99,39 @@ export async function rebuildFeed(): Promise<FeedMatch[]> {
   return matches;
 }
 
-/** Отдаёт ленту из кэша; обновляет, если кэш устарел или его нет. */
+/** Чтобы параллельные запросы не запускали пересборку по второму разу. */
+let refreshing: Promise<FeedMatch[]> | null = null;
+
+function refreshInBackground(): void {
+  if (refreshing) return;
+  refreshing = rebuildFeed()
+    .catch((error) => {
+      console.warn("[FEED] фоновое обновление не удалось:", (error as Error).message);
+      return [] as FeedMatch[];
+    })
+    .finally(() => {
+      refreshing = null;
+    }) as Promise<FeedMatch[]>;
+}
+
+/**
+ * Отдаёт ленту. Сборка занимает около полминуты (14 игроков против рейт-лимита OpenDota),
+ * поэтому просроченный кэш возвращаем сразу и обновляем его в фоне: страница не должна ждать.
+ */
 export async function getFeed(force = false): Promise<{ matches: FeedMatch[]; updatedAt: number }> {
   if (!force) {
     try {
       const cached = JSON.parse(await readFile(CACHE_PATH, "utf8")) as FeedCache;
-      if (Date.now() - cached.updatedAt < FEED_TTL_MS) return cached;
-      // Кэш просрочен, но пригодится как запасной вариант, если OpenDota недоступна.
-      try {
-        return { matches: await rebuildFeed(), updatedAt: Date.now() };
-      } catch {
-        return cached;
-      }
+      if (Date.now() - cached.updatedAt >= FEED_TTL_MS) refreshInBackground();
+      return cached;
     } catch {
-      // кэша нет — собираем с нуля
+      // кэша нет — придётся собрать прямо сейчас
     }
   }
   return { matches: await rebuildFeed(), updatedAt: Date.now() };
+}
+
+/** Прогрев при старте, чтобы первый посетитель не попал на пустой кэш. */
+export function warmFeed(): void {
+  refreshInBackground();
 }

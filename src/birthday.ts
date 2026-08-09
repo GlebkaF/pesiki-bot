@@ -6,7 +6,7 @@ import { fetchWinLoss, fetchTopHeroes, fetchPlayerTotals } from "./opendota.js";
 import { getHeroName } from "./heroes.js";
 import { escapeHtml } from "./telegram-html.js";
 
-const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.2";
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.6-sol";
 
 /**
  * Returns players whose birthday is today (comparing MM-DD)

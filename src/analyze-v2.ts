@@ -15,7 +15,7 @@ import { fetchAndParseReplay, toSteam32, type ParsedMatch, type ParsedPlayer, ty
 import { escapeHtml } from "./telegram-html.js";
 import { CHAT_SLANG, BANNED_WORDS, TONE_EXAMPLES, sanitizeAnalysis, lintAnalysis } from "./lexicon.js";
 
-const OPENAI_MODEL = process.env.OPENAI_MODEL_V2 || process.env.OPENAI_MODEL || "gpt-5.2";
+const OPENAI_MODEL = process.env.OPENAI_MODEL_V2 || process.env.OPENAI_MODEL || "gpt-5.6-sol";
 /** Адрес витрины. Пустой — значит ссылку в пост не добавляем. */
 const SITE_URL = (process.env.SITE_URL || "").replace(/\/$/, "");
 

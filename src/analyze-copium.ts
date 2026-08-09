@@ -14,7 +14,7 @@ const OPENDOTA_API_BASE = "https://api.opendota.com/api";
 // CONFIGURATION
 // ============================================================================
 
-const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.2";
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.6-sol";
 
 // Cache for analysis results (match_id -> analysis + metadata)
 interface AnalysisCacheEntry {

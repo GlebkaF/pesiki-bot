@@ -13,7 +13,7 @@ const PROTRACKER_API_ENDPOINTS = [
 const PRO_MATCH_SAMPLE_SIZE = 20;
 const META_LOOKBACK_DAYS = 7;
 const META_CACHE_TTL_MS = 10 * 60 * 1000;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.2";
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.6-sol";
 const TOP_HEROES_PER_ROLE = 4;
 
 const STATIC_META_FALLBACK: Record<Role, string[]> = {
