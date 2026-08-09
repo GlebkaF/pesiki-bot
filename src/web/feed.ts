@@ -11,6 +11,8 @@ import { getHeroNames } from "../heroes.js";
 
 const CACHE_PATH = path.join(process.env.DATA_DIR || "data", "feed.json");
 const FEED_TTL_MS = 10 * 60 * 1000;
+/** Как часто лента освежается сама, без участия посетителей. */
+const FEED_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 const MATCHES_PER_PLAYER = 12;
 
 export interface FeedPlayer {
@@ -131,7 +133,13 @@ export async function getFeed(force = false): Promise<{ matches: FeedMatch[]; up
   return { matches: await rebuildFeed(), updatedAt: Date.now() };
 }
 
-/** Прогрев при старте, чтобы первый посетитель не попал на пустой кэш. */
-export function warmFeed(): void {
+/**
+ * Держит ленту тёплой: собирает сразу при старте и потом сама по таймеру.
+ * Посетитель в норме всегда получает готовый кэш и не ждёт OpenDota.
+ */
+export function startFeedSync(): void {
   refreshInBackground();
+  const timer = setInterval(refreshInBackground, FEED_SYNC_INTERVAL_MS);
+  timer.unref?.();
+  console.log(`[FEED] автосинк раз в ${FEED_SYNC_INTERVAL_MS / 60000} мин`);
 }

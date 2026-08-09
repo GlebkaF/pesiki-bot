@@ -5,7 +5,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readdir } from "node:fs/promises";
 import path from "node:path";
-import { getFeed, rebuildFeed, warmFeed, type FeedMatch } from "./feed.js";
+import { getFeed, rebuildFeed, startFeedSync, type FeedMatch } from "./feed.js";
 import { enqueue, getJob, getStoredAnalysis, markPosted } from "./jobs.js";
 import { formatForTelegram } from "../analyze-v2.js";
 import { createBot, sendMessage } from "../bot.js";
@@ -143,6 +143,6 @@ export function startWebServer(port = Number(process.env.WEB_PORT) || 3000): voi
   });
   server.listen(port, () => {
     console.log(`[WEB] витрина на http://localhost:${port}`);
-    warmFeed();
+    startFeedSync();
   });
 }
