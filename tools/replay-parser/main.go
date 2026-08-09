@@ -7,6 +7,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"sort"
 	"strings"
@@ -14,6 +15,12 @@ import (
 	"github.com/dotabuff/manta"
 	"github.com/dotabuff/manta/dota"
 )
+
+// Снимок позиций всех героев в один момент игрового времени.
+type posSampleT struct {
+	sec float64
+	pos map[string][2]float64
+}
 
 type ItemBuy struct {
 	Item string  `json:"item"`
@@ -54,7 +61,6 @@ type Player struct {
 	GoldOnSupport   int `json:"gold_spent_on_support"`
 
 	Level      int       `json:"level_final"`
-	Level10    int       `json:"level_at_10"`
 	Buybacks   int       `json:"buybacks"`
 	MaxStreak  int       `json:"max_killstreak"`
 	Multikills map[string]int `json:"multikills,omitempty"`
@@ -62,15 +68,11 @@ type Player struct {
 	ObsPlaced    int `json:"obs_wards_placed"`
 	SenPlaced    int `json:"sentry_wards_placed"`
 	WardsKilled  int `json:"wards_killed"`
-	CampsStacked int `json:"camps_stacked"`
-	RunesTaken   int `json:"runes_taken"`
-	HeroesSaved  int `json:"heroes_saved"`
-	Interrupts   int `json:"channels_interrupted"`
-	Teleports    int `json:"teleports"`
-	Scans        int `json:"scans"`
-	AegisTaken   int `json:"aegis_taken"`
-	TreesCut     int `json:"trees_cut"`
-	NeutralItems int `json:"neutral_items"`
+
+	EnemyHalfPct   float64 `json:"enemy_half_pct"`
+	AvgAllyDist    int     `json:"avg_ally_distance"`
+	DeathIsolation int     `json:"death_isolation"`
+	DistanceRun    int     `json:"distance_run"`
 
 	Items      []ItemBuy      `json:"item_timings"`
 	DeathTimes []float64      `json:"death_times_min"`
@@ -119,6 +121,16 @@ type Output struct {
 		ParseSeconds     float64 `json:"-"`
 	} `json:"parse_stats"`
 }
+
+const (
+	// Координаты Source 2: клетка 128 юнитов, отсчёт смещён на половину карты.
+	CellWidth  = 128.0
+	CellOffset = 16384.0
+	// Тик — 1/30 секунды. Позиции снимаем раз в 5 секунд: хватает для метрик
+	// и почти не влияет на время разбора.
+	TickInterval      = 1.0 / 30.0
+	SampleIntervalSec = 5.0
+)
 
 func main() {
 	if len(os.Args) < 2 {
@@ -181,8 +193,49 @@ func main() {
 		}
 	}
 	heroLevels := map[string]int{}
+	// Позиции героев. Иллюзии (Manta и пр.) имеют тот же класс, что и оригинал,
+	// поэтому держимся за индекс сущности, увиденный первым — это всегда сам герой.
+	type liveHero struct {
+		hero     string
+		cellX    uint32
+		cellY    uint32
+		vecX     float32
+		vecY     float32
+		haveCell bool
+		haveVec  bool
+	}
+	live := map[int32]*liveHero{}
+	canonical := map[string]int32{}
+
 	p.OnEntity(func(e *manta.Entity, op manta.EntityOp) error {
 		cn := e.GetClassName()
+		if strings.HasPrefix(cn, "CDOTA_Unit_Hero_") {
+			idx := e.GetIndex()
+			hn := classToHero(cn)
+			if seen, ok := canonical[hn]; ok && seen != idx {
+				return nil
+			}
+			if _, ok := canonical[hn]; !ok {
+				canonical[hn] = idx
+			}
+			lh := live[idx]
+			if lh == nil {
+				lh = &liveHero{hero: hn}
+				live[idx] = lh
+			}
+			if v, ok := e.GetUint32("CBodyComponent.m_cellX"); ok {
+				lh.cellX, lh.haveCell = v, true
+			}
+			if v, ok := e.GetUint32("CBodyComponent.m_cellY"); ok {
+				lh.cellY, lh.haveCell = v, true
+			}
+			if v, ok := e.GetFloat32("CBodyComponent.m_vecX"); ok {
+				lh.vecX, lh.haveVec = v, true
+			}
+			if v, ok := e.GetFloat32("CBodyComponent.m_vecY"); ok {
+				lh.vecY, lh.haveVec = v, true
+			}
+		}
 		switch cn {
 		case "CDOTA_DataRadiant":
 			readTeam(e, 0)
@@ -214,7 +267,7 @@ func main() {
 	nextMinute := 1
 	// Координаты ранних добиваний — по ним определяем линию.
 	laneSamples := map[string][][2]int32{}
-	var xpAccum, assistCnt, buybackCnt [10]int
+	var assistCnt, buybackCnt [10]int
 
 	p.Callbacks.OnCMsgDOTACombatLogEntry(func(e *dota.CMsgDOTACombatLogEntry) error {
 		out.ParseStats.CombatLogEntries++
@@ -310,15 +363,9 @@ func main() {
 				// Уровни героев едут прямо в записи о смерти.
 				if ap != nil && int(e.GetAttackerHeroLevel()) > ap.Level {
 					ap.Level = int(e.GetAttackerHeroLevel())
-					if min <= 10 {
-						ap.Level10 = ap.Level
-					}
 				}
 				if vp != nil && int(e.GetTargetHeroLevel()) > vp.Level {
 					vp.Level = int(e.GetTargetHeroLevel())
-					if min <= 10 {
-						vp.Level10 = vp.Level
-					}
 				}
 				k := Kill{Min: round(min, 2), Killer: short(attacker), Victim: short(target),
 					Assists: len(e.GetAssistPlayers()), Long: e.GetLongRangeKill()}
@@ -384,63 +431,16 @@ func main() {
 				inc(&pl.Multikills, fmt.Sprintf("x%d", e.GetValue()))
 			}
 
-		case dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_NEUTRAL_CAMP_STACK:
-			if pl := hero(attacker); pl != nil {
-				pl.CampsStacked++
-			}
 
-		case dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_PICKUP_RUNE:
-			if pl := hero(target); pl != nil {
-				pl.RunesTaken++
-			}
 
-		case dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_HERO_SAVED:
-			if pl := hero(attacker); pl != nil {
-				pl.HeroesSaved++
-			}
 
-		case dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_INTERRUPT_CHANNEL:
-			if pl := hero(attacker); pl != nil {
-				pl.Interrupts++
-			}
 
-		case dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_UNIT_TELEPORTED:
-			if pl := hero(target); pl != nil {
-				pl.Teleports++
-			}
 
-		case dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_SUCCESSFUL_SCAN:
-			if pl := hero(attacker); pl != nil {
-				pl.Scans++
-			}
 
-		case dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_AEGIS_TAKEN:
-			if pl := hero(target); pl != nil {
-				pl.AegisTaken++
-			}
 
-		case dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_TREE_CUT:
-			if pl := hero(attacker); pl != nil {
-				pl.TreesCut++
-			}
 
-		case dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_NEUTRAL_ITEM_EARNED:
-			if pl := hero(target); pl != nil {
-				pl.NeutralItems++
-			}
 
-		case dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_HERO_LEVELUP:
-			if pl := hero(target); pl != nil {
-				pl.Level = int(e.GetValue())
-				if min <= 10 {
-					pl.Level10 = int(e.GetValue())
-				}
-			}
 
-		case dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_XP:
-			if pl := hero(target); pl != nil && pl.Slot >= 0 && pl.Slot < 10 {
-				xpAccum[pl.Slot] += int(e.GetValue())
-			}
 
 		case dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_ABILITY:
 			if pl := hero(attacker); pl != nil && inflictor != "" && inflictor != "dota_unknown" {
@@ -453,6 +453,39 @@ func main() {
 				out.FirstBlood = &k
 			}
 		}
+		return nil
+	})
+
+	// Снимок позиций всех героев раз в SampleIntervalSec игрового времени.
+	var track []posSampleT
+	var startTick int32 = -1
+	lastSample := -1e9
+
+	p.Callbacks.OnCDemoPacket(func(m *dota.CDemoPacket) error {
+		if gameStart < 0 || gameEnded {
+			return nil
+		}
+		if startTick < 0 {
+			startTick = int32(p.Tick)
+		}
+		elapsed := float64(int32(p.Tick)-startTick) * TickInterval
+		if elapsed-lastSample < SampleIntervalSec {
+			return nil
+		}
+		lastSample = elapsed
+
+		snap := make(map[string][2]float64, len(canonical))
+		for hn, idx := range canonical {
+			lh := live[idx]
+			if lh == nil || !lh.haveCell || !lh.haveVec {
+				continue
+			}
+			snap[hn] = [2]float64{
+				float64(lh.cellX)*CellWidth + float64(lh.vecX) - CellOffset,
+				float64(lh.cellY)*CellWidth + float64(lh.vecY) - CellOffset,
+			}
+		}
+		track = append(track, posSampleT{sec: elapsed, pos: snap})
 		return nil
 	})
 
@@ -492,7 +525,6 @@ func main() {
 			}
 			if out.DurationM > 0 {
 				pl.GPM = int(float64(pl.NWFinal) / out.DurationM)
-				pl.XPM = int(float64(xpAccum[s]) / out.DurationM)
 			}
 		}
 		pl.Lane = detectLane(laneSamples[pl.Hero])
@@ -504,11 +536,146 @@ func main() {
 	}
 	sort.Slice(out.Players, func(i, j int) bool { return out.Players[i].Slot < out.Players[j].Slot })
 	assignRoles(out.Players)
+	computeMapStats(out.Players, track, out.Kills)
 	out.Teamfights = detectTeamfights(out.Kills, out.Players)
 
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	enc.Encode(out)
+}
+
+// Метрики перемещений: где игрок проводил время и насколько отрывался от команды.
+// Сторону карты определяем эмпирически по первой минуте — так надёжнее, чем хардкодить.
+func computeMapStats(players []*Player, track []posSampleT, kills []Kill) {
+	if len(track) == 0 {
+		return
+	}
+	teamOf := map[string]string{}
+	for _, p := range players {
+		teamOf[p.Hero] = p.Team
+	}
+
+	homeSign := map[string]float64{}
+	sum, cnt := map[string]float64{}, map[string]int{}
+	for _, s := range track {
+		if s.sec > 60 {
+			break
+		}
+		for hero, xy := range s.pos {
+			t := teamOf[hero]
+			if t == "" {
+				continue
+			}
+			sum[t] += xy[0] + xy[1]
+			cnt[t]++
+		}
+	}
+	for t, v := range sum {
+		if cnt[t] > 0 && v/float64(cnt[t]) >= 0 {
+			homeSign[t] = 1
+		} else {
+			homeSign[t] = -1
+		}
+	}
+
+	for _, p := range players {
+		var samples, enemyHalf int
+		var allyDistSum, distRun float64
+		var allyDistCnt int
+		var prev [2]float64
+		havePrev := false
+
+		for _, s := range track {
+			me, ok := s.pos[p.Hero]
+			if !ok {
+				continue
+			}
+			samples++
+			// Своя половина — та, где стоит фонтан команды.
+			if sign := homeSign[p.Team]; sign != 0 && (me[0]+me[1])*sign < 0 {
+				enemyHalf++
+			}
+			if havePrev {
+				distRun += dist(prev, me)
+			}
+			prev, havePrev = me, true
+
+			if d, ok := nearestAlly(p, s.pos, teamOf); ok {
+				allyDistSum += d
+				allyDistCnt++
+			}
+		}
+
+		if samples > 0 {
+			p.EnemyHalfPct = round(float64(enemyHalf)/float64(samples)*100, 1)
+			p.DistanceRun = int(distRun)
+		}
+		if allyDistCnt > 0 {
+			p.AvgAllyDist = int(allyDistSum / float64(allyDistCnt))
+		}
+		p.DeathIsolation = deathIsolation(p, track, teamOf)
+	}
+}
+
+// Насколько далеко от своих игрок умирал: усреднённая дистанция до ближайшего
+// союзника в момент смерти. Большое число — ловили одного.
+func deathIsolation(p *Player, track []posSampleT, teamOf map[string]string) int {
+	if len(p.DeathTimes) == 0 {
+		return 0
+	}
+	var sum float64
+	var n int
+	for _, deathMin := range p.DeathTimes {
+		target := deathMin * 60
+		var best *posSampleT
+		bestDiff := 1e9
+		for i := range track {
+			if d := abs(track[i].sec - target); d < bestDiff {
+				bestDiff, best = d, &track[i]
+			}
+		}
+		if best == nil || bestDiff > SampleIntervalSec*2 {
+			continue
+		}
+		if d, ok := nearestAlly(p, best.pos, teamOf); ok {
+			sum += d
+			n++
+		}
+	}
+	if n == 0 {
+		return 0
+	}
+	return int(sum / float64(n))
+}
+
+func nearestAlly(p *Player, pos map[string][2]float64, teamOf map[string]string) (float64, bool) {
+	me, ok := pos[p.Hero]
+	if !ok {
+		return 0, false
+	}
+	best := 1e9
+	found := false
+	for hero, xy := range pos {
+		if hero == p.Hero || teamOf[hero] != p.Team {
+			continue
+		}
+		if d := dist(me, xy); d < best {
+			best, found = d, true
+		}
+	}
+	return best, found
+}
+
+func dist(a, b [2]float64) float64 {
+	dx, dy := a[0]-b[0], a[1]-b[1]
+	return math.Sqrt(dx*dx + dy*dy)
+}
+
+func abs(f float64) float64 {
+	if f < 0 {
+		return -f
+	}
+	return f
 }
 
 func getOrCreate(m map[string]*Player, heroName string) *Player {
@@ -668,13 +835,15 @@ func teamName(t uint32) string {
 	return "dire"
 }
 
-// CDOTA_Unit_Hero_CrystalMaiden -> crystal_maiden
+// CDOTA_Unit_Hero_CrystalMaiden -> crystal_maiden.
+// У части героев подчёркивание в имени класса уже есть (Void_Spirit, Legion_Commander),
+// поэтому второе подряд не добавляем.
 func classToHero(cn string) string {
 	n := strings.TrimPrefix(cn, "CDOTA_Unit_Hero_")
 	var b strings.Builder
 	for i, r := range n {
 		if r >= 'A' && r <= 'Z' {
-			if i > 0 {
+			if i > 0 && n[i-1] != '_' {
 				b.WriteByte('_')
 			}
 			b.WriteRune(r + 32)

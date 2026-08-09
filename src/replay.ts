@@ -59,8 +59,17 @@ export interface ParsedPlayer {
   obs_wards_placed: number;
   sentry_wards_placed: number;
   wards_killed: number;
-  camps_stacked: number;
-  runes_taken: number;
+  enemy_half_pct: number;
+  avg_ally_distance: number;
+  death_isolation: number;
+  distance_run: number;
+
+  /** Заполняется из OpenDota поверх данных реплея, см. mergeOfficialStats. */
+  teamfight_participation?: number;
+  stuns?: number;
+  pings?: number;
+  item_uses?: Record<string, number>;
+
   item_timings: { item: string; min: number }[];
   death_times_min: number[];
   killed_by?: Record<string, number>;

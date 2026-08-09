@@ -13,6 +13,7 @@ import { fetchHeroes } from "./heroes.js";
 import { PLAYERS, getBotAttitude, type Player } from "./config.js";
 import { fetchAndParseReplay, toSteam32, type ParsedMatch, type ParsedPlayer, type ParseProgress } from "./replay.js";
 import { escapeHtml } from "./telegram-html.js";
+import { CHAT_SLANG, BANNED_WORDS, TONE_EXAMPLES, sanitizeAnalysis } from "./lexicon.js";
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL_V2 || process.env.OPENAI_MODEL || "gpt-5.2";
 /** Адрес витрины. Пустой — значит ссылку в пост не добавляем. */
@@ -28,39 +29,41 @@ export const FORMATS = [
       "Не жалеешь никого, но и не унижаешь.",
   },
   {
-    id: "court",
-    title: "судебное заседание",
-    brief:
-      "Ты судья на процессе по делу о поражении (или о победе — тогда это слушание о помиловании). " +
-      "Обвиняемые, улики с таймкодами, приговор. Юридический канцелярит, применённый к доте, — источник юмора.",
-  },
-  {
     id: "commentator",
-    title: "спортивный комментатор",
+    title: "комментатор",
     brief:
-      "Ты комментатор, который ведёт репортаж по записи. Эмоции, нарастание, кульминация на переломном моменте. " +
-      "Говоришь в настоящем времени, будто это происходит сейчас.",
-  },
-  {
-    id: "detective",
-    title: "расследование",
-    brief:
-      "Ты детектив, расследующий, где именно катка сломалась. Версии, улики, отсечение подозреваемых, " +
-      "и в финале — кто на самом деле виноват. Улики — это цифры с таймкодами.",
+      "Ты комментатор, ведущий репортаж по записи. Эмоции, нарастание, кульминация на переломе. " +
+      "Настоящее время, будто всё происходит сейчас.",
   },
   {
     id: "enemy",
     title: "взгляд с той стороны",
     brief:
-      "Ты саппорт вражеской команды, который после игры пишет своим в дискорд, что это было за соперники. " +
-      "Смотришь на наших со стороны: кого боялись, кого фармили, кто был бесплатным золотом.",
+      "Ты саппорт вражеской команды, который после игры пишет своим в дискорд, что это были за соперники. " +
+      "Кого боялись, кого фармили, кто был бесплатным золотом.",
   },
   {
-    id: "postmortem",
-    title: "разбор инцидента",
+    id: "gaben",
+    title: "весточка от Габена",
     brief:
-      "Ты пишешь постмортем инцидента, как в IT: краткое описание, таймлайн деградации, корневая причина, " +
-      "что делать, чтобы не повторилось. Сухой корпоративный тон про доту — в этом и шутка.",
+      "В чате Габен — капризное божество матчмейкинга, которое мстит и благословляет. " +
+      "Пиши от его лица: кому он сегодня подсылал агентов, кому выдал стрик, кто ещё не отработал карму. " +
+      "Снисходительно, будто разговариваешь со смертными.",
+  },
+  {
+    id: "chatter",
+    title: "как свой в чате",
+    brief:
+      "Пиши так, будто ты просто один из пацанов в чате, который посмотрел катку. " +
+      "Короткие рубленые фразы, без структуры и заголовков, как обычное сообщение в телеге. " +
+      "Можно начать с середины мысли.",
+  },
+  {
+    id: "court",
+    title: "разбор полётов",
+    brief:
+      "Строгий разбор по пунктам: кто что натворил и что ему за это. " +
+      "Без канцелярита и без слов «улики», «приговор», «подозреваемый» — просто жёстко и по делу.",
   },
 ] as const;
 
@@ -98,14 +101,23 @@ function sum(nums: number[]): number {
  * Вклад игрока: доля в уроне и убийствах команды, экономика и цена смертей.
  * Считаем кодом — иначе модель раздаёт MVP по одному лишь KDA.
  */
-function impactScore(p: ParsedPlayer, team: ParsedPlayer[]): number {
+function impactScore(p: ParsedPlayer, team: ParsedPlayer[], deathCostAvailable: boolean): number {
   const teamDamage = Math.max(1, sum(team.map((t) => t.hero_damage)));
   const teamKills = Math.max(1, sum(team.map((t) => t.kills)));
   const teamNW = Math.max(1, sum(team.map((t) => t.networth_final)));
   const damageShare = p.hero_damage / teamDamage;
   const killShare = (p.kills + p.assists * 0.5) / (teamKills * 1.5);
   const economyShare = p.networth_final / teamNW;
-  // Смерти штрафуем не числом, а тем, сколько золота они стоили команде.
+
+  // В части матчей (замечено во всех турбо) поле с потерянным на смертях золотом
+  // не приходит вовсе. Считать его нулём — значит молча снять штраф за смерти,
+  // поэтому в таких матчах берём сами смерти и перенормируем веса.
+  if (!deathCostAvailable) {
+    const teamDeaths = Math.max(1, sum(team.map((t) => t.deaths)));
+    const deathShare = p.deaths / teamDeaths;
+    return (damageShare * 0.35 + killShare * 0.3 + economyShare * 0.2) / 0.85 * 0.85 - deathShare * 0.4;
+  }
+
   const deathCost = p.gold_lost_to_death / Math.max(1, p.networth_final);
   return damageShare * 0.35 + killShare * 0.3 + economyShare * 0.2 - deathCost * 0.4;
 }
@@ -184,6 +196,10 @@ export async function mergeOfficialStats(parsed: ParsedMatch): Promise<ParsedMat
         gold_per_min?: number;
         xp_per_min?: number;
         hero_damage?: number;
+        teamfight_participation?: number;
+        stuns?: number;
+        pings?: number;
+        item_uses?: Record<string, number>;
       }[];
     };
     if (!api.players?.length) return parsed;
@@ -204,6 +220,11 @@ export async function mergeOfficialStats(parsed: ParsedMatch): Promise<ParsedMat
       if (ap.gold_per_min) target.gpm = ap.gold_per_min;
       if (ap.xp_per_min) target.xpm = ap.xp_per_min;
       if (ap.hero_damage) target.hero_damage = ap.hero_damage;
+      // Эти метрики считает OpenDota, в реплее их нет — забираем из того же ответа.
+      if (ap.teamfight_participation !== undefined) target.teamfight_participation = ap.teamfight_participation;
+      if (ap.stuns !== undefined) target.stuns = ap.stuns;
+      if (ap.pings !== undefined) target.pings = ap.pings;
+      if (ap.item_uses) target.item_uses = ap.item_uses;
     }
   } catch {
     // API недоступно — работаем на данных реплея, они самодостаточны
@@ -223,9 +244,11 @@ export function analyseParsedMatch(parsed: ParsedMatch): MatchAnalysis {
 
   const radiant = parsed.players.filter((p) => p.team === "radiant");
   const dire = parsed.players.filter((p) => p.team === "dire");
+  // Если поле пустое у всей команды разом — значит его в этом реплее просто нет.
+  const deathCostAvailable = parsed.players.some((p) => p.gold_lost_to_death > 0);
   const scored = parsed.players.map((p) => ({
     p,
-    score: impactScore(p, p.team === "radiant" ? radiant : dire),
+    score: impactScore(p, p.team === "radiant" ? radiant : dire, deathCostAvailable),
   }));
   scored.sort((a, b) => b.score - a.score);
 
@@ -263,11 +286,35 @@ function describePlayer(p: ParsedPlayer, cfg?: Player): string {
     p.buybacks || p.max_killstreak || multi
       ? `  выкупы ${p.buybacks} | макс.серия ${p.max_killstreak}${multi ? ` | мультикиллы ${multi}` : ""}`
       : "",
-    p.obs_wards_placed || p.camps_stacked || p.wards_killed
-      ? `  варды ${p.obs_wards_placed}обс/${p.sentry_wards_placed}сент | снёс вардов ${p.wards_killed} | стаки ${p.camps_stacked}`
+    p.obs_wards_placed || p.wards_killed
+      ? `  варды ${p.obs_wards_placed}обс/${p.sentry_wards_placed}сент | снёс вардов ${p.wards_killed}`
       : "",
     `  предметы: ${items || "нет данных"}`,
     `  умирал в: ${deaths}${killedBy ? ` | чаще убивал его: ${killedBy}` : ""}`,
+    p.killed && Object.keys(p.killed).length
+      ? `  сам убивал: ${Object.entries(p.killed).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k}x${v}`).join(", ")}`
+      : "",
+    p.top_spells && Object.keys(p.top_spells).length
+      ? `  чаще всего жал: ${Object.entries(p.top_spells).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k.replace(/^[a-z_]+?_/, "")} x${v}`).join(", ")}`
+      : "",
+    p.item_uses && Object.keys(p.item_uses).length
+      ? `  жал предметы: ${Object.entries(p.item_uses).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => `${k} x${v}`).join(", ")}`
+      : "",
+    [
+      p.teamfight_participation !== undefined ? `участие в драках ${Math.round(p.teamfight_participation * 100)}%` : "",
+      p.stuns ? `контроля ${Math.round(p.stuns)} сек` : "",
+      p.pings !== undefined ? `пингов ${p.pings}` : "",
+    ].filter(Boolean).length
+      ? `  ${[
+          p.teamfight_participation !== undefined ? `участие в драках ${Math.round(p.teamfight_participation * 100)}%` : "",
+          p.stuns ? `контроля ${Math.round(p.stuns)} сек` : "",
+          p.pings !== undefined ? `пингов за игру ${p.pings}` : "",
+        ].filter(Boolean).join(" | ")}`
+      : "",
+    p.enemy_half_pct
+      ? `  по карте: ${p.enemy_half_pct}% времени на чужой половине | в среднем ${p.avg_ally_distance} от ближайшего своего` +
+        (p.death_isolation ? ` | умирал в среднем в ${p.death_isolation} от своих` : "")
+      : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -354,6 +401,10 @@ const BASE_RULES = `ЖЁСТКИЕ ПРАВИЛА:
 • НИКОГДА не переноси в текст служебные пометки из данных: [НАШ], (наш), МЫ/ОНИ капсом,
   «нетворс/мин», «посчитано кодом». Пиши имена людей и героев обычным текстом.
 • Русский разговорный, дотерский сленг уместен. Мат — по вкусу, но не через слово.
+• ПОСЛЕДНЕЙ СТРОКОЙ на каждого [НАШ] дай короткий вывод на следующую катку — но ТОЛЬКО если
+  для него есть конкретная цифра-основание в данных. Одна строка на человека, максимум фраза.
+  Если у игрока нет ничего, кроме обычных цифр, — про него в этом блоке молчи. Лучше две строки
+  на пятерых, чем пять пустых советов. Не пиши слово «совет» и не нумеруй.
 • Telegram-текст без Markdown. Эмодзи — точечно, максимум 5 штук на весь разбор.
 • 150-250 слов. Плотно, без вступлений и без воды.
 • Не выдумывай метрику, которой нет в данных: если написано «нетворс/мин», это не GPM.`;
@@ -364,7 +415,16 @@ export function buildPrompt(format: (typeof FORMATS)[number]): string {
 ФОРМАТ ЭТОГО ВЫПУСКА — ${format.title}:
 ${format.brief}
 
-${BASE_RULES}`;
+${BASE_RULES}
+
+ЯЗЫК ЭТОГО ЧАТА (так говорят живые люди в нём — пользуйся):
+${CHAT_SLANG.map((w) => `• ${w}`).join("\n")}
+
+ТАК В ЭТОМ ЧАТЕ НЕ ГОВОРЯТ НИКОГДА — не употребляй ни разу:
+${BANNED_WORDS.map((w) => `• ${w}`).join("\n")}
+
+ПРИМЕРЫ ЖИВЫХ РЕПЛИК ИЗ ЧАТА (для тона, не для копирования):
+${TONE_EXAMPLES.map((q) => `• ${q}`).join("\n")}`;
 }
 
 /** Формат выбирается детерминированно по матчу: один и тот же матч всегда в одной рамке. */
@@ -393,7 +453,9 @@ export async function generateAnalysis(
     ],
     max_completion_tokens: 4000,
   });
-  return res.choices[0]?.message?.content || "Не удалось получить разбор";
+  const text = res.choices[0]?.message?.content || "Не удалось получить разбор";
+  // Служебные метки протекают в текст даже при прямом запрете в промпте — чистим отдельно.
+  return sanitizeAnalysis(text);
 }
 
 /** Разбор матча по реплею. Прогресс отдаётся наружу, чтобы бот мог обновлять сообщение. */
