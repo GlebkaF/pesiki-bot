@@ -370,13 +370,36 @@ export function renderMatch(
     }`;
 
   const script = `
+
+// Действия закрыты basic-авторизацией на уровне Caddy. Браузер не показывает
+// диалог для fetch, поэтому спрашиваем логин сами и запоминаем на устройстве.
+async function authFetch(url, opts) {
+  opts = opts || {};
+  const send = (creds) => fetch(url, Object.assign({}, opts, {
+    headers: Object.assign({}, opts.headers || {}, creds ? {Authorization: 'Basic ' + creds} : {})
+  }));
+  let creds = localStorage.getItem('pesikiAuth');
+  let res = await send(creds);
+  if (res.status !== 401) return res;
+
+  const login = prompt('Логин'); if (login === null) return res;
+  const pass = prompt('Пароль'); if (pass === null) return res;
+  creds = btoa(login + ':' + pass);
+  res = await send(creds);
+  if (res.status !== 401) localStorage.setItem('pesikiAuth', creds);
+  else localStorage.removeItem('pesikiAuth');
+  return res;
+}
+
 const postBtn = document.getElementById('post');
 if (postBtn) postBtn.addEventListener('click', async () => {
   const out = document.getElementById('postmsg');
   postBtn.disabled = true;
   if (out) { out.textContent = 'Отправляю…'; out.className = 'dim'; }
   try {
-    const r = await fetch('/api/post/' + postBtn.dataset.match, {method:'POST'}).then(x => x.json());
+    const resp = await authFetch('/api/post/' + postBtn.dataset.match, {method:'POST'});
+    if (resp.status === 401) { if (out) { out.textContent = 'Нужен пароль'; out.className = 'err'; } postBtn.disabled = false; return; }
+    const r = await resp.json();
     if (r.ok) {
       if (out) { out.textContent = 'Отправлено в чат'; out.className = 'good'; }
       postBtn.textContent = 'Отправить ещё раз';
@@ -398,7 +421,12 @@ if (btn) btn.addEventListener('click', async () => {
         bar = document.getElementById('pbar'), err = document.getElementById('err');
   if (prog) prog.classList.add('on');
   try {
-    await fetch('/api/analyze/' + id, {method:'POST'});
+    const resp = await authFetch('/api/analyze/' + id, {method:'POST'});
+    if (resp.status === 401) {
+      if (err) err.textContent = 'Нужен пароль, чтобы запускать разбор';
+      if (prog) prog.classList.remove('on');
+      btn.disabled = false; return;
+    }
   } catch (e) {
     if (err) err.textContent = 'Не удалось запустить разбор';
     btn.disabled = false; return;
