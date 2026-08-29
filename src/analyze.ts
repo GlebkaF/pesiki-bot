@@ -176,7 +176,7 @@ async function fetchMatchDetails(matchId: number): Promise<MatchDetails> {
   return response.json();
 }
 
-async function findLastPartyMatch(): Promise<{
+export async function findLastPartyMatch(): Promise<{
   matchId: number;
   playerId: number;
   playerName: string;

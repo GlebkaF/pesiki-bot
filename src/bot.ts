@@ -1,7 +1,7 @@
 import { Bot, type CommandContext, type Context } from "grammy";
 import { config } from "./config.js";
 import type { StatsPeriod } from "./stats.js";
-import { analyzeLastMatch, analyzeMatch } from "./analyze.js";
+import { analyzeLastMatch, analyzeMatch, findLastPartyMatch } from "./analyze.js";
 import { analyzeLastMatchCopium, analyzeMatchCopium } from "./analyze-copium.js";
 import { analyzeMatchV2 } from "./analyze-v2.js";
 
@@ -293,19 +293,21 @@ async function handleAnalyzeV2Command(
   onCommandReceived?.();
 
   const arg = ctx.message?.text?.split(/\s+/)[1];
-  const matchId = arg
+  const requestedMatchId = arg
     ? Number(arg.match(/opendota\.com\/matches\/(\d+)/i)?.[1] ?? arg)
-    : NaN;
+    : null;
 
-  if (!matchId || Number.isNaN(matchId)) {
+  if (arg && (!requestedMatchId || Number.isNaN(requestedMatchId))) {
     await ctx.reply(
-      "Нужен номер матча: /analyze2 8895443601\n" +
+      "Не удалось распознать матч: /analyze2 8895443601\n" +
         "(разбор идёт по самому реплею, это занимает 1-2 минуты)",
     );
     return;
   }
 
-  const progressMsg = await ctx.reply("🔎 Ищу реплей матча...");
+  const progressMsg = await ctx.reply(
+    requestedMatchId ? "🔎 Ищу реплей матча..." : "🔎 Ищу последний матч...",
+  );
   let lastText = "";
   const editProgress = async (text: string) => {
     if (text === lastText) return;
@@ -318,6 +320,18 @@ async function handleAnalyzeV2Command(
   };
 
   try {
+    let matchId = requestedMatchId;
+    if (matchId === null) {
+      const lastMatch = await findLastPartyMatch();
+      if (!lastMatch) {
+        throw new Error("Не удалось найти последний матч");
+      }
+      matchId = lastMatch.matchId;
+      console.log(
+        `[ANALYZE-V2] Found match ${matchId} for player ${lastMatch.playerName}`,
+      );
+    }
+
     const analysis = await analyzeMatchV2(matchId, (stage) => {
       void editProgress(V2_STAGE_TEXT[stage] ?? "⏳ Работаю...");
     });
