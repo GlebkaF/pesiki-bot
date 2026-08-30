@@ -1,9 +1,8 @@
 import { Bot, type CommandContext, type Context } from "grammy";
 import { config } from "./config.js";
 import type { StatsPeriod } from "./stats.js";
-import { analyzeLastMatch, analyzeMatch, findLastPartyMatch } from "./analyze.js";
 import { analyzeLastMatchCopium, analyzeMatchCopium } from "./analyze-copium.js";
-import { analyzeMatchV2 } from "./analyze-v2.js";
+import { analyzeMatchV2, findLastPartyMatch } from "./analyze-v2.js";
 
 /**
  * Creates and returns a configured Telegram bot instance
@@ -103,91 +102,6 @@ async function handleStatsCommand(
 }
 
 /**
- * Handles the /analyze command - AI analysis of match
- * Usage: /analyze [match_id] - if no match_id provided, analyzes last match
- */
-async function handleAnalyzeCommand(
-  ctx: CommandContext<Context>,
-  onCommandReceived?: () => void,
-): Promise<void> {
-  console.log(
-    `[${new Date().toISOString()}] /analyze command received from user ${ctx.from?.id}`,
-  );
-
-  if (onCommandReceived) {
-    onCommandReceived();
-  }
-
-  try {
-    // Parse match_id from command arguments (supports URL or raw ID)
-    const args = ctx.message?.text?.split(/\s+/).slice(1) || [];
-    const matchIdArg = args[0];
-    
-    let analysis: string;
-    let loadingText: string;
-    
-    if (matchIdArg) {
-      // Parse match ID from OpenDota URL or raw number
-      // Supports: https://www.opendota.com/matches/8670945485, 8670945485
-      let matchId: number | null = null;
-      
-      const urlMatch = matchIdArg.match(/opendota\.com\/matches\/(\d+)/i);
-      if (urlMatch) {
-        matchId = parseInt(urlMatch[1], 10);
-      } else {
-        const parsed = parseInt(matchIdArg, 10);
-        if (!isNaN(parsed) && parsed > 0) {
-          matchId = parsed;
-        }
-      }
-      
-      if (!matchId) {
-        await ctx.reply(
-          "❌ Не удалось распознать матч.\n\n" +
-          "Примеры:\n" +
-          "• /analyze https://www.opendota.com/matches/8670945485\n" +
-          "• /analyze 8670945485"
-        );
-        return;
-      }
-      
-      loadingText = `🔬 Анализирую матч #${matchId}...`;
-      const loadingMsg = await ctx.reply(loadingText);
-      
-      analysis = await analyzeMatch(matchId);
-      
-      await ctx.api.deleteMessage(ctx.chat.id, loadingMsg.message_id);
-    } else {
-      // Analyze last match
-      loadingText = "🔬 Анализирую последний матч...";
-      const loadingMsg = await ctx.reply(loadingText);
-      
-      analysis = await analyzeLastMatch();
-      
-      await ctx.api.deleteMessage(ctx.chat.id, loadingMsg.message_id);
-    }
-
-    await ctx.reply(analysis, {
-      parse_mode: "HTML",
-      link_preview_options: { is_disabled: true },
-    });
-
-    console.log(`[${new Date().toISOString()}] /analyze command completed`);
-  } catch (error) {
-    console.error("[ERROR] Failed to handle /analyze command:", error);
-    const msg = error instanceof Error ? error.message : String(error);
-    const isConfigError =
-      /OPENAI_API_KEY not configured/i.test(msg) ||
-      /OPENAI|api\.openai|proxy|ETIMEDOUT|timeout|fetch failed/i.test(msg);
-    const reply =
-      isConfigError && msg.length < 200
-        ? `❌ /analyze не сработал: ${msg}\n\nПроверь на сервере: OPENAI_API_KEY, HTTPS_PROXY (если нужен), логи: docker logs pesiki-bot`
-        : "❌ Не удалось проанализировать матч. Попробуй позже. (Детали в логах бота.)";
-    await ctx.reply(reply);
-  }
-}
-
-/**
  * Handles the /copium command - biased AI analysis that defends our stack
  * Usage: /copium [match_id] - if no match_id provided, analyzes last match
  */
@@ -282,24 +196,26 @@ const V2_STAGE_TEXT: Record<string, string> = {
 };
 
 /**
- * /analyze2 — разбор по собственному парсеру реплея.
+ * /analyze — основной разбор по собственному парсеру реплея.
+ * /analyze2 остаётся алиасом для старых ссылок и привычки чата.
  * Прогресс показываем правкой одного сообщения, чтобы не спамить в чат.
  */
-async function handleAnalyzeV2Command(
+async function handleAnalyzeCommand(
   ctx: CommandContext<Context>,
   onCommandReceived?: () => void,
 ): Promise<void> {
-  console.log(`[${new Date().toISOString()}] /analyze2 from ${ctx.from?.id}`);
+  const command = ctx.message?.text?.split(/\s+/)[0] || "/analyze";
+  console.log(`[${new Date().toISOString()}] ${command} from ${ctx.from?.id}`);
   onCommandReceived?.();
 
   const arg = ctx.message?.text?.split(/\s+/)[1];
   const requestedMatchId = arg
-    ? Number(arg.match(/opendota\.com\/matches\/(\d+)/i)?.[1] ?? arg)
+    ? Number(arg.match(/(?:opendota\.com\/matches|pesiki\.nxrig\.com\/match)\/(\d+)/i)?.[1] ?? arg)
     : null;
 
   if (arg && (!requestedMatchId || Number.isNaN(requestedMatchId))) {
     await ctx.reply(
-      "Не удалось распознать матч: /analyze2 8895443601\n" +
+      "Не удалось распознать матч: /analyze 8895443601\n" +
         "(разбор идёт по самому реплею, это занимает 1-2 минуты)",
     );
     return;
@@ -342,10 +258,10 @@ async function handleAnalyzeV2Command(
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    console.error("[ERROR] /analyze2:", msg);
+    console.error(`[ERROR] ${command}:`, msg);
     await editProgress(
       msg.includes("gcdata")
-        ? `❌ ${msg}\n\nПока такие матчи разбирает только старый /analyze.`
+        ? `❌ ${msg}`
         : `❌ Не смог разобрать реплей: ${msg.slice(0, 200)}`,
     );
   }
@@ -379,16 +295,15 @@ export function setupCommands(
   bot.command("copium", (ctx) => handleCopiumCommand(ctx, onCommandReceived));
 
   // Register /analyze2 command (replay-based analysis)
-  bot.command("analyze2", (ctx) => handleAnalyzeV2Command(ctx, onCommandReceived));
+  bot.command("analyze2", (ctx) => handleAnalyzeCommand(ctx, onCommandReceived));
 
   // Set bot commands menu (optional; 404 can occur with invalid token or custom API)
   bot.api
     .setMyCommands([
       { command: "stats", description: "Get today's Dota 2 stats" },
       { command: "yesterday", description: "Get yesterday's Dota 2 stats" },
-      { command: "analyze", description: "AI analysis (or /analyze <url>)" },
+      { command: "analyze", description: "🐕 Разбор реплея от Песика" },
       { command: "copium", description: "💊 AI-аналитика для стака" },
-      { command: "analyze2", description: "🔬 Разбор по реплею (v2)" },
     ])
     .catch((err) =>
       console.warn("[WARN] setMyCommands failed (menu may not show):", err.message),

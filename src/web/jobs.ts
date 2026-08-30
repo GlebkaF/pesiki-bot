@@ -3,12 +3,15 @@
  * поэтому HTTP-запрос его только ставит в очередь, а страница опрашивает прогресс.
  * Одновременно выполняется один разбор — качать несколько реплеев параллельно смысла нет.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { analyseParsedMatch, buildContext, generateAnalysis, mergeOfficialStats, pickFormat } from "../analyze-v2.js";
+import { analyseParsedMatch, mergeOfficialStats } from "../analyze-v2.js";
+import { generateMainVoiceAnalysis } from "../analyze-main-voice.js";
+import { collectMatchFacts, renderFactPacket } from "../match-facts.js";
 import { fetchAndParseReplay, type ParsedMatch } from "../replay.js";
 
 const ANALYSIS_DIR = path.join(process.env.DATA_DIR || "data", "analysis");
+export const CURRENT_ANALYSIS_ENGINE = "main-voice-facts-v7";
 
 export type JobStage = "queued" | "locating" | "requesting" | "downloading" | "unpacking" | "parsing" | "writing" | "done" | "error";
 
@@ -24,6 +27,7 @@ export interface Job {
 export interface StoredAnalysis {
   matchId: number;
   createdAt: number;
+  engine: typeof CURRENT_ANALYSIS_ENGINE;
   format: string;
   text: string;
   parsed: ParsedMatch;
@@ -60,11 +64,40 @@ export function getJob(matchId: number): Job | undefined {
 }
 
 export async function getStoredAnalysis(matchId: number): Promise<StoredAnalysis | null> {
+  const file = path.join(ANALYSIS_DIR, `${matchId}.json`);
   try {
-    return JSON.parse(await readFile(path.join(ANALYSIS_DIR, `${matchId}.json`), "utf8")) as StoredAnalysis;
+    const stored = JSON.parse(await readFile(file, "utf8")) as Partial<StoredAnalysis>;
+    if (stored.engine !== CURRENT_ANALYSIS_ENGINE) {
+      await rm(file, { force: true });
+      return null;
+    }
+    return stored as StoredAnalysis;
   } catch {
     return null;
   }
+}
+
+/** Удаляет сохранённые разборы прежнего генератора при старте новой версии. */
+export async function purgeLegacyAnalyses(): Promise<number> {
+  let files: string[];
+  try {
+    files = await readdir(ANALYSIS_DIR);
+  } catch {
+    return 0;
+  }
+  let removed = 0;
+  for (const file of files.filter((name) => name.endsWith(".json"))) {
+    const fullPath = path.join(ANALYSIS_DIR, file);
+    try {
+      const stored = JSON.parse(await readFile(fullPath, "utf8")) as Partial<StoredAnalysis>;
+      if (stored.engine === CURRENT_ANALYSIS_ENGINE) continue;
+    } catch {
+      // Повреждённый результат тоже не должен считаться актуальным.
+    }
+    await rm(fullPath, { force: true });
+    removed++;
+  }
+  return removed;
 }
 
 function setStage(matchId: number, stage: JobStage, error?: string): void {
@@ -85,14 +118,20 @@ async function runJob(matchId: number): Promise<void> {
     );
     setStage(matchId, "writing");
 
-    const analysis = analyseParsedMatch(parsed);
-    const format = pickFormat(matchId);
-    const text = await generateAnalysis(buildContext(analysis), format);
+    const facts = await collectMatchFacts(analyseParsedMatch(parsed));
+    const text = await generateMainVoiceAnalysis(renderFactPacket(facts));
 
     await mkdir(ANALYSIS_DIR, { recursive: true });
     await writeFile(
       path.join(ANALYSIS_DIR, `${matchId}.json`),
-      JSON.stringify({ matchId, createdAt: Date.now(), format: format.title, text, parsed } satisfies StoredAnalysis),
+      JSON.stringify({
+        matchId,
+        createdAt: Date.now(),
+        engine: CURRENT_ANALYSIS_ENGINE,
+        format: "Песик сбоку",
+        text,
+        parsed,
+      } satisfies StoredAnalysis),
     );
     setStage(matchId, "done");
   } catch (error) {

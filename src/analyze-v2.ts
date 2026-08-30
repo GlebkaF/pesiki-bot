@@ -5,75 +5,21 @@
  *  - игроки опознаются по steam_id из реплея, а не по account_id из API (приватные профили больше не Anonymous);
  *  - в контексте есть лейнинг, экономика по минутам, тимфайты и тайминги предметов, а не только итоговый счёт;
  *  - MVP/LVP и перелом матча считаются кодом, а не на глаз языковой моделью;
- *  - формат выпуска ротируется, а дежурные советы запрещены промптом.
+ *  - основной голос получает компактный детерминированный пакет фактов.
  */
-import OpenAI from "openai";
-import { getAppFetch, getOpenAIFetch } from "./proxy.js";
+import { getAppFetch } from "./proxy.js";
 import { fetchHeroes } from "./heroes.js";
-import { PLAYERS, getBotAttitude, type Player } from "./config.js";
+import { PLAYERS, PLAYER_IDS, type Player } from "./config.js";
+import { fetchPlayerProfile, fetchRecentMatches } from "./opendota.js";
 import { fetchAndParseReplay, toSteam32, type ParsedMatch, type ParsedPlayer, type ParseProgress } from "./replay.js";
 import { escapeHtml } from "./telegram-html.js";
-import { CHAT_SLANG, BANNED_WORDS, TONE_EXAMPLES, sanitizeAnalysis, lintAnalysis } from "./lexicon.js";
 import { generateMainVoiceAnalysis } from "./analyze-main-voice.js";
 import { collectMatchFacts, renderFactPacket } from "./match-facts.js";
 
-const OPENAI_MODEL = process.env.OPENAI_MODEL_V2 || process.env.OPENAI_MODEL || "gpt-5.6-sol";
 /** Адрес витрины. Пустой — значит ссылку в пост не добавляем. */
 const SITE_URL = (process.env.SITE_URL || "").replace(/\/$/, "");
 
 /** Формат выпуска. Один и тот же матч в разных рамках читается как разный текст. */
-export const FORMATS = [
-  {
-    id: "coach",
-    title: "разбор тренера",
-    brief:
-      "Ты тренер, который отсматривает катку с командой. Спокойно, по делу, с конкретными таймингами. " +
-      "Не жалеешь никого, но и не унижаешь.",
-  },
-  {
-    id: "commentator",
-    title: "комментатор",
-    brief:
-      "Ты комментатор, ведущий репортаж по записи. Эмоции, нарастание, кульминация на переломе. " +
-      "Настоящее время, будто всё происходит сейчас.",
-  },
-  {
-    id: "enemy",
-    title: "взгляд с той стороны",
-    brief:
-      "Ты саппорт вражеской команды, который после игры пишет своим в дискорд про соперников. " +
-      "Кого боялись, кого фармили, кто был бесплатным золотом. " +
-      "ВАЖНО: про команду чата говори только в третьем лице — «эти», «они», по именам. " +
-      "Про свою сторону не рассказывай вообще и не пиши «у нас»: все цифры в данных описывают " +
-      "команду чата, и если приписать их себе, знаки перевернутся и текст будет врать.",
-  },
-  {
-    id: "gaben",
-    title: "весточка от Габена",
-    brief:
-      "В чате Габен — капризное божество матчмейкинга, которое мстит и благословляет. " +
-      "Пиши от его лица: кому он сегодня подсылал агентов, кому выдал стрик, кто ещё не отработал карму. " +
-      "Снисходительно, будто разговариваешь со смертными.",
-  },
-  {
-    id: "chatter",
-    title: "как свой в чате",
-    brief:
-      "Пиши так, будто ты просто один из пацанов в чате, который посмотрел катку. " +
-      "Короткие рубленые фразы, без структуры и заголовков, как обычное сообщение в телеге. " +
-      "Можно начать с середины мысли.",
-  },
-  {
-    id: "court",
-    title: "разбор полётов",
-    brief:
-      "Строгий разбор по пунктам: кто что натворил и что ему за это. " +
-      "Без канцелярита и без слов «улики», «приговор», «подозреваемый» — просто жёстко и по делу.",
-  },
-] as const;
-
-export type FormatId = (typeof FORMATS)[number]["id"];
-
 export interface OurPlayer {
   parsed: ParsedPlayer;
   config: Player;
@@ -91,12 +37,6 @@ export interface MatchAnalysis {
 }
 
 const bySteam32 = new Map<number, Player>(PLAYERS.map((p) => [p.steamId, p]));
-
-function fmtTime(min: number): string {
-  const m = Math.floor(min);
-  const s = Math.round((min - m) * 60);
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
 
 function sum(nums: number[]): number {
   return nums.reduce((a, b) => a + b, 0);
@@ -275,259 +215,29 @@ export function analyseParsedMatch(parsed: ParsedMatch): MatchAnalysis {
   };
 }
 
-function describePlayer(p: ParsedPlayer, cfg?: Player): string {
-  const tag = cfg ? `[НАШ: ${cfg.dotaName}]` : "";
-  // Ники в Dota меняются; в тексте зовём человека так, как его знают в чате.
-  const shownName = cfg
-    ? cfg.dotaName + (p.name && p.name !== cfg.dotaName ? ` (в игре сейчас ${p.name})` : "")
-    : p.name;
-  const items = (p.item_timings ?? []).slice(0, 8).map((i) => `${i.item}@${fmtTime(i.min)}`).join(", ");
-  const deathTimes = p.death_times_min ?? [];
-  const deaths = deathTimes.length ? deathTimes.map((d) => fmtTime(d)).join(", ") : "не умирал";
-  // Официальный счётчик и список таймингов иногда расходятся на одну смерть.
-  const deathNote =
-    deathTimes.length && deathTimes.length !== p.deaths
-      ? ` (официально смертей ${p.deaths}, таймингов известно ${deathTimes.length} — считай по официальному)`
-      : "";
-  const MULTI_NAMES: Record<string, string> = { x2: "дабл-килл", x3: "трипл-килл", x4: "квадра", x5: "рампейдж" };
-  const multi = p.multikills
-    ? Object.entries(p.multikills)
-        .map(([size, times]) => `${MULTI_NAMES[size] ?? size} x${times}`)
-        .join(", ")
-    : "";
-  const killedBy = p.killed_by
-    ? Object.entries(p.killed_by).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k}x${v}`).join(", ")
-    : "";
-
-  return [
-    `${tag} ${shownName} (${p.hero}) ${p.lane}/${p.lane_role} ур.${p.level_final}`,
-    `  KDA ${p.kills}/${p.deaths}/${p.assists} (официальный) | CS ${p.last_hits}(+${p.denies} денаев) | CS@10 ${p.cs_at_10} | CS@20 ${p.cs_at_20}`,
-    `  NW: 10мин ${p.networth_at_10} -> 20мин ${p.networth_at_20} -> итог ${p.networth_final} | GPM ${p.gpm} | XPM ${p.xpm}`,
-    `  урон по героям ${p.hero_damage} | получил ${p.damage_taken} | лечение ${p.healing} | по башням ${p.tower_damage}`,
-    `  потерял на смертях ${p.gold_lost_to_death} зол | на саппорт-предметы ${p.gold_spent_on_support} зол`,
-    p.buybacks || p.max_killstreak || multi
-      ? `  выкупы ${p.buybacks} | макс.серия ${p.max_killstreak}${multi ? ` | мультикиллы ${multi}` : ""}`
-      : "",
-    p.obs_wards_placed || p.wards_killed
-      ? `  варды ${p.obs_wards_placed}обс/${p.sentry_wards_placed}сент | снёс вардов ${p.wards_killed}`
-      : "",
-    `  предметы: ${items || "нет данных"}`,
-    `  умирал в: ${deaths}${deathNote}${killedBy ? ` | чаще убивал его: ${killedBy}` : ""}`,
-    p.killed && Object.keys(p.killed).length
-      ? `  сам убивал: ${Object.entries(p.killed).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k}x${v}`).join(", ")}`
-      : "",
-    p.top_spells && Object.keys(p.top_spells).length
-      ? `  чаще всего жал: ${Object.entries(p.top_spells).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k.replace(/^[a-z_]+?_/, "")} x${v}`).join(", ")}`
-      : "",
-    p.item_uses && Object.keys(p.item_uses).length
-      ? `  жал предметы: ${Object.entries(p.item_uses).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => `${k} x${v}`).join(", ")}`
-      : "",
-    [
-      p.teamfight_participation !== undefined ? `участие в драках ${Math.round(p.teamfight_participation * 100)}%` : "",
-      p.stuns ? `контроля ${Math.round(p.stuns)} сек` : "",
-      p.pings !== undefined ? `пингов ${p.pings}` : "",
-    ].filter(Boolean).length
-      ? `  ${[
-          p.teamfight_participation !== undefined ? `участие в драках ${Math.round(p.teamfight_participation * 100)}%` : "",
-          p.stuns ? `контроля ${Math.round(p.stuns)} сек` : "",
-          p.pings !== undefined ? `пингов за игру ${p.pings}` : "",
-        ].filter(Boolean).join(" | ")}`
-      : "",
-    p.enemy_half_pct
-      ? `  по карте: ${p.enemy_half_pct}% времени на чужой половине | в среднем ${p.avg_ally_distance} от ближайшего своего` +
-        (p.death_isolation ? ` | умирал в среднем в ${p.death_isolation} от своих` : "")
-      : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
-}
-
-/** Лидеры по метрикам, посчитанные кодом: модель на сравнении чисел ошибается. */
-function buildLeaders(parsed: ParsedMatch, ourTeam: "radiant" | "dire"): string {
-  const ours = parsed.players.filter((p) => p.team === ourTeam);
-  const top = (label: string, pick: (p: ParsedPlayer) => number, unit = "") => {
-    const sorted = [...ours].sort((a, b) => pick(b) - pick(a)).filter((p) => pick(p) > 0);
-    if (!sorted.length) return "";
-    return `  ${label}: ` + sorted.slice(0, 3).map((p) => `${p.hero} ${pick(p)}${unit}`).join(" > ");
+export async function findLastPartyMatch(): Promise<{
+  matchId: number;
+  playerId: number;
+  playerName: string;
+} | null> {
+  let latest: { matchId: number; startTime: number; playerId: number } | null = null;
+  for (const playerId of PLAYER_IDS) {
+    try {
+      const recent = (await fetchRecentMatches(playerId))[0];
+      if (recent && (!latest || recent.start_time > latest.startTime)) {
+        latest = { matchId: recent.match_id, startTime: recent.start_time, playerId };
+      }
+    } catch (error) {
+      console.warn(`[ANALYZE] не загрузились матчи ${playerId}:`, (error as Error).message);
+    }
+  }
+  if (!latest) return null;
+  const profile = await fetchPlayerProfile(latest.playerId);
+  return {
+    matchId: latest.matchId,
+    playerId: latest.playerId,
+    playerName: profile.profile?.personaname || String(latest.playerId),
   };
-  return [
-    top("урон по героям", (p) => p.hero_damage),
-    top("нетворс", (p) => p.networth_final),
-    top("крипы", (p) => p.last_hits),
-    top("смерти", (p) => p.deaths),
-    top("обсы", (p) => p.obs_wards_placed),
-    top("сентри", (p) => p.sentry_wards_placed),
-    top("урон по башням", (p) => p.tower_damage),
-  ].filter(Boolean).join("\n");
-}
-
-export function buildContext(a: MatchAnalysis): string {
-  const { parsed } = a;
-  const ourSteamIds = new Set(a.ours.map((o) => o.parsed.steam_id));
-
-  const teamBlock = (team: "radiant" | "dire") =>
-    parsed.players
-      .filter((p) => p.team === team)
-      .map((p) => describePlayer(p, ourSteamIds.has(p.steam_id) ? bySteam32.get(toSteam32(p.steam_id)) : undefined))
-      .join("\n\n");
-
-  const ourHeroes = new Set(parsed.players.filter((p) => p.team === a.ourTeam).map((p) => p.hero));
-  const fights = (parsed.teamfights ?? [])
-    .slice(0, 8)
-    .map((t) => {
-      const weLost = a.ourTeam === "radiant" ? t.radiant_died : t.dire_died;
-      const theyLost = a.ourTeam === "radiant" ? t.dire_died : t.radiant_died;
-      const verdict = weLost < theyLost ? "замес за НАМИ" : weLost > theyLost ? "замес за НИМИ" : "разменялись";
-      const died = t.heroes_died.map((h) => (ourHeroes.has(h) ? `${h}(наш)` : h)).join(", ");
-      return `  ${fmtTime(t.start_min)}-${fmtTime(t.end_min)}: мы -${weLost}, они -${theyLost} -> ${verdict}; полегли: ${died}`;
-    })
-    .join("\n");
-
-  const towers = (parsed.buildings ?? [])
-    .filter((b) => b.name.includes("tower") || b.name.includes("rax") || b.name.includes("fort"))
-    .slice(0, 14)
-    .map((b) => {
-      const oursKilled = b.killed_by_team === a.ourTeam;
-      const short = b.name
-        .replace("npc_dota_", "")
-        .replace("goodguys_", "radiant ")
-        .replace("badguys_", "dire ")
-        .replace("fort", "ТРОН")
-        .replace("_melee_rax", " казармы ближнего боя")
-        .replace("_range_rax", " казармы дальнего боя");
-      return `${fmtTime(b.min)} ${short} (${oursKilled ? "снесли МЫ" : "снесли ОНИ"})`;
-    })
-    .join(", ");
-
-  const playerProfiles = a.ours
-    .map((o) =>
-      [
-        `  ${o.config.dotaName}:`,
-        `    отношение и интонация: ${getBotAttitude(o.config.steamId) ?? "нейтрально"}`,
-        o.config.analysisProfile ? `    игровой контекст: ${o.config.analysisProfile.notes.join(" ")}` : "",
-      ]
-        .filter(Boolean)
-        .join("\n"),
-    )
-    .join("\n");
-
-  return `МАТЧ ${parsed.match_id}
-Длительность: ${parsed.duration_min} мин | МЫ играли за ${a.ourTeam} и ${a.weWon ? "ВЫИГРАЛИ" : "ПРОИГРАЛИ"}\nВНИМАНИЕ: ниже всё описано от лица НАШЕЙ команды. "МЫ" = ${a.ourTeam}, "ОНИ" = ${a.ourTeam === "radiant" ? "dire" : "radiant"}.
-Первая кровь: ${parsed.first_blood ? `${fmtTime(parsed.first_blood.min)} ${parsed.first_blood.killer} убил ${parsed.first_blood.victim}` : "нет данных"}
-Рошан взят: ${(parsed.roshan_kills_min ?? []).length ? (parsed.roshan_kills_min ?? []).map(fmtTime).join(", ") : "не брали"}
-
-ЛИНИИ (итог к 10 минуте):
-${a.laneReport.map((l) => `  ${l}`).join("\n") || "  нет данных"}
-
-ДИНАМИКА ЗОЛОТА:
-  ${a.turningPoint}
-
-ТИМФАЙТЫ:
-${fights || "  крупных замесов не было"}
-
-БАШНИ: ${towers || "нет данных"}
-
-ЛИДЕРЫ В НАШЕЙ КОМАНДЕ (посчитано кодом, порядок от большего к меньшему —
-пользуйся этим вместо того, чтобы сравнивать числа самому):
-${buildLeaders(parsed, a.ourTeam)}
-
-ПОСЧИТАНО КОДОМ (не пересматривай, используй как факт):
-  MVP матча: ${a.mvp ? `${a.mvp.name} (${a.mvp.hero})` : "н/д"}
-  LVP матча: ${a.lvp ? `${a.lvp.name} (${a.lvp.hero})` : "н/д"}
-
-НАША КОМАНДА (${a.ourTeam})${a.weWon ? " — ПОБЕДИЛИ" : " — ПРОИГРАЛИ"}:
-${teamBlock(a.ourTeam)}
-
-ПРОТИВНИКИ (${a.ourTeam === "radiant" ? "dire" : "radiant"}):
-${teamBlock(a.ourTeam === "radiant" ? "dire" : "radiant")}
-
-КОНТЕКСТ НАШИХ И ТВОЁ ОТНОШЕНИЕ К НИМ (подсказка для интерпретации и тона,
-вслух как анкету не проговаривать):
-${playerProfiles || "  наших в матче не опознано"}`;
-}
-
-const BASE_RULES = `ЖЁСТКИЕ ПРАВИЛА:
-• ГЛАВНОЕ: разбери ПЕРСОНАЛЬНО каждого игрока с меткой [НАШ] — минимум по 2 конкретных факта с цифрами
-  на каждого. Остальные девять — только фон. Если наших в матче нет, скажи об этом одной строкой
-  и разбери матч целиком.
-• Каждое утверждение опирается на цифру или тайминг ИЗ ДАННЫХ. Нет цифры — нет утверждения.
-• ЗАПРЕЩЕНО советовать «купи BKB», «ставь варды», «работай над позиционкой» и прочие дежурные фразы,
-  если в данных нет прямого доказательства именно этой проблемы. Лучше промолчать, чем выдать банальность.
-• ЗАПРЕЩЕНО начинать со слов «Проиграли потому что» и «Вы затащили потому что» — это уже приелось.
-• Не пиши «Хорошо / Плохо / Косяки / Совет» списком — это шаблон прошлой версии бота.
-• MVP и LVP уже посчитаны кодом — просто объясни их выбор, не переназначай.
-• У тебя есть отношение к каждому нашему. Никогда не называй его вслух: оно проявляется только
-  в интонации, объёме внимания и жёсткости формулировок.
-• НИКОГДА не переноси в текст служебные пометки из данных: [НАШ], (наш), МЫ/ОНИ капсом,
-  «нетворс/мин», «посчитано кодом». Пиши имена людей и героев обычным текстом.
-• Русский разговорный, дотерский сленг уместен. Мат — по вкусу, но не через слово.
-• ПОСЛЕДНЕЙ СТРОКОЙ на каждого [НАШ] дай короткий вывод на следующую катку — но ТОЛЬКО если
-  для него есть конкретная цифра-основание в данных. Одна строка на человека, максимум фраза.
-  Если у игрока нет ничего, кроме обычных цифр, — про него в этом блоке молчи. Лучше две строки
-  на пятерых, чем пять пустых советов. Не пиши слово «совет» и не нумеруй.
-• Telegram-текст без Markdown. Эмодзи — точечно, максимум 5 штук на весь разбор.
-• 150-250 слов. Плотно, без вступлений и без воды.
-• Не выдумывай метрику, которой нет в данных: если написано «нетворс/мин», это не GPM.
-• Прежде чем написать «топ в команде», «больше всех», «единственный, кто», «он один работал» —
-  сверься с блоком ЛИДЕРЫ. Если игрок не первый в нужной строке, превосходную степень не пиши.
-• Числительное словом («дважды», «трижды», «оба раза») должно совпадать с количеством фактов,
-  которые ты сам перечисляешь рядом. Пересчитай, прежде чем писать.
-• Мультикиллы уже расписаны словами. «дабл-килл x3» значит три дабл-килла, а не три убийства
-  за раз и не трипл-килл.`;
-
-export function buildPrompt(format: (typeof FORMATS)[number]): string {
-  return `Ты — Песик, бот дотерского чата. Разбираешь катку своего стака.
-
-ФОРМАТ ЭТОГО ВЫПУСКА — ${format.title}:
-${format.brief}
-
-${BASE_RULES}
-
-ЯЗЫК ЭТОГО ЧАТА (так говорят живые люди в нём — пользуйся):
-${CHAT_SLANG.map((w) => `• ${w}`).join("\n")}
-
-ТАК В ЭТОМ ЧАТЕ НЕ ГОВОРЯТ НИКОГДА — не употребляй ни разу:
-${BANNED_WORDS.map((w) => `• ${w}`).join("\n")}
-
-ПРИМЕРЫ ЖИВЫХ РЕПЛИК ИЗ ЧАТА (для тона, не для копирования):
-${TONE_EXAMPLES.map((q) => `• ${q}`).join("\n")}`;
-}
-
-/** Формат выбирается детерминированно по матчу: один и тот же матч всегда в одной рамке. */
-export function pickFormat(matchId: number, override?: FormatId): (typeof FORMATS)[number] {
-  if (override) {
-    const f = FORMATS.find((x) => x.id === override);
-    if (f) return f;
-  }
-  return FORMATS[matchId % FORMATS.length];
-}
-
-export async function generateAnalysis(
-  context: string,
-  format: (typeof FORMATS)[number],
-): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("OPENAI_API_KEY not configured");
-  const fetch = await getOpenAIFetch();
-  const openai = new OpenAI({ apiKey, baseURL: process.env.OPENAI_BASE_URL, fetch });
-
-  const res = await openai.chat.completions.create({
-    model: OPENAI_MODEL,
-    messages: [
-      { role: "system", content: buildPrompt(format) },
-      { role: "user", content: context },
-    ],
-    max_completion_tokens: 4000,
-  });
-  const raw = res.choices[0]?.message?.content || "Не удалось получить разбор";
-  // Служебные метки протекают в текст даже при прямом запрете в промпте — чистим отдельно.
-  const text = sanitizeAnalysis(raw);
-
-  const banned = lintAnalysis(text);
-  if (banned.length) {
-    console.warn(`[ANALYZE-V2] в тексте проскочили запрещённые слова: ${banned.join(", ")}`);
-  }
-  return text;
 }
 
 /** Разбор матча по реплею. Прогресс отдаётся наружу, чтобы бот мог обновлять сообщение. */

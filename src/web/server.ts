@@ -6,7 +6,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { getFeed, rebuildFeed, startFeedSync, type FeedMatch } from "./feed.js";
-import { enqueue, getJob, getStoredAnalysis, markPosted } from "./jobs.js";
+import { enqueue, getJob, getStoredAnalysis, markPosted, purgeLegacyAnalyses } from "./jobs.js";
 import { formatForTelegram } from "../analyze-v2.js";
 import { createBot, sendMessage } from "../bot.js";
 import { config } from "../config.js";
@@ -141,8 +141,15 @@ export function startWebServer(port = Number(process.env.WEB_PORT) || 3000): voi
       if (!res.headersSent) send(res, 500, layout("Ошибка", '<h1>500</h1><p class="sub">Что-то сломалось, смотри логи.</p>'));
     });
   });
-  server.listen(port, () => {
-    console.log(`[WEB] витрина на http://localhost:${port}`);
-    startFeedSync();
-  });
+  void purgeLegacyAnalyses()
+    .then((removed) => {
+      if (removed) console.log(`[WEB] удалено старых разборов: ${removed}`);
+    })
+    .catch((error) => console.error("[WEB] не удалось очистить старые разборы:", error))
+    .finally(() => {
+      server.listen(port, () => {
+        console.log(`[WEB] витрина на http://localhost:${port}`);
+        startFeedSync();
+      });
+    });
 }

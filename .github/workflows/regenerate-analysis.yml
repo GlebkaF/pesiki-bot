@@ -1,0 +1,25 @@
+name: Regenerate match analysis
+
+on:
+  workflow_dispatch:
+    inputs:
+      match_id:
+        description: Dota match ID
+        required: true
+        type: string
+
+jobs:
+  enqueue:
+    runs-on: [self-hosted, x260, linux]
+    steps:
+      - name: Enqueue current production analysis
+        env:
+          MATCH_ID: ${{ inputs.match_id }}
+          WEB_PORT: ${{ vars.WEB_PORT || '3000' }}
+        run: |
+          if [[ ! "$MATCH_ID" =~ ^[0-9]+$ ]]; then
+            echo "Invalid match ID: $MATCH_ID"
+            exit 1
+          fi
+          curl --fail --silent --show-error \
+            --request POST "http://127.0.0.1:${WEB_PORT}/api/analyze/${MATCH_ID}"
