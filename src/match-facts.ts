@@ -4,14 +4,15 @@
  * Здесь нет языковой модели и оценочных формулировок: только вычисленные события,
  * сравнения и история. Голос получает этот пакет вместо сырого дампа реплея.
  */
-import { fetchRecentMatches, type RecentMatch } from "./opendota.js";
+import { fetchMatchApi, fetchRecentMatches, type RecentMatch } from "./opendota.js";
 import { fetchHeroes } from "./heroes.js";
 import type { MatchAnalysis, OurPlayer } from "./analyze-v2.js";
 import type { ParsedPlayer } from "./replay.js";
 
 export type MatchShape = "big-comeback" | "comeback" | "throw" | "stomp" | "stomped" | "win" | "loss";
+export const MATCH_FACT_VERSION = 7 as const;
 
-interface EconomyPoint {
+export interface EconomyPoint {
   minute: number;
   advantage: number;
 }
@@ -21,7 +22,8 @@ interface KeyMoment {
   endMinute: number;
   ourDeaths: number;
   enemyDeaths: number;
-  goldSwing: number;
+  /** Дельта ближайшего поминутного интервала, не экономика самой драки. */
+  nearbyMinuteDelta: number | null;
   buildingsNearby: string[];
   roshanNearby: boolean;
 }
@@ -70,6 +72,7 @@ interface EnemyPlayerFacts {
 
 interface PreviousStackMatch {
   matchId: number;
+  scope: "solo" | "partial" | "stack";
   /** Разница между началами игр — только для порядка, не называй её перерывом. */
   startGapMin: number | null;
   /** Время от конца предыдущей игры до старта текущей. */
@@ -80,7 +83,7 @@ interface PreviousStackMatch {
 }
 
 export interface MatchFactPacket {
-  version: 3;
+  version: typeof MATCH_FACT_VERSION;
   match: {
     id: number;
     durationMin: number;
@@ -108,6 +111,7 @@ export interface MatchFactPacket {
   enemyPlayers: EnemyPlayerFacts[];
   awards: { mvp?: string; enemyMostDeaths?: string; knownPlayersMostDeaths?: string };
   history: {
+    available: boolean;
     previousStackMatches: PreviousStackMatch[];
     stackEnteringStreak: string;
     recentStackRecord: string;
@@ -141,18 +145,35 @@ function economyTimeline(a: MatchAnalysis): EconomyPoint[] {
   return points;
 }
 
-function classifyMatch(a: MatchAnalysis, points: EconomyPoint[]): MatchShape {
-  if (!points.length) return a.weWon ? "win" : "loss";
+export function classifyEconomyShape(input: {
+  won: boolean;
+  durationMin: number;
+  points: EconomyPoint[];
+}): MatchShape {
+  const { won, durationMin, points } = input;
+  if (!points.length) return won ? "win" : "loss";
   const worst = Math.min(...points.map((p) => p.advantage));
   const best = Math.max(...points.map((p) => p.advantage));
   const final = points.at(-1)?.advantage ?? 0;
 
-  if (a.weWon && worst <= -12_000 && final > 0) return "big-comeback";
-  if (a.weWon && worst <= -5_000 && final > 0) return "comeback";
-  if (!a.weWon && best >= 5_000 && final < 0) return "throw";
-  if (a.weWon && worst >= -3_000 && best >= 15_000) return "stomp";
-  if (!a.weWon && best <= 3_000 && worst <= -15_000) return "stomped";
-  return a.weWon ? "win" : "loss";
+  if (won && worst <= -12_000 && final > 0) return "big-comeback";
+  if (won && worst <= -5_000 && final > 0) return "comeback";
+  // Пять тысяч в Turbo часто живут одну минуту. Между ложными и явными
+  // throw в red-team выборке был чистый зазор: 7k против 16k.
+  if (!won && best >= 12_000 && final < 0) return "throw";
+  // Долгая мясорубка с поздним преимуществом — не stomp всего матча.
+  if (won && durationMin <= 30 && worst >= -3_000 && best >= 15_000) return "stomp";
+  const at20 = pointAt(points, 20)?.advantage;
+  // Поздний развал равной 40-минутной игры не должен переписывать всю игру
+  // в stomped. Для длинной игры требуем заметное отставание уже к 20-й.
+  if (!won && best <= 3_000 && worst <= -15_000 && (durationMin <= 30 || (at20 ?? 0) <= -10_000)) {
+    return "stomped";
+  }
+  return won ? "win" : "loss";
+}
+
+function classifyMatch(a: MatchAnalysis, points: EconomyPoint[]): MatchShape {
+  return classifyEconomyShape({ won: a.weWon, durationMin: a.parsed.duration_min, points });
 }
 
 function storySignals(a: MatchAnalysis, points: EconomyPoint[], shape: MatchShape): string[] {
@@ -162,7 +183,7 @@ function storySignals(a: MatchAnalysis, points: EconomyPoint[], shape: MatchShap
   const signals: string[] = [];
   if (shape === "big-comeback") signals.push("deep_comeback");
   if (shape === "big-comeback" && changes >= 2) signals.push("double_reversal");
-  if (shape === "stomped" && a.parsed.duration_min < 20 && final <= -30_000) {
+  if (!a.weWon && a.parsed.duration_min <= 20.5 && final <= -30_000) {
     signals.push("short_lopsided_loss");
   }
   if (shape === "stomp" && a.parsed.duration_min < 22 && final >= 30_000 && scoreDiff >= 25) {
@@ -172,7 +193,17 @@ function storySignals(a: MatchAnalysis, points: EconomyPoint[], shape: MatchShap
 }
 
 function pointAt(points: EconomyPoint[], minute: number): EconomyPoint | undefined {
-  return points.length > minute ? points[minute] : undefined;
+  // Финальная точка добавляется в конец отдельно и у короткого матча может
+  // оказаться на индексе 20 со временем 20.01. Индекс массива — не минута.
+  return points.find((point) => point.minute === minute);
+}
+
+export function nearbyEconomyDelta(points: EconomyPoint[], startMinute: number, endMinute: number): number | null {
+  // Берём реальные соседние snapshots. Финальная дробная точка подходит как
+  // after для последней драки; отсутствие данных остаётся null, а не ложным 0.
+  const before = [...points].reverse().find((point) => point.minute <= startMinute);
+  const after = points.find((point) => point.minute >= endMinute);
+  return after && before ? after.advantage - before.advantage : null;
 }
 
 function leadChanges(points: EconomyPoint[]): number {
@@ -216,8 +247,10 @@ function selectKeyMoments(a: MatchAnalysis, points: EconomyPoint[]): KeyMoment[]
     .map((fight) => {
       const ourDeaths = a.ourTeam === "radiant" ? fight.radiant_died : fight.dire_died;
       const enemyDeaths = a.ourTeam === "radiant" ? fight.dire_died : fight.radiant_died;
-      const endMinute = Math.min(points.length - 1, Math.max(1, Math.round(fight.end_min)));
-      const goldSwing = points.length ? points[endMinute].advantage - points[endMinute - 1].advantage : 0;
+      // Реплей хранит экономику только целыми минутами. Это контекст вокруг
+      // драки, а не её точный swing: короткая драка может целиком лежать между
+      // двумя snapshots. Имя поля обязано не провоцировать голос на ложную причинность.
+      const nearbyMinuteDelta = nearbyEconomyDelta(points, fight.start_min, fight.end_min);
       const nearby = (a.parsed.buildings ?? [])
         .filter((b) => b.name.includes("tower") || b.name.includes("rax") || b.name.includes("fort"))
         .filter((b) => b.min >= fight.start_min - 0.5 && b.min <= fight.end_min + 1.5)
@@ -225,14 +258,14 @@ function selectKeyMoments(a: MatchAnalysis, points: EconomyPoint[]): KeyMoment[]
       const roshanNearby = (a.parsed.roshan_kills_min ?? []).some(
         (minute) => minute >= fight.start_min - 0.5 && minute <= fight.end_min + 1.5,
       );
-      const score = (ourDeaths + enemyDeaths) * 3 + Math.abs(ourDeaths - enemyDeaths) * 4 + Math.abs(goldSwing) / 1000 + nearby.length * 4;
+      const score = (ourDeaths + enemyDeaths) * 3 + Math.abs(ourDeaths - enemyDeaths) * 4 + Math.abs(nearbyMinuteDelta ?? 0) / 1000 + nearby.length * 4;
       return {
         moment: {
           startMinute: fight.start_min,
           endMinute: fight.end_min,
           ourDeaths,
           enemyDeaths,
-          goldSwing,
+          nearbyMinuteDelta,
           buildingsNearby: nearby,
           roshanNearby,
         },
@@ -284,19 +317,30 @@ function mostDeaths(players: ParsedPlayer[]): ParsedPlayer | undefined {
   return [...players].sort((a, b) => b.deaths - a.deaths || a.kills + a.assists - (b.kills + b.assists))[0];
 }
 
+export function inferEffectiveRole(laneRole: string, csAt10: number): "core" | "support" {
+  // Parser core требует хотя бы минимальной фарм-фактуры. В обратную сторону
+  // 25+ CS достаточно, чтобы исправить очевидных Drow/SF/Muerta, которых
+  // lane clustering ошибочно оставил support.
+  return (laneRole === "core" && csAt10 >= 15) || csAt10 >= 25 ? "core" : "support";
+}
+
 function playerFacts(our: OurPlayer, team: ParsedPlayer[], history?: PlayerHistory): OurPlayerFacts {
   const p = our.parsed;
   const profile = our.config.analysisProfile;
   const rawDeathTimes = p.death_times_min ?? [];
   const deathTimelineReliable = rawDeathTimes.length === p.deaths;
   const deathTimes = deathTimelineReliable ? rawDeathTimes : [];
+  // Парсер назначает «core» самому богатому игроку каждой обнаруженной линии.
+  // Одинокий роумер из-за этого иногда становился кором с 4 крипами. Для
+  // персональных профилей считаем core только при минимальной фарм-фактуре.
+  const effectiveRole = inferEffectiveRole(p.lane_role, p.cs_at_10);
   return {
     name: our.config.dotaName,
     grammaticalGender: profile?.grammaticalGender,
     hero: p.hero,
     lane: p.lane,
-    role: p.lane_role,
-    unusualRole: Boolean(profile?.usualRoles?.length && !profile.usualRoles.includes(p.lane_role as "core" | "support")),
+    role: effectiveRole,
+    unusualRole: Boolean(profile?.usualRoles?.length && !profile.usualRoles.includes(effectiveRole)),
     profileNotes: profile?.notes ?? [],
     kda: `${p.kills}/${p.deaths}/${p.assists}`,
     csAt10: p.cs_at_10,
@@ -331,12 +375,29 @@ function streak(matches: RecentMatch[]): string {
 }
 
 async function collectHistory(a: MatchAnalysis): Promise<{
+  available: boolean;
   players: Map<number, PlayerHistory>;
   previousStackMatches: PreviousStackMatch[];
   stackEnteringStreak: string;
   recentStackRecord: string;
 }> {
-  const targetStart = a.parsed.start_time ?? Number.MAX_SAFE_INTEGER;
+  let targetStart = a.parsed.start_time;
+  if (!targetStart) {
+    try {
+      targetStart = (await fetchMatchApi(a.parsed.match_id)).start_time;
+      a.parsed.start_time = targetStart;
+    } catch {
+      // Без времени матча нельзя отличить прошлое от будущего. Лучше честно
+      // убрать историю, чем подсунуть голосу future leakage.
+      return {
+        available: false,
+        players: new Map(),
+        previousStackMatches: [],
+        stackEnteringStreak: "история недоступна",
+        recentStackRecord: "история недоступна",
+      };
+    }
+  }
   const rawByPlayer = new Map<number, RecentMatch[]>();
   for (const our of a.ours) {
     const previous = (await fetchRecentMatches(our.config.steamId))
@@ -374,12 +435,16 @@ async function collectHistory(a: MatchAnalysis): Promise<{
       grouped.set(match.match_id, entries);
     }
   }
-  const minimumPartySize = Math.min(2, a.ours.length);
+  // Серия стака не должна склеиваться по двум людям из четверых/пятерых.
+  // Для полноценного стака требуем минимум трёх общих игроков; duo и solo
+  // остаются валидной историей только когда текущий матч сам duo/solo.
+  const minimumPartySize = a.ours.length >= 3 ? 3 : a.ours.length;
   const groups = [...grouped.entries()]
     .filter(([, entries]) => entries.length >= minimumPartySize)
     .sort((a, b) => b[1][0].match.start_time - a[1][0].match.start_time);
   const previousStackMatches = groups.slice(0, 5).map(([matchId, entries]) => ({
     matchId,
+    scope: entries.length >= 3 ? "stack" as const : entries.length === 2 ? "partial" as const : "solo" as const,
     startGapMin: a.parsed.start_time ? Math.round((a.parsed.start_time - entries[0].match.start_time) / 60) : null,
     queueGapMin: a.parsed.start_time
       ? Math.max(0, Math.round((a.parsed.start_time - entries[0].match.start_time - entries[0].match.duration) / 60))
@@ -394,6 +459,7 @@ async function collectHistory(a: MatchAnalysis): Promise<{
   const recentWins = recent.filter(isWin).length;
 
   return {
+    available: true,
     players,
     previousStackMatches,
     stackEnteringStreak: sessionMatches.length ? streak(sessionMatches) : "первый матч сессии",
@@ -411,7 +477,7 @@ export async function collectMatchFacts(a: MatchAnalysis): Promise<MatchFactPack
   const best = points.length ? points.reduce((x, y) => (x.advantage > y.advantage ? x : y)) : undefined;
 
   return {
-    version: 3,
+    version: MATCH_FACT_VERSION,
     match: {
       id: a.parsed.match_id,
       durationMin: a.parsed.duration_min,
@@ -458,6 +524,7 @@ export async function collectMatchFacts(a: MatchAnalysis): Promise<MatchFactPack
         : undefined,
     },
     history: {
+      available: history.available,
       previousStackMatches: history.previousStackMatches,
       stackEnteringStreak: history.stackEnteringStreak,
       recentStackRecord: history.recentStackRecord,

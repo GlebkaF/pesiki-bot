@@ -244,25 +244,12 @@ async function runTests() {
     { name: "Has inactive players line", pass: message.includes("Не играли:") },
     // Nominations checks
     { name: "Has nominations section", pass: message.includes("🏆") && message.includes("Номинации") },
-    { name: "Has Лузер nomination", pass: message.includes("💀 Лузер:") },
-    { name: "Has Фидер nomination", pass: message.includes("⚰️ Фидер:") },
-    { name: "Has Тащер nomination", pass: message.includes("💪 Тащер:") },
-    { name: "Has Саппорт nomination", pass: message.includes("🤝 Саппорт:") },
-    { name: "Has Бот nomination", pass: message.includes("🤖 Бот:") },
-    { name: "Has Задрот nomination", pass: message.includes("🎮 Задрот:") },
-    { name: "Has Везунчик nomination", pass: message.includes("🍀 Везунчик:") },
-    { name: "Has Клоун nomination", pass: message.includes("🤡 Клоун:") },
-    { name: "Has Марафонец nomination", pass: message.includes("🕒 Марафонец:") },
-    { name: "Has Спринтер nomination", pass: message.includes("⚡ Спринтер:") },
-    { name: "Has Любитель лейта nomination", pass: message.includes("🐢 Любитель лейта:") },
-    { name: "Has Аккуратист nomination", pass: message.includes("🛡️ Аккуратист:") },
-    { name: "Has Дуэлянт nomination", pass: message.includes("🧹 Дуэлянт:") },
-    { name: "Has Киллер nomination", pass: message.includes("🎯 Киллер:") },
-    { name: "Has Экспериментатор nomination", pass: message.includes("🧪 Экспериментатор:") },
-    { name: "Has Мейнер nomination", pass: message.includes("🧠 Мейнер:") },
-    { name: "Has Камбэкер nomination", pass: message.includes("🔄 Камбэкер:") },
-    { name: "Has Ночной страж nomination", pass: message.includes("🌙 Ночной страж:") },
-    { name: "Has Утренний страж nomination", pass: message.includes("🌅 Утренний страж:") },
+    // Конкретная номинация зависит от данных. Требовать одновременно все
+    // взаимоисключающие категории (спринтер + марафонец, утро + ночь) нельзя.
+    {
+      name: "Has a useful set of nominations",
+      pass: plainMessage.split("\n").filter((line) => /^\p{Emoji_Presentation} .*:\s/u.test(line.trim())).length >= 8,
+    },
     {
       name: "No player has more than two nominations",
       pass: (() => {

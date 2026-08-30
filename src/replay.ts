@@ -117,9 +117,37 @@ interface ReplayLocation {
   salt: number;
 }
 
+// /matches и /request делят бесплатный лимит OpenDota с остальным приложением.
+// Сериализуем только эти короткие запросы; Valve CDN и парсер продолжают работать параллельно.
+const LOCATION_REQUEST_GAP_MS = 1_250;
+const LOCATION_RATE_RETRIES = 5;
+let locationQueue: Promise<void> = Promise.resolve();
+let lastLocationRequestAt = 0;
+
+async function openDotaReplayRequest(url: string, init?: RequestInit): Promise<Response> {
+  for (let attempt = 0; attempt < LOCATION_RATE_RETRIES; attempt++) {
+    let release = () => {};
+    const previous = locationQueue;
+    locationQueue = new Promise<void>((resolve) => { release = resolve; });
+    await previous;
+    const wait = LOCATION_REQUEST_GAP_MS - (Date.now() - lastLocationRequestAt);
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+    let response: Response;
+    try {
+      const fetchFn = await getAppFetch();
+      response = await fetchFn(url, init);
+      lastLocationRequestAt = Date.now();
+    } finally {
+      release();
+    }
+    if (response.status !== 429) return response;
+    await new Promise((resolve) => setTimeout(resolve, 5_000 * 2 ** attempt));
+  }
+  throw new Error("OpenDota продолжает отвечать 429 после повторов");
+}
+
 async function readLocation(matchId: number): Promise<ReplayLocation | null> {
-  const fetchFn = await getAppFetch();
-  const res = await fetchFn(`${OPENDOTA_API_BASE}/matches/${matchId}`);
+  const res = await openDotaReplayRequest(`${OPENDOTA_API_BASE}/matches/${matchId}`);
   if (!res.ok) throw new Error(`OpenDota вернула ${res.status} для матча ${matchId}`);
   const data = (await res.json()) as { cluster?: number; replay_salt?: number };
   if (!data.cluster || !data.replay_salt) return null;
@@ -138,8 +166,7 @@ export async function getReplayLocation(
   const known = await readLocation(matchId);
   if (known) return known;
 
-  const fetchFn = await getAppFetch();
-  const req = await fetchFn(`${OPENDOTA_API_BASE}/request/${matchId}`, { method: "POST" });
+  const req = await openDotaReplayRequest(`${OPENDOTA_API_BASE}/request/${matchId}`, { method: "POST" });
   if (!req.ok) throw new ReplayUnavailableError(matchId);
 
   for (let attempt = 1; attempt <= SALT_POLL_ATTEMPTS; attempt++) {

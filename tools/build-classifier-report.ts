@@ -4,7 +4,10 @@
  * Берёт актуальную ленту с витрины, обогащает официальными итогами OpenDota,
  * добавляет сохранённые deep-факты реплея и строит автономный HTML.
  */
+import { createHash } from "node:crypto";
+import { execFile } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { promisify } from "node:util";
 import path from "node:path";
 import { getAppFetch } from "../src/proxy.js";
 
@@ -13,6 +16,14 @@ const OUT_DIR = process.env.CLASSIFIER_OUT_DIR || "data/classifier-eval";
 const DETAILS_DIR = path.join(OUT_DIR, "details");
 const LIMIT = Number(process.env.CLASSIFIER_LIMIT) || 20;
 const OFFSET = Number(process.env.CLASSIFIER_OFFSET) || 0;
+const REUSE_DATASET = process.env.CLASSIFIER_REUSE_DATASET === "1";
+const SCOPE = process.env.CLASSIFIER_SCOPE as Row["scope"] | undefined;
+const EXCLUDE_IDS = new Set((process.env.CLASSIFIER_EXCLUDE_IDS || "").split(",").filter(Boolean).map(Number));
+const CLASSIFIER_VERSION = "2026-08-30.3";
+const DATASET_STAGE = process.env.CLASSIFIER_DATASET_STAGE || (
+  OUT_DIR.includes("stack-smoke") ? "future stack smoke" : OUT_DIR.includes("holdout") ? "separate sample" : "discovery"
+);
+const execFileAsync = promisify(execFile);
 
 interface FeedPlayer {
   name: string;
@@ -67,7 +78,7 @@ interface DeepFacts {
     role: string;
     unusualRole: boolean;
     kda: string;
-    history?: { currentHeroInLast20: number };
+    history?: { previousGames: number; currentHeroInLast20: number };
   }>;
   history?: {
     stackEnteringStreak?: string;
@@ -102,6 +113,22 @@ interface Row {
   selectedClassifications: Classification[];
 }
 
+interface DatasetManifest {
+  classifierVersion: string;
+  materializedAt: string;
+  generatedAt: string;
+  gitSha: string;
+  gitDirty: boolean;
+  rulesSourceSha256: string;
+  matchCount: number;
+  matchIdsSha256: string;
+  oldestStartTime: number;
+  newestStartTime: number;
+  factsVersions: number[];
+  scope: Record<Row["scope"], number>;
+  preRegisteredBeforeTuning: false;
+}
+
 function esc(value: unknown): string {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -112,6 +139,12 @@ function esc(value: unknown): string {
 
 function fmtDuration(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function matchWord(count: number): string {
+  const lastTwo = count % 100;
+  const last = count % 10;
+  return lastTwo >= 11 && lastTwo <= 14 ? "матчей" : last === 1 ? "матч" : last >= 2 && last <= 4 ? "матча" : "матчей";
 }
 
 function result(row: Row): "win" | "loss" {
@@ -180,12 +213,17 @@ function classifyMatch(row: Row): Classification[] {
   const totalKills = row.api.radiant_score + row.api.dire_score;
   const killsPerMin = totalKills / durationMin;
   const deepFinal = row.deep?.economy?.final?.advantage;
+  const storySignals = new Set(row.deep?.match.storySignals ?? []);
 
-  if (row.feed.win && durationMin < 22 && margin >= 25 && (deepFinal === undefined || deepFinal >= 30_000)) {
-    tags.push(tag("fast-stomp", "Выдали автоботов", "🤖", "match", `${fmtDuration(row.api.duration)}, счёт ${row.ourScore}:${row.enemyScore}${deepFinal === undefined ? "" : `, финал +${deepFinal}`}`, 3, deepFinal === undefined ? "medium" : "high", deepFinal === undefined ? "scoreboard" : "replay"));
+  if (storySignals.has("short_lopsided_win")) {
+    tags.push(tag("fast-stomp", "Выдали автоботов", "🤖", "match", `${fmtDuration(row.api.duration)}, счёт ${row.ourScore}:${row.enemyScore}, финал +${deepFinal}`, 3, "high", "replay"));
+  } else if (!row.deep && row.feed.win && durationMin < 22 && margin >= 25) {
+    tags.push(tag("fast-stomp-scoreboard-candidate", "Кандидат на выдачу автоботов", "🤖", "match", `${fmtDuration(row.api.duration)}, счёт ${row.ourScore}:${row.enemyScore}; нужен replay`, 1, "medium", "scoreboard"));
   }
-  if (!row.feed.win && durationMin < 22 && margin <= -20 && (deepFinal === undefined || deepFinal <= -30_000)) {
-    tags.push(tag("fast-stomp-loss", "Ритуальное унижение", "🧎", "match", `${fmtDuration(row.api.duration)}, счёт ${row.ourScore}:${row.enemyScore}${deepFinal === undefined ? "" : `, финал ${deepFinal}`}`, 3, deepFinal === undefined ? "medium" : "high", deepFinal === undefined ? "scoreboard" : "replay"));
+  if (storySignals.has("short_lopsided_loss")) {
+    tags.push(tag("fast-stomp-loss", "Ритуальное унижение", "🧎", "match", `${fmtDuration(row.api.duration)}, счёт ${row.ourScore}:${row.enemyScore}, финал ${deepFinal}`, 3, "high", "replay"));
+  } else if (!row.deep && !row.feed.win && durationMin < 22 && margin <= -20) {
+    tags.push(tag("fast-stomp-loss-scoreboard-candidate", "Кандидат на ритуальное унижение", "🧎", "match", `${fmtDuration(row.api.duration)}, счёт ${row.ourScore}:${row.enemyScore}; нужен replay`, 1, "medium", "scoreboard"));
   }
   if (row.feed.win && row.deep?.match.shape === "big-comeback") {
     const worst = row.deep.economy?.worst;
@@ -237,14 +275,17 @@ function classifyMatch(row: Row): Classification[] {
   }
   const signatureAddicts = row.deep?.ourPlayers?.filter((player) => (player.history?.currentHeroInLast20 ?? 0) >= 5) ?? [];
   if (signatureAddicts.length) {
-    tags.push(tag("frequent-hero", "Сигнатурная зависимость", "💉", "player", signatureAddicts.map((p) => `${p.name}: ${p.hero} ${(p.history?.currentHeroInLast20 ?? 0) + 1}-й раз за 20 игр с текущей`).join("; "), 2, "high", "history"));
+    tags.push(tag("frequent-hero", "Сигнатурная зависимость", "💉", "player", signatureAddicts.map((p) => {
+      const history = p.history;
+      return `${p.name}: ${p.hero} ${(history?.currentHeroInLast20 ?? 0) + 1}-й пик за ${(history?.previousGames ?? 0) + 1} доступных игр с текущей`;
+    }).join("; "), 2, "high", "history"));
   }
   const atticHeroes = row.deep?.ourPlayers?.filter((player) => {
     const [kills, deaths, assists] = player.kda.split("/").map(Number);
-    return player.history?.currentHeroInLast20 === 0 && kills >= 10 && deaths <= 3 && kills + assists >= 20;
+    return (player.history?.previousGames ?? 0) >= 5 && player.history?.currentHeroInLast20 === 0 && kills >= 10 && deaths <= 3 && kills + assists >= 20;
   }) ?? [];
   if (atticHeroes.length) {
-    tags.push(tag("rare-hero-popoff", "Достал героя из чулана и разъебал", "🗄️", "player", atticHeroes.map((p) => `${p.name}: не пикал ${p.hero} в предыдущих 19 играх, KDA ${p.kda}`).join("; "), 3, "high", "history"));
+    tags.push(tag("rare-hero-popoff", "Достал героя из чулана и разъебал", "🗄️", "player", atticHeroes.map((p) => `${p.name}: не пикал ${p.hero} в предыдущих ${p.history?.previousGames ?? 0} доступных играх, KDA ${p.kda}`).join("; "), 3, "high", "history"));
   }
   const recentRecord = row.deep?.history?.recentStackRecord?.match(/^(\d+)-(\d+)/);
   if (
@@ -332,7 +373,7 @@ function selectClassifications(row: Row): Classification[] {
   return [primary, player, series].filter((item): item is Classification => Boolean(item)).slice(0, 3);
 }
 
-function html(rows: Row[], catalog: ReturnType<typeof classificationCatalog>): string {
+function html(rows: Row[], catalog: ReturnType<typeof classificationCatalog>, manifest: DatasetManifest): string {
   const classified = rows.filter((row) => row.selectedClassifications.length).length;
   const wins = rows.filter((row) => row.feed.win).length;
   const deepCount = rows.filter((row) => row.deep).length;
@@ -342,7 +383,7 @@ function html(rows: Row[], catalog: ReturnType<typeof classificationCatalog>): s
     .map((item) => `<article class="idea s${item.strength}">
       <div class="idea-title"><span>${item.icon}</span><strong>${esc(item.title)}</strong><em>${kindName[item.kind]}</em></div>
       <p>${esc(item.evidence)}</p>
-      <p class="matches">источник: ${sourceName[item.source]} · уверенность: ${item.confidence === "high" ? "высокая" : "средняя"} · поймано: ${item.matches.map((id) => `<a href="#m${id}">${id}</a>`).join(", ")}</p>
+      <p class="matches">источник: ${sourceName[item.source]} · надёжность источника: ${item.confidence === "high" ? "высокая" : "средняя"} · поймано: ${item.matches.map((id) => `<a href="#m${id}">${id}</a>`).join(", ")}</p>
     </article>`)
     .join("");
   const cards = rows
@@ -363,7 +404,7 @@ function html(rows: Row[], catalog: ReturnType<typeof classificationCatalog>): s
         <div class="score"><b>${row.ourScore}:${row.enemyScore}</b><span>${fmtDuration(row.api.duration)}</span><span>${scope}</span><span>${playedAt}</span></div>
         <div class="tags">${tags}</div>
         <div class="players">${players}</div>
-        ${evidence ? `<ul>${evidence}</ul>` : ""}
+        ${evidence ? `<ul>${evidence.replaceAll("уверенность)", "надёжность источника)")}</ul>` : ""}
       </article>`;
     })
     .join("");
@@ -372,7 +413,7 @@ function html(rows: Row[], catalog: ReturnType<typeof classificationCatalog>): s
   <title>Классификатор Песиков · ${rows.length} матчей</title><style>
   :root{--bg:#0c0d10;--panel:#15171c;--panel2:#1b1e24;--text:#f3f0e9;--dim:#9da3ad;--line:#2a2e36;--win:#91d36e;--loss:#ff716c;--hot:#ffc857;--accent:#bba6ff}
   *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 15% -10%,#26213b 0,transparent 34%),var(--bg);color:var(--text);font:15px/1.5 Inter,ui-sans-serif,system-ui,sans-serif}
-  a{color:inherit}.wrap{max-width:1320px;margin:auto;padding:42px 24px 80px}.eyebrow{color:var(--accent);text-transform:uppercase;letter-spacing:.13em;font-size:12px;font-weight:800}
+  a{color:inherit}.wrap{max-width:1320px;margin:auto;padding:42px 24px 80px}.eyebrow{color:var(--accent);text-transform:uppercase;letter-spacing:.13em;font-size:12px;font-weight:800}.stage{display:inline-block;margin:12px 0 0;padding:5px 10px;border:1px solid #695c91;border-radius:999px;color:#d8ceff;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em}
   h1{font-size:clamp(34px,5vw,68px);line-height:.95;max-width:900px;margin:12px 0 18px;letter-spacing:-.045em}.lead{font-size:18px;color:#c6c8ce;max-width:820px}
   .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:30px 0}.stat{background:var(--panel);border:1px solid var(--line);padding:18px;border-radius:14px}.stat b{display:block;font-size:28px}.stat span{color:var(--dim)}
   h2{margin:44px 0 14px;font-size:25px}.ideas{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.idea{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}.idea.s3{border-color:#765f32;background:linear-gradient(145deg,#221f18,var(--panel))}.idea-title{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.idea-title span{font-size:21px}.idea-title strong{font-size:16px}.idea-title em{margin-left:auto;color:var(--dim);font-size:12px;font-style:normal;text-transform:uppercase}.idea p{color:#c5c7cc;margin:10px 0 0}.idea .matches{font-size:13px;color:var(--dim)}
@@ -382,26 +423,39 @@ function html(rows: Row[], catalog: ReturnType<typeof classificationCatalog>): s
   .note{background:#171923;border:1px dashed #3b4050;border-radius:14px;padding:18px;color:#b7bbc4}.hot{color:var(--hot)}
   @media(max-width:900px){.ideas{grid-template-columns:1fr 1fr}.matches-grid{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}}@media(max-width:560px){.ideas{grid-template-columns:1fr}.wrap{padding:28px 14px}.stats{grid-template-columns:1fr 1fr}}
   </style></head><body><main class="wrap">
-  <div class="eyebrow">research / deterministic story layer</div><h1>Какие катки у Песиков вообще бывают</h1>
-  <p class="lead">Выборка из ${rows.length} матчей ленты${OFFSET ? `, начиная с позиции ${OFFSET + 1}` : ""}. Категории ищут не «хорошо/плохо», а сюжет, который можно отдать голосу: кто сегодня был автоботом, зачем стак добровольно вернулся в очередь и каким способом опять насосали.</p>
+  <nav><a href="../classifier-validation.html">валидация</a></nav><div class="eyebrow">research / deterministic story layer</div><div class="stage">${esc(DATASET_STAGE)}</div><h1>Какие катки у Песиков вообще бывают</h1>
+  <p class="lead">${DATASET_STAGE === "future stack smoke" ? "Два новых матча одной stack-сессии: это smoke detection wiring, не независимая validation и не доказательство качества." : `Выборка из ${rows.length} ${matchWord(rows.length)} ленты${OFFSET ? `, начиная с позиции ${OFFSET + 1}` : ""}.`} Категории ищут не «хорошо/плохо», а сюжет, который можно отдать голосу: кто сегодня был автоботом, зачем стак добровольно вернулся в очередь и каким способом опять насосали.</p>
   <section class="stats"><div class="stat"><b>${rows.length}</b><span>строк ленты, включая соло</span></div><div class="stat"><b>${wins}–${rows.length - wins}</b><span>исходы всех строк</span></div><div class="stat"><b>${catalog.length}</b><span>гипотез архетипов</span></div><div class="stat"><b>${classified}/${rows.length}</b><span>с выбранным сюжетом</span></div></section>
-  <div class="note"><b class="hot">Покрытие фактурой:</b> replay-пакет есть у ${deepCount} из ${rows.length} матчей; ещё ${rows.length - deepCount} пока проверяют только категории по табло, KDA и истории. Соло, часть стака и стак явно разделены.</div>
+  <div class="note"><b class="hot">Покрытие фактурой:</b> replay-пакет есть у ${deepCount} из ${rows.length} матчей; ещё ${rows.length - deepCount} пока проверяют только категории по табло, KDA и истории. Scope: ${manifest.scope.stack} стак · ${manifest.scope.partial} часть · ${manifest.scope.solo} соло. Facts v${manifest.factsVersions.join(", v") || "—"}.</div>
   <div class="note"><b class="hot">Главная находка:</b> самые интересные категории живут между матчами. «Реванш без перекура», повтор того же героя после позора и компенсация через одну игру дают голосу память и делают разбор частью вечера, а не изолированной карточкой.</div>
   <h2>Кандидаты в словарь классификатора</h2><section class="ideas">${catalogHtml}</section>
-  <h2>Все 20 матчей</h2><section class="matches-grid">${cards}</section>
-  <h2>Что пока нельзя честно определить</h2><div class="note">Пороги подобраны на этой же маленькой выборке, поэтому это галерея проверяемых гипотез. Следующий шаг — прогнать ещё 30–50 replay-матчей как holdout, измерить ложные срабатывания и только потом переносить классы в production.</div>
+  <h2>Все ${rows.length} ${matchWord(rows.length)}</h2><section class="matches-grid">${cards}</section>
+  <h2>Что этот отчёт доказывает</h2><div class="note">Это галерея наблюдений, а не ручная разметка качества. Dataset materialized ${esc(manifest.materializedAt)}, IDs sha256 ${manifest.matchIdsSha256.slice(0, 12)}…, classifier ${manifest.classifierVersion}. Выборка не была pre-registered до настройки правил, поэтому частота срабатываний не равна precision.</div>
   </main></body></html>`;
 }
 
 async function main(): Promise<void> {
   await mkdir(DETAILS_DIR, { recursive: true });
-  const feed = await fetchJson<{ matches: FeedMatch[] }>(FEED_URL);
-  const recent = feed.matches.slice(OFFSET, OFFSET + LIMIT);
+  const recent: FeedMatch[] = REUSE_DATASET
+    ? (JSON.parse(await readFile(path.join(OUT_DIR, "matches.json"), "utf8")) as Array<{
+        matchId: number;
+        win: boolean;
+        duration: number;
+        ours: FeedPlayer[];
+      }>).map((match) => ({ ...match, startTime: 0 }))
+    : (await fetchJson<{ matches: FeedMatch[] }>(FEED_URL)).matches
+        .filter((match) => !EXCLUDE_IDS.has(match.matchId))
+        .filter((match) => !SCOPE || (match.ours.length >= 3 ? "stack" : match.ours.length === 2 ? "partial" : "solo") === SCOPE)
+        .slice(OFFSET, OFFSET + LIMIT);
   const rows: Row[] = [];
 
   for (const [index, match] of recent.entries()) {
     process.stdout.write(`[${index + 1}/${recent.length}] ${match.matchId}... `);
     const api = await apiDetails(match.matchId);
+    // При пересборке замороженного датасета startTime восстанавливается из
+    // сохранённых OpenDota details, поэтому новые матчи в ленте не сдвигают holdout.
+    if (!match.startTime) match.startTime = api.start_time;
+    if (!match.duration) match.duration = api.duration;
     const sample = api.players.find((p) => match.ours.some((our) => our.steamId === p.account_id));
     if (!sample) throw new Error(`Не нашли ни одного нашего игрока в API матча ${match.matchId}`);
     const ourSide = sample.player_slot < 128 ? "radiant" as const : "dire" as const;
@@ -459,7 +513,7 @@ async function main(): Promise<void> {
   for (const row of rows) row.selectedClassifications = selectClassifications(row);
 
   const catalog = classificationCatalog(rows);
-  await writeFile(path.join(OUT_DIR, "matches.json"), JSON.stringify(rows.map((row) => ({
+  const savedRows = rows.map((row) => ({
     matchId: row.feed.matchId,
     win: row.feed.win,
     score: `${row.ourScore}:${row.enemyScore}`,
@@ -471,8 +525,42 @@ async function main(): Promise<void> {
     deep: row.deep,
     classifications: row.classifications,
     selectedClassifications: row.selectedClassifications,
-  })), null, 2));
-  await writeFile(path.join(OUT_DIR, "report.html"), html(rows, catalog));
+  }));
+  const factsVersions = [...new Set(rows.map((row) => (row.deep as { version?: number } | undefined)?.version).filter((value): value is number => value !== undefined))].sort();
+  let gitSha = "unknown";
+  try { gitSha = (await execFileAsync("git", ["rev-parse", "HEAD"])).stdout.trim(); } catch { /* report remains reproducible by ID hash */ }
+  let gitDirty = true;
+  try { gitDirty = Boolean((await execFileAsync("git", ["status", "--porcelain", "--untracked-files=no"])).stdout.trim()); } catch { /* keep conservative true */ }
+  const rulesHash = createHash("sha256");
+  for (const file of ["src/match-facts.ts", "src/config.ts", "tools/build-classifier-report.ts"]) {
+    rulesHash.update(file).update("\0").update(await readFile(file));
+  }
+  const starts = rows.map((row) => row.feed.startTime);
+  const existingManifest = REUSE_DATASET
+    ? await readFile(path.join(OUT_DIR, "manifest.json"), "utf8").then((text) => JSON.parse(text) as DatasetManifest).catch(() => undefined)
+    : undefined;
+  const manifest: DatasetManifest = {
+    classifierVersion: CLASSIFIER_VERSION,
+    materializedAt: existingManifest?.materializedAt ?? new Date().toISOString(),
+    generatedAt: new Date().toISOString(),
+    gitSha,
+    gitDirty,
+    rulesSourceSha256: rulesHash.digest("hex"),
+    matchCount: rows.length,
+    matchIdsSha256: createHash("sha256").update(rows.map((row) => row.feed.matchId).sort((a, b) => a - b).join(",")).digest("hex"),
+    oldestStartTime: Math.min(...starts),
+    newestStartTime: Math.max(...starts),
+    factsVersions,
+    scope: {
+      solo: rows.filter((row) => row.scope === "solo").length,
+      partial: rows.filter((row) => row.scope === "partial").length,
+      stack: rows.filter((row) => row.scope === "stack").length,
+    },
+    preRegisteredBeforeTuning: false,
+  };
+  await writeFile(path.join(OUT_DIR, "matches.json"), JSON.stringify(savedRows, null, 2));
+  await writeFile(path.join(OUT_DIR, "manifest.json"), JSON.stringify(manifest, null, 2));
+  await writeFile(path.join(OUT_DIR, "report.html"), html(rows, catalog, manifest));
   console.log(`\n${catalog.length} архетипов, отчёт: ${OUT_DIR}/report.html`);
 }
 
