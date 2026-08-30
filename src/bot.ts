@@ -188,7 +188,7 @@ async function handleCopiumCommand(
 /** Человекочитаемые подписи стадий разбора по реплею. */
 const V2_STAGE_TEXT: Record<string, string> = {
   locating: "🔎 Ищу реплей матча...",
-  requesting: "📡 Запрашиваю реплей у Valve (до минуты)...",
+  requesting: "📡 Жду, пока свежий реплей появится у Valve (до двух минут)...",
   downloading: "⬇️ Качаю реплей с серверов Valve (это 40-80 МБ)...",
   unpacking: "📦 Распаковываю...",
   parsing: "⚙️ Разбираю реплей: линии, тимфайты, тайминги...",

@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx src/test-formatter.ts",
     "test:match-facts": "tsx src/test-match-facts.ts",
+    "test:replay": "tsx src/test-replay.ts",
     "test:web-jobs": "tsx src/test-web-jobs.ts",
     "web": "tsx src/web/standalone.ts"
   },

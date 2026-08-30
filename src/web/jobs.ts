@@ -46,7 +46,7 @@ export async function markPosted(matchId: number): Promise<void> {
 const STAGE_TEXT: Record<JobStage, string> = {
   queued: "В очереди",
   locating: "Ищу реплей",
-  requesting: "Прошу Valve отдать реплей (это до минуты)",
+  requesting: "Жду, пока свежий реплей появится у Valve (до двух минут)",
   downloading: "Качаю реплей с серверов Valve",
   unpacking: "Распаковываю",
   parsing: "Разбираю реплей: линии, тимфайты, тайминги",

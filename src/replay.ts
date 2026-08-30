@@ -103,18 +103,54 @@ export interface ParsedMatch {
 }
 
 export class ReplayUnavailableError extends Error {
-  constructor(matchId: number) {
-    super(
-      `Не удалось получить ссылку на реплей матча ${matchId}. ` +
-        `Обычно так бывает со старыми матчами: Valve хранит реплеи ограниченное время.`,
-    );
+  constructor(message: string) {
+    super(message);
     this.name = "ReplayUnavailableError";
   }
+}
+
+const FRESH_MATCH_WINDOW_SEC = 24 * 60 * 60;
+
+/** Не ставит диагноз «удалён», если свежий реплей просто ещё готовится. */
+export function replayUnavailableError(
+  matchId: number,
+  startTime?: number,
+  locationAlreadyKnown = false,
+  nowSec = Math.floor(Date.now() / 1000),
+): ReplayUnavailableError {
+  const fresh = startTime !== undefined && nowSec - startTime <= FRESH_MATCH_WINDOW_SEC;
+  if (fresh && locationAlreadyKnown) {
+    return new ReplayUnavailableError(
+      `Ссылка на реплей матча ${matchId} уже появилась, но сам файл ещё не доступен на CDN Valve. ` +
+      "Попробуй снова через 1–2 минуты.",
+    );
+  }
+  if (fresh) {
+    return new ReplayUnavailableError(
+      `Реплей матча ${matchId} ещё не появился у Valve. Для свежего матча это нормально — ` +
+      "попробуй снова через 2–3 минуты.",
+    );
+  }
+  if (startTime !== undefined) {
+    return new ReplayUnavailableError(
+      `Реплей матча ${matchId} сейчас недоступен. Матч уже не свежий, поэтому Valve могла удалить файл.`,
+    );
+  }
+  return new ReplayUnavailableError(
+    `Реплей матча ${matchId} сейчас недоступен: он мог ещё не появиться, ` +
+    "а у старого матча файл мог быть удалён.",
+  );
 }
 
 interface ReplayLocation {
   cluster: number;
   salt: number;
+  startTime?: number;
+}
+
+interface ReplayState {
+  location: ReplayLocation | null;
+  startTime?: number;
 }
 
 // /matches и /request делят бесплатный лимит OpenDota с остальным приложением.
@@ -146,12 +182,15 @@ async function openDotaReplayRequest(url: string, init?: RequestInit): Promise<R
   throw new Error("OpenDota продолжает отвечать 429 после повторов");
 }
 
-async function readLocation(matchId: number): Promise<ReplayLocation | null> {
+async function readReplayState(matchId: number): Promise<ReplayState> {
   const res = await openDotaReplayRequest(`${OPENDOTA_API_BASE}/matches/${matchId}`);
   if (!res.ok) throw new Error(`OpenDota вернула ${res.status} для матча ${matchId}`);
-  const data = (await res.json()) as { cluster?: number; replay_salt?: number };
-  if (!data.cluster || !data.replay_salt) return null;
-  return { cluster: data.cluster, salt: data.replay_salt };
+  const data = (await res.json()) as { cluster?: number; replay_salt?: number; start_time?: number };
+  if (!data.cluster || !data.replay_salt) return { location: null, startTime: data.start_time };
+  return {
+    location: { cluster: data.cluster, salt: data.replay_salt, startTime: data.start_time },
+    startTime: data.start_time,
+  };
 }
 
 /**
@@ -163,19 +202,19 @@ export async function getReplayLocation(
   matchId: number,
   onWait: (attempt: number) => void = () => {},
 ): Promise<ReplayLocation> {
-  const known = await readLocation(matchId);
-  if (known) return known;
+  let state = await readReplayState(matchId);
+  if (state.location) return state.location;
 
   const req = await openDotaReplayRequest(`${OPENDOTA_API_BASE}/request/${matchId}`, { method: "POST" });
-  if (!req.ok) throw new ReplayUnavailableError(matchId);
+  if (!req.ok) throw replayUnavailableError(matchId, state.startTime);
 
   for (let attempt = 1; attempt <= SALT_POLL_ATTEMPTS; attempt++) {
     onWait(attempt);
     await new Promise((r) => setTimeout(r, SALT_POLL_INTERVAL_MS));
-    const loc = await readLocation(matchId);
-    if (loc) return loc;
+    state = await readReplayState(matchId);
+    if (state.location) return state.location;
   }
-  throw new ReplayUnavailableError(matchId);
+  throw replayUnavailableError(matchId, state.startTime);
 }
 
 export function buildReplayUrl(matchId: number, loc: ReplayLocation): string {
@@ -251,12 +290,10 @@ export async function fetchAndParseReplay(
     const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timer);
     if (!res.ok || !res.body) {
-      // 502/404 от CDN означают, что файл уже удалён: Valve хранит реплеи ограниченное время.
-      throw new Error(
-        res.status === 502 || res.status === 404
-          ? "Valve уже удалила реплей этого матча — он слишком старый"
-          : `CDN Valve вернул ${res.status}`,
-      );
+      if (res.status === 502 || res.status === 404) {
+        throw replayUnavailableError(matchId, loc.startTime, true);
+      }
+      throw new Error(`CDN Valve вернул ${res.status}`);
     }
     await pipeline(Readable.fromWeb(res.body as never), createWriteStream(archivePath));
 
