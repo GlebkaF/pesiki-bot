@@ -10,6 +10,13 @@ export interface Player {
   telegramUsername?: string; // Telegram @username (optional)
   displayName?: string;  // Custom display name (optional)
   botAttitude?: string;  // How the bot feels about this player (used in AI analysis prompts)
+  /** Устойчивые игровые привычки для контекстного разбора конкретного матча. */
+  analysisProfile?: {
+    notes: string[];
+    usualRoles?: Array<"core" | "support">;
+    /** Нужен голосу для согласования, модель не должна угадывать род по нику. */
+    grammaticalGender?: "masculine" | "feminine";
+  };
   birthday?: string;     // "YYYY-MM-DD"
 }
 
@@ -25,7 +32,19 @@ export const PLAYERS: Player[] = [
   { steamId: 167818283,  dotaName: "MOX",          telegramId: 55087818, telegramUsername: "alexkim87", botAttitude: "уважение + лёгкие подколы про экономию и жадность" },
   { steamId: 94014640,   dotaName: "Твердости Жана",  telegramId: 455412364, telegramUsername: "loothood", botAttitude: "замечает то, что другие не видят — тихий вклад, незаметная работа" },
   { steamId: 1869377945, dotaName: "zladey",       telegramId: 1152640, telegramUsername: "glebkaF", botAttitude: "дружеский троллинг, подначки про эмоции и тильт", birthday: "1993-11-10" },
-  { steamId: 126449680,  dotaName: "Marinad",      telegramId: 44083057, telegramUsername: "marinerius", botAttitude: "подчёркнуто вежливый, аккуратный тон", birthday: "1993-02-06" },
+  {
+    steamId: 126449680,
+    dotaName: "Marinad",
+    telegramId: 44083057,
+    telegramUsername: "marinerius",
+    botAttitude: "подчёркнуто вежливый, аккуратный тон",
+    analysisProfile: {
+      usualRoles: ["support"],
+      grammaticalGender: "feminine",
+      notes: ["Обычно играет на саппортах; выход на кора — необычное событие, которое стоит подсветить."],
+    },
+    birthday: "1993-02-06",
+  },
   { steamId: 92126977,   dotaName: "Stronk doto",  telegramId: 121460076, botAttitude: "подмечает вклад, который остальные не ценят" },
   { steamId: 40087920,   dotaName: "BoaOfDaeth",     telegramId: 278234366, botAttitude: "признаёт скилл сдержанно, без восторгов" },
   { steamId: 178693086,  dotaName: "Curiosity",    telegramId: 572881360, botAttitude: "кайфует от нестандартных пиков, подкалывает за дерзкие ходы", birthday: "1998-04-12" },

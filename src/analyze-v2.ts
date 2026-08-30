@@ -14,6 +14,8 @@ import { PLAYERS, getBotAttitude, type Player } from "./config.js";
 import { fetchAndParseReplay, toSteam32, type ParsedMatch, type ParsedPlayer, type ParseProgress } from "./replay.js";
 import { escapeHtml } from "./telegram-html.js";
 import { CHAT_SLANG, BANNED_WORDS, TONE_EXAMPLES, sanitizeAnalysis, lintAnalysis } from "./lexicon.js";
+import { generateMainVoiceAnalysis } from "./analyze-main-voice.js";
+import { collectMatchFacts, renderFactPacket } from "./match-facts.js";
 
 const OPENAI_MODEL = process.env.OPENAI_MODEL_V2 || process.env.OPENAI_MODEL || "gpt-5.6-sol";
 /** Адрес витрины. Пустой — значит ссылку в пост не добавляем. */
@@ -72,12 +74,12 @@ export const FORMATS = [
 
 export type FormatId = (typeof FORMATS)[number]["id"];
 
-interface OurPlayer {
+export interface OurPlayer {
   parsed: ParsedPlayer;
   config: Player;
 }
 
-interface MatchAnalysis {
+export interface MatchAnalysis {
   parsed: ParsedMatch;
   ours: OurPlayer[];
   weWon: boolean;
@@ -189,6 +191,9 @@ export async function mergeOfficialStats(parsed: ParsedMatch): Promise<ParsedMat
     const res = await fetchFn(`https://api.opendota.com/api/matches/${parsed.match_id}`);
     if (!res.ok) return parsed;
     const api = (await res.json()) as {
+      start_time?: number;
+      radiant_score?: number;
+      dire_score?: number;
       players?: {
         hero_id: number;
         kills: number;
@@ -205,6 +210,9 @@ export async function mergeOfficialStats(parsed: ParsedMatch): Promise<ParsedMat
         item_uses?: Record<string, number>;
       }[];
     };
+    parsed.start_time = api.start_time;
+    parsed.radiant_score = api.radiant_score;
+    parsed.dire_score = api.dire_score;
     if (!api.players?.length) return parsed;
 
     const heroes = await fetchHeroes();
@@ -391,8 +399,16 @@ export function buildContext(a: MatchAnalysis): string {
     })
     .join(", ");
 
-  const attitudes = a.ours
-    .map((o) => `  ${o.config.dotaName}: ${getBotAttitude(o.config.steamId) ?? "нейтрально"}`)
+  const playerProfiles = a.ours
+    .map((o) =>
+      [
+        `  ${o.config.dotaName}:`,
+        `    отношение и интонация: ${getBotAttitude(o.config.steamId) ?? "нейтрально"}`,
+        o.config.analysisProfile ? `    игровой контекст: ${o.config.analysisProfile.notes.join(" ")}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    )
     .join("\n");
 
   return `МАТЧ ${parsed.match_id}
@@ -425,8 +441,9 @@ ${teamBlock(a.ourTeam)}
 ПРОТИВНИКИ (${a.ourTeam === "radiant" ? "dire" : "radiant"}):
 ${teamBlock(a.ourTeam === "radiant" ? "dire" : "radiant")}
 
-ТВОЁ ОТНОШЕНИЕ К НАШИМ (подсказка тона, вслух не проговаривать):
-${attitudes || "  наших в матче не опознано"}`;
+КОНТЕКСТ НАШИХ И ТВОЁ ОТНОШЕНИЕ К НИМ (подсказка для интерпретации и тона,
+вслух как анкету не проговаривать):
+${playerProfiles || "  наших в матче не опознано"}`;
 }
 
 const BASE_RULES = `ЖЁСТКИЕ ПРАВИЛА:
@@ -517,14 +534,13 @@ export async function generateAnalysis(
 export async function analyzeMatchV2(
   matchId: number,
   onProgress: ParseProgress = () => {},
-  formatOverride?: FormatId,
 ): Promise<string> {
   const parsed = await mergeOfficialStats(await fetchAndParseReplay(matchId, onProgress));
   const analysis = analyseParsedMatch(parsed);
-  const format = pickFormat(matchId, formatOverride);
-  const text = await generateAnalysis(buildContext(analysis), format);
+  const facts = await collectMatchFacts(analysis);
+  const text = await generateMainVoiceAnalysis(renderFactPacket(facts));
 
-  return formatForTelegram(matchId, parsed, text, format.title);
+  return formatForTelegram(matchId, parsed, text, "Песик сбоку");
 }
 
 /** Готовое HTML-сообщение для Telegram: шапка с исходом и составом + сам разбор. */

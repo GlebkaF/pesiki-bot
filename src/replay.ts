@@ -79,6 +79,10 @@ export interface ParsedPlayer {
 
 export interface ParsedMatch {
   match_id: number;
+  /** Заполняются из OpenDota в mergeOfficialStats. */
+  start_time?: number;
+  radiant_score?: number;
+  dire_score?: number;
   duration_min: number;
   winner: "radiant" | "dire";
   game_mode: string;
