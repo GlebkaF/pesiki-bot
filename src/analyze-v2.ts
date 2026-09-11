@@ -262,9 +262,11 @@ export function formatForTelegram(
 ): string {
   const analysis = analyseParsedMatch(parsed);
   const ourNames = analysis.ours.map((o) => o.config.dotaName).join(", ");
+  const durationSeconds = Math.round(parsed.duration_min * 60);
+  const duration = `${Math.floor(durationSeconds / 60)}:${String(durationSeconds % 60).padStart(2, "0")}`;
   const header = [
     `🔬 <b>Разбор матча</b> <a href="https://www.opendota.com/matches/${matchId}">#${matchId}</a>`,
-    `${analysis.weWon ? "🏆 Победа" : "💀 Поражение"} · ${parsed.duration_min} мин · ${analysis.ours.length ? `наши: ${escapeHtml(ourNames)}` : "наших не опознано"}`,
+    `${analysis.weWon ? "🏆 Победа" : "💀 Поражение"} · ${duration} · ${analysis.ours.length ? `наши: ${escapeHtml(ourNames)}` : "наших не опознано"}`,
     `<i>формат: ${formatTitle} · данные из реплея</i>`,
     "",
     "",
