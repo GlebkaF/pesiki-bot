@@ -72,6 +72,9 @@ export class ApmStore {
       }
     })();
   }
+  allReplays(): ParsedMatch[] {
+    return (this.db.prepare("SELECT payload_json FROM parsed_replays ORDER BY start_time DESC").all() as {payload_json:string}[]).map(r=>JSON.parse(r.payload_json));
+  }
   history(accountId: number): ApmRecord[] {
     return this.db.prepare("SELECT * FROM player_match_apm WHERE account_id = ? AND version = ? ORDER BY start_time DESC, match_id DESC")
       .all(accountId, APM_VERSION) as ApmRecord[];

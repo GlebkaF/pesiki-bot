@@ -11,7 +11,7 @@ import { withAnalysisApm } from "./analysis-apm.js";
 import { getAppFetch } from "./proxy.js";
 import { fetchHeroes } from "./heroes.js";
 import { PLAYERS, PLAYER_IDS, type Player } from "./config.js";
-import { fetchPlayerProfile, fetchRecentMatches } from "./opendota.js";
+import { fetchPlayerProfile, fetchRecentMatches, savedRecentMatches } from "./opendota.js";
 import { fetchReplayForAnalysis, toSteam32, type ParsedMatch, type ParsedPlayer, type ParseProgress } from "./replay.js";
 import { escapeHtml } from "./telegram-html.js";
 import { generateMainVoiceAnalysis } from "./analyze-main-voice.js";
@@ -221,6 +221,8 @@ export async function findLastPartyMatch(): Promise<{
   playerId: number;
   playerName: string;
 } | null> {
+  const known = PLAYER_IDS.flatMap(playerId => savedRecentMatches(playerId).slice(0,1).map(match=>({match,playerId}))).sort((a,b)=>b.match.start_time-a.match.start_time)[0];
+  if (known) return {matchId:known.match.match_id,playerId:known.playerId,playerName:PLAYERS.find(p=>p.steamId===known.playerId)?.dotaName ?? String(known.playerId)};
   let latest: { matchId: number; startTime: number; playerId: number } | null = null;
   for (const playerId of PLAYER_IDS) {
     try {
@@ -233,11 +235,11 @@ export async function findLastPartyMatch(): Promise<{
     }
   }
   if (!latest) return null;
-  const profile = await fetchPlayerProfile(latest.playerId);
+  const profile = await fetchPlayerProfile(latest.playerId).catch(()=>null);
   return {
     matchId: latest.matchId,
     playerId: latest.playerId,
-    playerName: profile.profile?.personaname || String(latest.playerId),
+    playerName: profile?.profile?.personaname || String(latest.playerId),
   };
 }
 

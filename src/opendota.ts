@@ -1,4 +1,6 @@
-import { getAppFetch } from "./proxy.js";
+import { getApmStore } from "./apm-store.js";
+import { HERO_CATALOG } from "./hero-catalog.js";
+import { getAppFetch, isOpenDotaLimited } from "./proxy.js";
 
 const OPENDOTA_API_BASE = "https://api.opendota.com/api";
 
@@ -6,7 +8,7 @@ const OPENDOTA_API_BASE = "https://api.opendota.com/api";
 // OpenDota бесплатно даёт 60 запросов в минуту. Держим 50 — с запасом, но без
 // лишнего простоя: при 2 секундах сборка ленты по 14 игрокам занимала полминуты.
 const RATE_LIMIT_DELAY_MS = 1200;
-const MAX_RETRIES = 5;
+const MAX_RETRIES = 2;
 const INITIAL_RETRY_DELAY_MS = 5000; // Start with longer backoff
 
 // Cache TTL configuration (in milliseconds)
@@ -73,6 +75,7 @@ const FETCH_TIMEOUT_MS = 60000; // 60s - OpenDota can be slow
  * Fetches from OpenDota API with rate limiting and retry logic
  */
 async function fetchWithRateLimit(url: string, context: string): Promise<Response> {
+  if (isOpenDotaLimited()) throw new Error("OpenDota cooldown (429)");
   let lastError: Error | null = null;
   
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
@@ -102,15 +105,7 @@ async function fetchWithRateLimit(url: string, context: string): Promise<Respons
     }
     
     if (response.status === 429) {
-      // Rate limited - wait with exponential backoff
-      const retryDelay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt);
-      console.warn(
-        `Rate limited for ${context}, attempt ${attempt + 1}/${MAX_RETRIES}, ` +
-        `waiting ${retryDelay}ms before retry...`
-      );
-      await new Promise(resolve => setTimeout(resolve, retryDelay));
-      lastError = new Error(`OpenDota API rate limit (429) for ${context}`);
-      continue;
+      throw new Error(`OpenDota API rate limit (429) for ${context}`);
     }
     
     // Other errors - throw immediately
@@ -203,8 +198,16 @@ export async function fetchRecentMatches(
     url = `${OPENDOTA_API_BASE}/players/${accountId}/recentMatches`;
   }
 
-  const response = await fetchWithRateLimit(url, `recent matches for ${accountId}`);
-  const data = await response.json();
+  let data: RecentMatch[];
+  try {
+    const response = await fetchWithRateLimit(url, `recent matches for ${accountId}`);
+    data = await response.json();
+  } catch (error) {
+    if (cached) return cached;
+    const local = savedRecentMatches(accountId);
+    if (local.length) return local;
+    throw error;
+  }
   
   setCache(cacheKey, data, CACHE_TTL.MATCHES);
   return data;
@@ -335,4 +338,14 @@ export async function fetchMatchApi(matchId: number): Promise<MatchApi> {
   const data = (await response.json()) as MatchApi;
   setCache(cacheKey, data, CACHE_TTL.TOTALS);
   return data;
+}
+
+export function savedRecentMatches(accountId: number): RecentMatch[] {
+  const steamId = String(BigInt(accountId) + 76561197960265728n);
+  const heroIds = new Map(HERO_CATALOG.map(h=>[h.name.replace("npc_dota_hero_", ""),h.id]));
+  return getApmStore().allReplays().flatMap(m => {
+    const p=m.players.find(p=>p.steam_id===steamId);
+    if(!p || !m.start_time) return [];
+    return [{match_id:m.match_id,player_slot:p.team==="radiant"?0:128,radiant_win:m.winner==="radiant",start_time:m.start_time,duration:Math.round(m.duration_min*60),hero_id:heroIds.get(p.hero)??0,kills:p.kills,deaths:p.deaths,assists:p.assists}];
+  }).sort((a,b)=>b.start_time-a.start_time);
 }

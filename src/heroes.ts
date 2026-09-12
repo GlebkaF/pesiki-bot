@@ -1,3 +1,4 @@
+import { HERO_CATALOG } from "./hero-catalog.js";
 import { getAppFetch } from "./proxy.js";
 
 const OPENDOTA_API_BASE = "https://api.opendota.com/api";
@@ -20,22 +21,8 @@ export async function fetchHeroes(): Promise<Map<number, Hero>> {
     return heroesCache;
   }
 
-  const url = `${OPENDOTA_API_BASE}/heroes`;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30000);
-  const fetchFn = await getAppFetch();
-  const response = await fetchFn(url, { signal: controller.signal });
-  clearTimeout(timeout);
-
-  if (!response.ok) {
-    throw new Error(
-      `OpenDota API error: ${response.status} ${response.statusText}`
-    );
-  }
-
-  const heroes: Hero[] = await response.json();
-  heroesCache = new Map(heroes.map((hero) => [hero.id, hero]));
-
+  // The roster must remain available when the match API is rate limited.
+  heroesCache = new Map(HERO_CATALOG.map(hero => [hero.id, hero]));
   return heroesCache;
 }
 

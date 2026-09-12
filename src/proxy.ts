@@ -57,7 +57,7 @@ export async function getOpenAIFetch(): Promise<typeof fetch> {
 }
 
 /** Use for OpenDota, heroes, items APIs. */
-export async function getAppFetch(): Promise<typeof fetch> {
+async function getTransportFetch(): Promise<typeof fetch> {
   if (appFetch) return appFetch;
 
   const proxied = await getProxiedFetch();
@@ -82,4 +82,24 @@ export async function getAppFetch(): Promise<typeof fetch> {
   }) as typeof fetch;
 
   return appFetch;
+}
+
+let openDotaBlockedUntil = 0;
+export function isOpenDotaLimited(): boolean { return Date.now() < openDotaBlockedUntil; }
+/** Shared circuit breaker: do not turn an upstream 429 into minutes of retries. */
+export async function getAppFetch(): Promise<typeof fetch> {
+  const transport = await getTransportFetch();
+  return async (input, init) => {
+    const isOpenDota = new URL(String(input)).hostname === "api.opendota.com";
+    if (isOpenDota && Date.now() < openDotaBlockedUntil) return new Response("OpenDota cooldown", {status:429});
+    const response = await transport(input, {
+      ...init,
+      signal: init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(12000)]) : AbortSignal.timeout(12000),
+    });
+    if (isOpenDota && response.status === 429) {
+      openDotaBlockedUntil = Date.now() + 15 * 60_000;
+      console.warn("[OPENDOTA] 429: pausing API requests for 15 minutes; using saved data");
+    }
+    return response;
+  };
 }

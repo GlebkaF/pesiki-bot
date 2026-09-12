@@ -185,7 +185,7 @@ async function openDotaReplayRequest(url: string, init?: RequestInit): Promise<R
       release();
     }
     if (response.status !== 429) return response;
-    await new Promise((resolve) => setTimeout(resolve, 5_000 * 2 ** attempt));
+    throw new Error("OpenDota временно ограничивает запросы (429). Сохранённые матчи доступны; новые появятся после восстановления API.");
   }
   throw new Error("OpenDota продолжает отвечать 429 после повторов");
 }
