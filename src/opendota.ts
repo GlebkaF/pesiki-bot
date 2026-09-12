@@ -183,11 +183,12 @@ export async function fetchPlayerProfile(
  */
 export async function fetchRecentMatches(
   accountId: number,
-  days?: number
+  days?: number,
+  fresh = false,
 ): Promise<RecentMatch[]> {
   const cacheKey = `matches:${accountId}:${days ?? "recent"}`;
   const cached = getFromCache<RecentMatch[]>(cacheKey);
-  if (cached) {
+  if (cached && !fresh) {
     return cached;
   }
 

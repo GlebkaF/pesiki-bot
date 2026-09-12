@@ -5,7 +5,7 @@
  */
 import { execFile } from "node:child_process";
 import { createWriteStream } from "node:fs";
-import { mkdir, readFile, writeFile, rm, stat } from "node:fs/promises";
+import { mkdir, readFile, writeFile, rm, stat, rename } from "node:fs/promises";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { promisify } from "node:util";
@@ -17,6 +17,7 @@ const execFileAsync = promisify(execFile);
 
 const OPENDOTA_API_BASE = "https://api.opendota.com/api";
 const CACHE_DIR = process.env.REPLAY_CACHE_DIR || path.join(process.env.DATA_DIR || "data", "replays");
+const ARCHIVE_DIR = process.env.REPLAY_ARCHIVE_DIR || path.join(process.env.DATA_DIR || "data", "replay-archives");
 const PARSER_BIN = process.env.REPLAY_PARSER_BIN || "tools/replay-parser/replay-parser";
 const DOWNLOAD_TIMEOUT_MS = 5 * 60 * 1000;
 const PARSE_TIMEOUT_MS = 3 * 60 * 1000;
@@ -82,6 +83,7 @@ export interface ParsedPlayer {
 }
 
 export interface ParsedMatch {
+  parser_version?: string;
   apm_version?: string;
   apm_duration_seconds?: number;
   match_id: number;
@@ -271,7 +273,14 @@ async function fetchAndParseReplayInternal(
   onProgress: ParseProgress = () => {},
   requireApm = false,
 ): Promise<ParsedMatch> {
+  const stored = getApmStore().replay(matchId);
+  if (stored && (!requireApm || stored.apm_version === APM_VERSION)) {
+    getApmStore().save(stored);
+    onProgress("done", "из БД");
+    return stored;
+  }
   await mkdir(CACHE_DIR, { recursive: true });
+  await mkdir(ARCHIVE_DIR, { recursive: true });
   const parsedPath = path.join(CACHE_DIR, `${matchId}.json`);
 
   if (await fileExists(parsedPath)) {
@@ -288,27 +297,30 @@ async function fetchAndParseReplayInternal(
     }
   }
 
-  onProgress("locating");
-  const loc = await getReplayLocation(matchId, () => onProgress("requesting"));
-  const url = buildReplayUrl(matchId, loc);
-
-  const archivePath = path.join(CACHE_DIR, `${matchId}.dem.archive`);
+  const archivePath = path.join(ARCHIVE_DIR, `${matchId}.dem.archive`);
+  const downloadPath = path.join(ARCHIVE_DIR, `${matchId}.download`);
   const demPath = path.join(CACHE_DIR, `${matchId}.dem`);
+  let startTime = stored?.start_time;
 
   try {
-    onProgress("downloading");
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
-    // Реплеи лежат на CDN Valve и прокси для них не нужен.
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timer);
-    if (!res.ok || !res.body) {
-      if (res.status === 502 || res.status === 404) {
-        throw replayUnavailableError(matchId, loc.startTime, true);
-      }
-      throw new Error(`CDN Valve вернул ${res.status}`);
+    if (!(await fileExists(archivePath))) {
+      onProgress("locating");
+      const loc = await getReplayLocation(matchId, () => onProgress("requesting"));
+      startTime = loc.startTime;
+      onProgress("downloading");
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
+      try {
+        const res = await fetch(buildReplayUrl(matchId, loc), { signal: controller.signal });
+        if (!res.ok || !res.body) {
+          if (res.status === 502 || res.status === 404) throw replayUnavailableError(matchId, loc.startTime, true);
+          throw new Error(`CDN Valve вернул ${res.status}`);
+        }
+        await pipeline(Readable.fromWeb(res.body as never), createWriteStream(downloadPath));
+        // Only complete downloads become permanent archives.
+        await rename(downloadPath, archivePath);
+      } finally { clearTimeout(timer); }
     }
-    await pipeline(Readable.fromWeb(res.body as never), createWriteStream(archivePath));
 
     onProgress("unpacking");
     await decompress(archivePath, demPath);
@@ -321,15 +333,15 @@ async function fetchAndParseReplayInternal(
     const parsed = JSON.parse(stdout) as ParsedMatch;
     if (parsed.match_id && parsed.match_id !== matchId) throw new Error("Replay match ID mismatch");
     parsed.match_id = matchId;
-    parsed.start_time = loc.startTime;
+    if (startTime !== undefined) parsed.start_time = startTime;
     getApmStore().save(parsed);
 
     await writeFile(parsedPath, JSON.stringify(parsed));
     onProgress("done");
     return parsed;
   } finally {
-    // Сами реплеи не храним — это десятки мегабайт на матч.
-    await rm(archivePath, { force: true });
+    // Keep the original compressed replay permanently; remove only scratch files.
+    await rm(downloadPath, { force: true });
     await rm(demPath, { force: true });
   }
 }

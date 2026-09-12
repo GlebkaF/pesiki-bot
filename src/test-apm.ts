@@ -19,11 +19,14 @@ const match = {
 try {
  store.save(match); store.save(match);
  assert.equal(store.history(1869377945).length, 1, "retries must not duplicate history");
+ assert.equal(store.replay(100)?.players[0].hero, "invoker", "full parsed replay is archived");
  store.close(); store = new ApmStore(filename);
+ assert.equal(store.replay(100)?.players[0].kills, 1, "parsed data survives reopen");
  assert.equal(store.history(1869377945)[0].actions, 371, "survives reopen");
  store.save({...match, start_time:undefined});
  assert.equal(store.history(1869377945)[0].start_time, 1000, "unknown date must not erase known date");
  store.save({...match, apm_version:undefined});
+ assert.equal(store.replay(100)?.apm_version, APM_VERSION, "legacy cache does not replace richer replay");
  store.save({...match, players:match.players.map(p => ({...p, actions_per_min:999}))});
  assert.equal(store.history(1869377945)[0].apm, 185, "legacy and malformed records do not overwrite history");
  store.save({...match, match_id:101, players:match.players.map(p => ({...p, actions:0, actions_per_min:0}))});

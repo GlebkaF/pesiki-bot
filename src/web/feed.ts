@@ -13,7 +13,7 @@ import { getHeroNames } from "../heroes.js";
 const CACHE_PATH = path.join(process.env.DATA_DIR || "data", "feed.json");
 const FEED_TTL_MS = 10 * 60 * 1000;
 /** Как часто лента освежается сама, без участия посетителей. */
-const FEED_SYNC_INTERVAL_MS = 5 * 60 * 1000;
+const FEED_SYNC_INTERVAL_MS = 60 * 1000;
 const MATCHES_PER_PLAYER = 12;
 
 export interface FeedPlayer {
@@ -55,7 +55,7 @@ export async function rebuildFeed(): Promise<FeedMatch[]> {
 
   for (const player of PLAYERS) {
     try {
-      const matches = await fetchRecentMatches(player.steamId);
+      const matches = await fetchRecentMatches(player.steamId, undefined, true);
       for (const m of matches.slice(0, MATCHES_PER_PLAYER)) {
         const list = byMatch.get(m.match_id) ?? [];
         list.push({ m, player });

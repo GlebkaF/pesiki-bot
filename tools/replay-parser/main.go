@@ -108,6 +108,7 @@ type Teamfight struct {
 }
 
 type Output struct {
+	ParserVersion string `json:"parser_version"`
 	APMVersion string `json:"apm_version,omitempty"`
 	APMDuration float64 `json:"apm_duration_seconds,omitempty"`
 	MatchID    uint64      `json:"match_id"`
@@ -152,7 +153,7 @@ func main() {
 		panic(err)
 	}
 
-	out := &Output{}
+	out := &Output{ParserVersion: "pesiki-replay-v2"}
 	byHero := map[string]*Player{}
 	bySlot := map[int]*Player{}
 	var gameStart float64 = -1

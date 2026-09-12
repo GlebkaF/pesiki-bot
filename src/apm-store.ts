@@ -24,9 +24,28 @@ export class ApmStore {
       parsed_at INTEGER NOT NULL,
       PRIMARY KEY(match_id, account_id, version)
     );
-    CREATE INDEX IF NOT EXISTS apm_player_time ON player_match_apm(account_id, start_time);`);
+    CREATE INDEX IF NOT EXISTS apm_player_time ON player_match_apm(account_id, start_time);
+    CREATE TABLE IF NOT EXISTS parsed_replays (
+      match_id INTEGER PRIMARY KEY, start_time INTEGER, parsed_at INTEGER NOT NULL, payload_json TEXT NOT NULL
+    );`);
+  }
+  saveReplay(match: ParsedMatch): void {
+    if (!Number.isSafeInteger(match.match_id) || match.match_id <= 0 || !Array.isArray(match.players) || !match.players.length) return;
+    const existing = this.replay(match.match_id);
+    // A legacy cache must not overwrite a newer, richer parse.
+    if (existing?.apm_version && !match.apm_version) return;
+    const stored = {...match, start_time: match.start_time ?? existing?.start_time};
+    this.db.prepare(`INSERT INTO parsed_replays(match_id,start_time,parsed_at,payload_json) VALUES(?,?,?,?)
+      ON CONFLICT(match_id) DO UPDATE SET start_time=excluded.start_time, parsed_at=excluded.parsed_at, payload_json=excluded.payload_json
+      WHERE parsed_replays.payload_json != excluded.payload_json`)
+      .run(match.match_id, stored.start_time ?? null, Date.now(), JSON.stringify(stored));
+  }
+  replay(matchId: number): ParsedMatch | undefined {
+    const row = this.db.prepare("SELECT payload_json FROM parsed_replays WHERE match_id = ?").get(matchId) as {payload_json:string} | undefined;
+    return row ? JSON.parse(row.payload_json) as ParsedMatch : undefined;
   }
   save(match: ParsedMatch): void {
+    this.saveReplay(match);
     if (match.apm_version !== APM_VERSION || !Number.isSafeInteger(match.match_id) || match.match_id <= 0) return;
     const duration = match.apm_duration_seconds;
     if (!duration || !Number.isFinite(duration) || duration <= 0) return;
@@ -35,7 +54,10 @@ export class ApmStore {
       VALUES (@match_id, @account_id, @hero, @start_time, @actions, @duration_seconds, @apm, @version, @parsed_at)
       ON CONFLICT(match_id, account_id, version) DO UPDATE SET
       hero=excluded.hero, start_time=COALESCE(excluded.start_time, player_match_apm.start_time),
-      actions=excluded.actions, duration_seconds=excluded.duration_seconds, apm=excluded.apm, parsed_at=excluded.parsed_at`);
+      actions=excluded.actions, duration_seconds=excluded.duration_seconds, apm=excluded.apm, parsed_at=excluded.parsed_at
+      WHERE player_match_apm.actions != excluded.actions OR player_match_apm.apm != excluded.apm
+      OR player_match_apm.duration_seconds != excluded.duration_seconds OR player_match_apm.hero != excluded.hero
+      OR (excluded.start_time IS NOT NULL AND player_match_apm.start_time IS NOT excluded.start_time)`);
     this.db.transaction(() => {
       for (const p of match.players) {
         if (!/^\d+$/.test(p.steam_id)) continue;

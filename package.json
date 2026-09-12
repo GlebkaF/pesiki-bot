@@ -14,7 +14,8 @@
     "test:replay": "tsx src/test-replay.ts",
     "test:web-jobs": "tsx src/test-web-jobs.ts",
     "web": "tsx src/web/standalone.ts",
-    "test:apm": "tsx src/test-apm.ts"
+    "test:apm": "tsx src/test-apm.ts",
+    "test:replay-storage": "tsx src/test-replay-storage.ts"
   },
   "keywords": [
     "dota2",

@@ -2,7 +2,7 @@ import { fetchAndParseReplay } from "./replay.js";
 import { getApmStore } from "./apm-store.js";
 
 // Re-discovered by feed sync after restart. Fresh unavailable replays retry on the
-// next cycle after ten minutes; old demos are not endlessly requested from Valve.
+// next cycle after two minutes; old demos are not endlessly requested from Valve.
 const retryAfter = new Map<number, number>();
 const pending = new Map<number, number>();
 let running = false;
@@ -23,7 +23,7 @@ async function pump(): Promise<void> {
       const [matchId, startTime] = [...pending].sort((a, b) => b[1] - a[1])[0];
       pending.delete(matchId);
       if (getApmStore().hasMatch(matchId)) continue;
-      retryAfter.set(matchId, Date.now() + 10 * 60_000);
+      retryAfter.set(matchId, Date.now() + (startTime > Date.now()/1000 - 86400 ? 2 : 10) * 60_000);
       try {
         const parsed = await fetchAndParseReplay(matchId, () => {}, true);
         parsed.start_time ??= startTime;
