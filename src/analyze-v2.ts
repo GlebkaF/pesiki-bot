@@ -1,3 +1,4 @@
+import { withAnalysisApm } from "./analysis-apm.js";
 /**
  * /analyze v2 — разбор матча по данным собственного парсера реплеев.
  *
@@ -11,7 +12,7 @@ import { getAppFetch } from "./proxy.js";
 import { fetchHeroes } from "./heroes.js";
 import { PLAYERS, PLAYER_IDS, type Player } from "./config.js";
 import { fetchPlayerProfile, fetchRecentMatches } from "./opendota.js";
-import { fetchAndParseReplay, toSteam32, type ParsedMatch, type ParsedPlayer, type ParseProgress } from "./replay.js";
+import { fetchReplayForAnalysis, toSteam32, type ParsedMatch, type ParsedPlayer, type ParseProgress } from "./replay.js";
 import { escapeHtml } from "./telegram-html.js";
 import { generateMainVoiceAnalysis } from "./analyze-main-voice.js";
 import { collectMatchFacts, renderFactPacket } from "./match-facts.js";
@@ -245,7 +246,7 @@ export async function analyzeMatchV2(
   matchId: number,
   onProgress: ParseProgress = () => {},
 ): Promise<string> {
-  const parsed = await mergeOfficialStats(await fetchAndParseReplay(matchId, onProgress));
+  const parsed = await mergeOfficialStats(await fetchReplayForAnalysis(matchId, onProgress));
   const analysis = analyseParsedMatch(parsed);
   const facts = await collectMatchFacts(analysis);
   const text = await generateMainVoiceAnalysis(renderFactPacket(facts));
@@ -276,5 +277,5 @@ export function formatForTelegram(
     ? `\n\n📊 <a href="${SITE_URL}/match/${matchId}">Разбор целиком: линии, тимфайты, экономика</a>`
     : "";
 
-  return header + escapeHtml(text) + footer;
+  return header + escapeHtml(withAnalysisApm(text, parsed)) + footer;
 }

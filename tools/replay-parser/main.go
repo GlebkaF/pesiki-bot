@@ -28,6 +28,8 @@ type ItemBuy struct {
 }
 
 type Player struct {
+	Actions *int `json:"actions,omitempty"`
+	APM *int `json:"actions_per_min,omitempty"`
 	SteamID  uint64 `json:"steam_id,string"`
 	Name     string `json:"name"`
 	Hero     string `json:"hero"`
@@ -106,6 +108,8 @@ type Teamfight struct {
 }
 
 type Output struct {
+	APMVersion string `json:"apm_version,omitempty"`
+	APMDuration float64 `json:"apm_duration_seconds,omitempty"`
 	MatchID    uint64      `json:"match_id"`
 	DurationM  float64     `json:"duration_min"`
 	Winner     string      `json:"winner"`
@@ -155,6 +159,7 @@ func main() {
 	var lastTS, endTS float64
 	gameEnded := false
 	radiantWin := false
+	apm := newAPMCounter(p, func() bool { return gameStart >= 0 && !gameEnded })
 
 	p.Callbacks.OnCDemoFileInfo(func(m *dota.CDemoFileInfo) error {
 		gi := m.GetGameInfo().GetDota()
@@ -497,6 +502,9 @@ func main() {
 		lastTS = endTS
 	}
 	out.DurationM = round((lastTS-gameStart)/60, 2)
+	if gameEnded && endTS > gameStart {
+		apm.apply(out, byHero, endTS-gameStart)
+	}
 	out.Winner = "dire"
 	if radiantWin {
 		out.Winner = "radiant"

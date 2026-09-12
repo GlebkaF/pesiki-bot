@@ -3,7 +3,7 @@ FROM golang:1.23-alpine AS parser
 WORKDIR /parser
 COPY tools/replay-parser/go.mod tools/replay-parser/go.sum ./
 RUN go mod download
-COPY tools/replay-parser/main.go ./
+COPY tools/replay-parser/*.go ./
 RUN CGO_ENABLED=0 go build -o replay-parser .
 
 # Сборка TypeScript
@@ -12,6 +12,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
+RUN apk add --no-cache python3 make g++
 RUN npm ci
 
 COPY tsconfig.json ./
@@ -28,7 +29,9 @@ WORKDIR /app
 RUN apk add --no-cache zstd bzip2
 
 COPY package*.json ./
-RUN npm ci --only=production
+RUN apk add --no-cache --virtual .build-deps python3 make g++ \
+    && npm ci --omit=dev \
+    && apk del .build-deps
 
 COPY --from=builder /app/dist ./dist
 COPY --from=parser /parser/replay-parser ./tools/replay-parser/replay-parser

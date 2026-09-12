@@ -1,7 +1,10 @@
 import cron from "node-cron";
 import { config, PLAYER_IDS } from "./config.js";
-import { fetchRecentMatches, fetchPlayerProfile, fetchPlayerTotals } from "./opendota.js";
-import { calculateStats, type PlayerStats, type StatsPeriod } from "./stats.js";
+import { fetchRecentMatches, fetchPlayerProfile } from "./opendota.js";
+import { getApmStore } from "./apm-store.js";
+import { collectApm } from "./apm-collector.js";
+import { summarizeApm } from "./apm-stats.js";
+import { filterMatchesByPeriod, calculateStats, type PlayerStats, type StatsPeriod } from "./stats.js";
 import { createBot, sendMessage, setupCommands, startBot } from "./bot.js";
 import { formatStatsMessage, stripHtml } from "./formatter.js";
 import { startLfgPolling, getLfgStats } from "./lfg.js";
@@ -84,28 +87,6 @@ async function getPlayerProfileData(playerId: number): Promise<{ name: string; r
 }
 
 /**
- * Fetches average APM for a player from OpenDota totals
- * Note: APM is only available for parsed matches, so we fetch all-time average
- * (filtering by date returns empty data since recent matches are rarely parsed)
- * Returns undefined if APM data is not available
- */
-async function getPlayerAvgApm(playerId: number): Promise<number | undefined> {
-  try {
-    // Fetch all-time totals (no date filter) because APM requires parsed matches
-    const totals = await fetchPlayerTotals(playerId);
-    const apmTotal = totals.find((t) => t.field === "actions_per_min");
-    
-    if (apmTotal && apmTotal.n > 0) {
-      return Math.round(apmTotal.sum / apmTotal.n);
-    }
-    return undefined;
-  } catch (error) {
-    console.warn(`Failed to fetch APM for player ${playerId}:`, error);
-    return undefined;
-  }
-}
-
-/**
  * Returns number of days to fetch matches for based on period
  * Returns undefined to use default /recentMatches endpoint (faster, limited to 20)
  */
@@ -132,15 +113,18 @@ async function fetchAllPlayersStats(
   const statsPromises = PLAYER_IDS.map(async (playerId) => {
     console.log(`Fetching data for player ${playerId}...`);
     
-    // Fetch profile, matches, and APM in parallel
-    const [profileData, matches, avgApm] = await Promise.all([
+    // Fetch profile and matches; replay APM comes from our permanent history.
+    const [profileData, matches] = await Promise.all([
       getPlayerProfileData(playerId),
       fetchRecentMatches(playerId, days),
-      getPlayerAvgApm(playerId),
     ]);
     
+    const periodMatches = filterMatchesByPeriod(matches, period);
+    collectApm(periodMatches.map(m => ({ matchId: m.match_id, startTime: m.start_time })));
+    const apm = summarizeApm(getApmStore().history(playerId), periodMatches);
+    const avgApm = apm.avgApm;
     console.log(`  Player: ${profileData.name}, Found ${matches.length} recent matches, APM: ${avgApm ?? "N/A"}, Rank: ${profileData.rank ?? "N/A"}`);
-    return calculateStats(playerId, profileData.name, matches, period, avgApm, profileData.rank);
+    return { ...calculateStats(playerId, profileData.name, matches, period, avgApm, profileData.rank), apmMatches: apm.apmMatches };
   });
 
   return Promise.all(statsPromises);

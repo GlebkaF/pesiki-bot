@@ -280,8 +280,9 @@ function formatPlayerCard(
     metrics.push(`KDA: ${stats.avgKda}`);
   }
   if (stats.avgApm !== undefined) {
-    metrics.push(`APM: ${stats.avgApm}`);
+    metrics.push(`APM: ${stats.avgApm}${stats.apmMatches !== undefined ? ` (${stats.apmMatches}/${stats.totalMatches} матчей)` : ""}`);
   }
+  if (stats.avgApm === undefined && stats.apmMatches === 0 && stats.totalMatches > 0) metrics.push("APM: нет разобранных реплеев");
   if (metrics.length > 0) {
     lines.push(metrics.join(" • "));
   }

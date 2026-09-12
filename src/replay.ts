@@ -10,12 +10,13 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { promisify } from "node:util";
 import path from "node:path";
+import { getApmStore, APM_VERSION } from "./apm-store.js";
 import { getAppFetch } from "./proxy.js";
 
 const execFileAsync = promisify(execFile);
 
 const OPENDOTA_API_BASE = "https://api.opendota.com/api";
-const CACHE_DIR = process.env.REPLAY_CACHE_DIR || "data/replays";
+const CACHE_DIR = process.env.REPLAY_CACHE_DIR || path.join(process.env.DATA_DIR || "data", "replays");
 const PARSER_BIN = process.env.REPLAY_PARSER_BIN || "tools/replay-parser/replay-parser";
 const DOWNLOAD_TIMEOUT_MS = 5 * 60 * 1000;
 const PARSE_TIMEOUT_MS = 3 * 60 * 1000;
@@ -26,6 +27,8 @@ const SALT_POLL_ATTEMPTS = 12;
 const SALT_POLL_INTERVAL_MS = 10_000;
 
 export interface ParsedPlayer {
+  actions?: number;
+  actions_per_min?: number;
   steam_id: string;
   name: string;
   hero: string;
@@ -79,6 +82,8 @@ export interface ParsedPlayer {
 }
 
 export interface ParsedMatch {
+  apm_version?: string;
+  apm_duration_seconds?: number;
   match_id: number;
   /** Заполняются из OpenDota в mergeOfficialStats. */
   start_time?: number;
@@ -261,9 +266,10 @@ export interface ParseProgress {
 /**
  * Полный цикл: ссылка -> скачивание -> распаковка -> разбор. Результат кэшируется на диск.
  */
-export async function fetchAndParseReplay(
+async function fetchAndParseReplayInternal(
   matchId: number,
   onProgress: ParseProgress = () => {},
+  requireApm = false,
 ): Promise<ParsedMatch> {
   await mkdir(CACHE_DIR, { recursive: true });
   const parsedPath = path.join(CACHE_DIR, `${matchId}.json`);
@@ -271,8 +277,14 @@ export async function fetchAndParseReplay(
   if (await fileExists(parsedPath)) {
     const st = await stat(parsedPath);
     if (Date.now() - st.mtimeMs < PARSED_TTL_MS) {
-      onProgress("done", "из кэша");
-      return JSON.parse(await readFile(parsedPath, "utf8")) as ParsedMatch;
+      const cached = JSON.parse(await readFile(parsedPath, "utf8")) as ParsedMatch;
+      // Keep legacy cache usable; automatic collection upgrades it while Valve still has the demo.
+      if (!requireApm || cached.apm_version === APM_VERSION) {
+        cached.match_id = matchId;
+        getApmStore().save(cached);
+        onProgress("done", "из кэша");
+        return cached;
+      }
     }
   }
 
@@ -307,6 +319,10 @@ export async function fetchAndParseReplay(
       timeout: PARSE_TIMEOUT_MS,
     });
     const parsed = JSON.parse(stdout) as ParsedMatch;
+    if (parsed.match_id && parsed.match_id !== matchId) throw new Error("Replay match ID mismatch");
+    parsed.match_id = matchId;
+    parsed.start_time = loc.startTime;
+    getApmStore().save(parsed);
 
     await writeFile(parsedPath, JSON.stringify(parsed));
     onProgress("done");
@@ -321,4 +337,35 @@ export async function fetchAndParseReplay(
 /** SteamID64 из реплея -> Steam32, которым оперируют OpenDota и config.ts */
 export function toSteam32(steam64: string | number): number {
   return Number(BigInt(steam64) - 76561197960265728n);
+}
+
+// Share a parse across /analyze, automatic collection and /stats. Serialize downloads
+// to bound CPU/disk and avoid concurrent writes/deletion of the same demo.
+let parseQueue: Promise<unknown> = Promise.resolve();
+const inFlight = new Map<number, Promise<ParsedMatch>>();
+export function fetchAndParseReplay(matchId: number, onProgress: ParseProgress = () => {}, requireApm = false): Promise<ParsedMatch> {
+  if (!Number.isSafeInteger(matchId) || matchId <= 0) return Promise.reject(new Error("Invalid match ID"));
+  const existing = inFlight.get(matchId);
+  if (existing) return existing.then(result => {
+    if (requireApm && result.apm_version !== APM_VERSION) return fetchAndParseReplay(matchId, onProgress, true);
+    return result;
+  });
+  const task = parseQueue.catch(() => {}).then(() => fetchAndParseReplayInternal(matchId, onProgress, requireApm));
+  inFlight.set(matchId, task);
+  parseQueue = task;
+  void task.finally(() => { if (inFlight.get(matchId) === task) inFlight.delete(matchId); }).catch(() => {});
+  return task;
+}
+
+/** Try to upgrade a legacy cached replay without losing an otherwise usable analysis. */
+export async function fetchReplayForAnalysis(matchId: number, onProgress: ParseProgress = () => {}): Promise<ParsedMatch> {
+  const parsed = await fetchAndParseReplay(matchId, onProgress);
+  if (parsed.apm_version === APM_VERSION) return parsed;
+  getApmStore().hydrate(parsed);
+  if (parsed.players.some(p => p.actions_per_min !== undefined)) return parsed;
+  try { return await fetchAndParseReplay(matchId, onProgress, true); }
+  catch (error) {
+    console.warn(`[APM] upgrade ${matchId} unavailable:`, (error as Error).message);
+    return parsed;
+  }
 }

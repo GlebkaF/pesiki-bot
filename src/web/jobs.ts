@@ -1,3 +1,5 @@
+import { getApmStore } from "../apm-store.js";
+import { withAnalysisApm } from "../analysis-apm.js";
 /**
  * Очередь разборов матчей. Разбор идёт минуты (скачать реплей, распарсить, сходить в LLM),
  * поэтому HTTP-запрос его только ставит в очередь, а страница опрашивает прогресс.
@@ -8,7 +10,7 @@ import path from "node:path";
 import { analyseParsedMatch, mergeOfficialStats } from "../analyze-v2.js";
 import { generateMainVoiceAnalysis } from "../analyze-main-voice.js";
 import { collectMatchFacts, renderFactPacket } from "../match-facts.js";
-import { fetchAndParseReplay, type ParsedMatch } from "../replay.js";
+import { fetchReplayForAnalysis, type ParsedMatch } from "../replay.js";
 
 const ANALYSIS_DIR = path.join(process.env.DATA_DIR || "data", "analysis");
 export const CURRENT_ANALYSIS_ENGINE = "main-voice-facts-v7";
@@ -71,6 +73,10 @@ export async function getStoredAnalysis(matchId: number): Promise<StoredAnalysis
       await rm(file, { force: true });
       return null;
     }
+    if (stored.parsed && stored.text) {
+      getApmStore().hydrate(stored.parsed);
+      stored.text = withAnalysisApm(stored.text, stored.parsed);
+    }
     return stored as StoredAnalysis;
   } catch {
     return null;
@@ -112,14 +118,14 @@ function setStage(matchId: number, stage: JobStage, error?: string): void {
 async function runJob(matchId: number): Promise<void> {
   try {
     const parsed = await mergeOfficialStats(
-      await fetchAndParseReplay(matchId, (stage) => {
+      await fetchReplayForAnalysis(matchId, (stage) => {
         if (stage !== "done") setStage(matchId, stage as JobStage);
       }),
     );
     setStage(matchId, "writing");
 
     const facts = await collectMatchFacts(analyseParsedMatch(parsed));
-    const text = await generateMainVoiceAnalysis(renderFactPacket(facts));
+    const text = withAnalysisApm(await generateMainVoiceAnalysis(renderFactPacket(facts)), parsed);
 
     await mkdir(ANALYSIS_DIR, { recursive: true });
     await writeFile(

@@ -13,7 +13,8 @@
     "test:match-facts": "tsx src/test-match-facts.ts",
     "test:replay": "tsx src/test-replay.ts",
     "test:web-jobs": "tsx src/test-web-jobs.ts",
-    "web": "tsx src/web/standalone.ts"
+    "web": "tsx src/web/standalone.ts",
+    "test:apm": "tsx src/test-apm.ts"
   },
   "keywords": [
     "dota2",
@@ -26,6 +27,7 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
+    "better-sqlite3": "^11.10.0",
     "dotenv": "^16.6.1",
     "grammy": "^1.21.1",
     "node-cron": "^3.0.3",
@@ -33,6 +35,7 @@
     "undici": "^6.23.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^20.10.0",
     "@types/node-cron": "^3.0.11",
     "tsx": "^4.7.0",

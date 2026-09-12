@@ -14,6 +14,7 @@ export interface PlayerStats {
   winRate: number;
   heroes: HeroMatch[];
   avgApm?: number;
+  apmMatches?: number;
   avgKda?: number;
   rank?: number | null;  // Player's rank tier from OpenDota
   // Aggregated stats for nominations
@@ -181,7 +182,7 @@ function getPeriodEndTimestamp(period: StatsPeriod): number | null {
 /**
  * Filters matches to only include those from the specified period
  */
-function filterMatchesByPeriod(
+export function filterMatchesByPeriod(
   matches: RecentMatch[],
   period: StatsPeriod
 ): RecentMatch[] {

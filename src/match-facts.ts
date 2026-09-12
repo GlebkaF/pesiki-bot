@@ -10,7 +10,7 @@ import type { MatchAnalysis, OurPlayer } from "./analyze-v2.js";
 import type { ParsedPlayer } from "./replay.js";
 
 export type MatchShape = "big-comeback" | "comeback" | "throw" | "stomp" | "stomped" | "win" | "loss";
-export const MATCH_FACT_VERSION = 8 as const;
+export const MATCH_FACT_VERSION = 9 as const;
 
 export interface EconomyPoint {
   minute: number;
@@ -45,6 +45,7 @@ interface OurPlayerFacts {
   unusualRole: boolean;
   profileNotes: string[];
   kda: string;
+  apm?: number;
   csAt10: number;
   networthAt10: number;
   networthAt20: number;
@@ -343,6 +344,7 @@ function playerFacts(our: OurPlayer, team: ParsedPlayer[], history?: PlayerHisto
     unusualRole: Boolean(profile?.usualRoles?.length && !profile.usualRoles.includes(effectiveRole)),
     profileNotes: profile?.notes ?? [],
     kda: `${p.kills}/${p.deaths}/${p.assists}`,
+    apm: p.actions_per_min,
     csAt10: p.cs_at_10,
     networthAt10: p.networth_at_10,
     networthAt20: p.networth_at_20,

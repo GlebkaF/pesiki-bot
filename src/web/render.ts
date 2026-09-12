@@ -231,6 +231,7 @@ function playerRow(p: ParsedPlayer, ourTeam: string): string {
     <td><span class="dot ${p.team}"></span>${esc(p.hero)}<span class="pname">${esc(p.name)}</span>${isOur ? ' <span class="chip chip-deep">наш</span>' : ""}</td>
     <td class="mono">${esc(p.lane)}/${esc(p.lane_role.slice(0, 4))}</td>
     <td class="mono">${p.kills}/${p.deaths}/${p.assists}</td>
+    <td class="mono">${p.actions_per_min ?? "—"}</td>
     <td class="mono">${p.last_hits}<span class="sm">+${p.denies}</span></td>
     <td class="mono">${p.cs_at_10}</td>
     <td class="mono">${num(p.networth_final)}</td>
@@ -274,7 +275,7 @@ function parsedBlock(parsed: ParsedMatch): string {
         <br><span class="mono" style="color:var(--accent);font-weight:600">${adv.length && adv[adv.length - 1] > 0 ? "+" : ""}${adv.length ? num(adv[adv.length - 1]) : "—"}</span></div>
     </div>
     <div class="tablewrap"><table>
-      <thead><tr><th>игрок</th><th>линия</th><th>K/D/A</th><th>CS</th><th>CS@10</th><th>нетворс</th><th>урон</th><th>экономика</th></tr></thead>
+      <thead><tr><th>игрок</th><th>линия</th><th>K/D/A</th><th>APM</th><th>CS</th><th>CS@10</th><th>нетворс</th><th>урон</th><th>экономика</th></tr></thead>
       <tbody>${rows}</tbody></table></div>
     <h3>Тимфайты</h3><ul class="fights">${fights || '<li class="dim">крупных замесов не было</li>'}</ul>
   </div>`;

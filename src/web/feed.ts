@@ -5,6 +5,7 @@
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { collectApm } from "../apm-collector.js";
 import { PLAYERS } from "../config.js";
 import { fetchRecentMatches, type RecentMatch } from "../opendota.js";
 import { getHeroNames } from "../heroes.js";
@@ -97,6 +98,7 @@ export async function rebuildFeed(): Promise<FeedMatch[]> {
 
   await mkdir(path.dirname(CACHE_PATH), { recursive: true });
   await writeFile(CACHE_PATH, JSON.stringify({ updatedAt: Date.now(), matches } satisfies FeedCache));
+  collectApm(matches);
   console.log(`[FEED] собрано ${matches.length} матчей`);
   return matches;
 }
