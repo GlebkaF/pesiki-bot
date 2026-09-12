@@ -1,3 +1,4 @@
+import { getApmStore } from "../apm-store.js";
 /**
  * HTTP-витрина матчей стака. Работает рядом с ботом в том же процессе.
  * Никаких фреймворков: маршрутов мало, а лишняя зависимость на сервере — лишний риск.
@@ -95,7 +96,8 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     const { matches } = await getFeed();
     const feedMatch: FeedMatch | undefined = matches.find((m) => m.matchId === matchId);
     const stored = await getStoredAnalysis(matchId);
-    return send(res, 200, renderMatch(matchId, feedMatch, stored, getJob(matchId), await matchOverview(matchId)));
+    const parsed = stored?.parsed ?? getApmStore().replay(matchId);
+    return send(res, 200, renderMatch(matchId, feedMatch, stored, getJob(matchId), parsed ? null : await matchOverview(matchId), parsed));
   }
 
   const analyzeApi = p.match(/^\/api\/analyze\/(\d+)$/);

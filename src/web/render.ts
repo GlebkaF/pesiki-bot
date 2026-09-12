@@ -327,7 +327,9 @@ export function renderMatch(
   stored: StoredAnalysis | null,
   job: Job | undefined,
   api?: ApiOverview | null,
+  savedParsed?: ParsedMatch,
 ): string {
+  const parsed = stored?.parsed ?? savedParsed;
   const head = feedMatch
     ? `<p class="sub">${esc(dateLabel(feedMatch.startTime))} · <span class="mono">${dur(feedMatch.duration)}</span> · ${feedMatch.win ? '<span class="good">победа</span>' : '<span class="bad">поражение</span>'} · наши: ${esc(feedMatch.ours.map((o) => o.name).join(", "))}</p>`
     : `<p class="sub">Матча нет в ленте — можно разобрать по номеру</p>`;
@@ -351,7 +353,7 @@ export function renderMatch(
       <a class="btn ghost" href="https://www.opendota.com/matches/${matchId}" target="_blank" rel="noopener">OpenDota</a>
     </div>
     ${analysisBlock}
-    ${stored ? parsedBlock(stored.parsed) : ""}
+    ${parsed ? parsedBlock(parsed) : ""}
     ${
       api
         ? `<div class="card"><h2>Составы и итоги</h2>
@@ -366,7 +368,7 @@ export function renderMatch(
       !stored
         ? api && !api.replayAvailable
           ? '<div class="note">Ссылки на реплей пока нет. У свежих матчей она обычно просто ещё не появилась: бот попросит её у Valve и подождёт до двух минут. У старых матчей файл уже мог быть удалён.</div>'
-          : '<div class="note">Реплей уже доступен — разбор пойдёт сразу.</div>'
+          : parsed ? '<div class="note">Данные реплея уже сохранены.</div>' : '<div class="note">Доступность реплея проверится при запуске разбора.</div>'
         : ""
     }`;
 
