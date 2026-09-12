@@ -29,3 +29,13 @@ func TestAPMUnavailable(t *testing.T) {
 		}
 	}
 }
+
+func TestAPMRosterSpelling(t *testing.T) {
+	players := map[string]*Player{"npc_dota_hero_antimage": {Team: "dire"}, "npc_dota_hero_queenofpain": {Team: "radiant"}}
+	c := &apmCounter{seen: true, counts: map[string]int{"npc_dota_hero_anti_mage": 200, "npc_dota_hero_queen_of_pain": 300}}
+	out := &Output{}
+	c.apply(out, players, 60)
+	if out.APMVersion == "" || *players["npc_dota_hero_antimage"].APM != 200 || *players["npc_dota_hero_queenofpain"].APM != 300 {
+		t.Fatal("class spelling must resolve to metadata roster")
+	}
+}

@@ -50,18 +50,33 @@ func (c *apmCounter) apply(out *Output, players map[string]*Player, duration flo
 	if !c.seen || c.unresolved || duration <= 0 {
 		return
 	}
-	// Unknown hero aliases must not silently become somebody else's zero APM.
-	for hero := range c.counts {
-		if players[hero] == nil || players[hero].Team == "" {
-			return
-		}
-	}
-	out.APMVersion, out.APMDuration = apmVersion, duration
+	// Entity classes use AntiMage/QueenOfPain, demo metadata uses antimage/queenofpain.
+	// Resolve punctuation differences against the actual roster; never guess a slot.
+	normalized := map[string]*Player{}
 	for hero, player := range players {
 		if player.Team == "" {
 			continue
 		}
-		actions := c.counts[hero]
+		key := strings.ReplaceAll(hero, "_", "")
+		if normalized[key] != nil {
+			return
+		}
+		normalized[key] = player
+	}
+	counts := map[*Player]int{}
+	for hero, count := range c.counts {
+		player := normalized[strings.ReplaceAll(hero, "_", "")]
+		if player == nil {
+			return
+		}
+		counts[player] += count
+	}
+	out.APMVersion, out.APMDuration = apmVersion, duration
+	for _, player := range players {
+		if player.Team == "" {
+			continue
+		}
+		actions := counts[player]
 		apm := int(math.Floor(float64(actions) * 60 / duration))
 		player.Actions, player.APM = &actions, &apm
 	}
