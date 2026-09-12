@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { withAnalysisApm } from "./analysis-apm.js";
 /**
  * /analyze v2 — разбор матча по данным собственного парсера реплеев.
@@ -222,6 +224,13 @@ export async function findLastPartyMatch(): Promise<{
   playerName: string;
 } | null> {
   const known = PLAYER_IDS.flatMap(playerId => savedRecentMatches(playerId).slice(0,1).map(match=>({match,playerId}))).sort((a,b)=>b.match.start_time-a.match.start_time)[0];
+  const feed = await readFile(path.join(process.env.DATA_DIR || "data", "feed.json"), "utf8")
+    .then(raw => JSON.parse(raw) as {matches: {matchId:number;startTime:number;ours:{steamId:number;name:string}[]}[]})
+    .catch(()=>null);
+  const newest = feed?.matches.filter(m=>m.ours.length).sort((a,b)=>b.startTime-a.startTime)[0];
+  if (newest && (!known || newest.startTime > known.match.start_time)) {
+    return {matchId:newest.matchId,playerId:newest.ours[0].steamId,playerName:newest.ours[0].name};
+  }
   if (known) return {matchId:known.match.match_id,playerId:known.playerId,playerName:PLAYERS.find(p=>p.steamId===known.playerId)?.dotaName ?? String(known.playerId)};
   let latest: { matchId: number; startTime: number; playerId: number } | null = null;
   for (const playerId of PLAYER_IDS) {
