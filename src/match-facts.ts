@@ -10,7 +10,7 @@ import type { MatchAnalysis, OurPlayer } from "./analyze-v2.js";
 import type { ParsedPlayer } from "./replay.js";
 
 export type MatchShape = "big-comeback" | "comeback" | "throw" | "stomp" | "stomped" | "win" | "loss";
-export const MATCH_FACT_VERSION = 7 as const;
+export const MATCH_FACT_VERSION = 8 as const;
 
 export interface EconomyPoint {
   minute: number;
@@ -52,7 +52,6 @@ interface OurPlayerFacts {
   heroDamage: number;
   towerDamage: number;
   damageTaken: number;
-  healing: number;
   teamfightParticipationPct?: number;
   deathsAt: number[];
   deathTimelineReliable: boolean;
@@ -299,13 +298,14 @@ function topRelation(values?: Record<string, number>): string | undefined {
 }
 
 function ranksFor(player: ParsedPlayer, team: ParsedPlayer[]): string[] {
+  // healing смешивает получателей (включая себя), поэтому не даём голосу ни
+  // сумму, ни лидерство: из них нельзя вывести лечение союзников или самолечение.
   const metrics: Array<[string, (p: ParsedPlayer) => number]> = [
     ["урон по героям", (p) => p.hero_damage],
     ["урон по башням", (p) => p.tower_damage],
     ["итоговая голда", (p) => p.networth_final],
     ["крипы", (p) => p.last_hits],
     ["полученный урон", (p) => p.damage_taken],
-    ["лечение", (p) => p.healing],
     ["смерти", (p) => p.deaths],
   ];
   return metrics
@@ -350,7 +350,6 @@ function playerFacts(our: OurPlayer, team: ParsedPlayer[], history?: PlayerHisto
     heroDamage: p.hero_damage,
     towerDamage: p.tower_damage,
     damageTaken: p.damage_taken,
-    healing: p.healing,
     teamfightParticipationPct:
       p.teamfight_participation === undefined ? undefined : Math.round(p.teamfight_participation * 100),
     deathsAt: deathTimes,

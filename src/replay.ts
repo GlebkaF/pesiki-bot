@@ -48,6 +48,7 @@ export interface ParsedPlayer {
   networth_by_minute: number[];
   hero_damage: number;
   damage_taken: number;
+  /** Сумма HEAL от героя без разделения получателей, включая себя. Не лечение союзников. */
   healing: number;
   tower_damage: number;
   gold_lost_to_death: number;
