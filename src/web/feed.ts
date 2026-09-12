@@ -11,9 +11,9 @@ import { fetchRecentMatches, type RecentMatch } from "../opendota.js";
 import { getHeroNames } from "../heroes.js";
 
 const CACHE_PATH = path.join(process.env.DATA_DIR || "data", "feed.json");
-const FEED_TTL_MS = 15 * 60 * 1000;
+const FEED_TTL_MS = 60 * 60 * 1000;
 /** Как часто лента освежается сама, без участия посетителей. */
-const FEED_SYNC_INTERVAL_MS = 15 * 60 * 1000;
+const FEED_SYNC_INTERVAL_MS = 60 * 60 * 1000;
 const MATCHES_PER_PLAYER = 12;
 
 export interface FeedPlayer {
