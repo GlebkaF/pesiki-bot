@@ -92,7 +92,7 @@ export async function getAppFetch(): Promise<typeof fetch> {
   return async (input, init) => {
     const isOpenDota = new URL(String(input)).hostname === "api.opendota.com";
     if (isOpenDota && Date.now() < openDotaBlockedUntil) return new Response("OpenDota cooldown", {status:429});
-    const response = await transport(input, {
+    const response = await (isOpenDota ? globalThis.fetch : transport)(input, {
       ...init,
       signal: init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(12000)]) : AbortSignal.timeout(12000),
     });
