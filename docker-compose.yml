@@ -24,3 +24,6 @@ services:
 
 volumes:
   pesiki-data:
+    # Existing production volume. Compose must neither rename nor delete it.
+    external: true
+    name: pesiki-bot_pesiki-data
