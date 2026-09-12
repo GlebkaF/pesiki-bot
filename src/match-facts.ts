@@ -1,3 +1,4 @@
+import { isOpenDotaLimited } from "./proxy.js";
 /**
  * Детерминированная редакторская фактура матча.
  *
@@ -382,6 +383,8 @@ async function collectHistory(a: MatchAnalysis): Promise<{
   stackEnteringStreak: string;
   recentStackRecord: string;
 }> {
+  const unavailable = {available:false,players:new Map<number, PlayerHistory>(),previousStackMatches:[] as PreviousStackMatch[],stackEnteringStreak:"история недоступна",recentStackRecord:"история недоступна"};
+  if (isOpenDotaLimited()) return unavailable;
   let targetStart = a.parsed.start_time;
   if (!targetStart) {
     try {
@@ -404,6 +407,7 @@ async function collectHistory(a: MatchAnalysis): Promise<{
     const previous = (await fetchRecentMatches(our.config.steamId))
       .filter((m) => m.match_id !== a.parsed.match_id && m.start_time < targetStart)
       .slice(0, 20);
+    if (isOpenDotaLimited()) return unavailable;
     rawByPlayer.set(our.config.steamId, previous);
   }
 

@@ -8,7 +8,7 @@ const OPENDOTA_API_BASE = "https://api.opendota.com/api";
 // OpenDota бесплатно даёт 60 запросов в минуту. Держим 50 — с запасом, но без
 // лишнего простоя: при 2 секундах сборка ленты по 14 игрокам занимала полминуты.
 const RATE_LIMIT_DELAY_MS = 1200;
-const MAX_RETRIES = 2;
+const MAX_RETRIES = 1;
 const INITIAL_RETRY_DELAY_MS = 5000; // Start with longer backoff
 
 // Cache TTL configuration (in milliseconds)

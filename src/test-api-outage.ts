@@ -7,7 +7,7 @@ process.env.DATA_DIR=dir;
 process.env.APM_DB_PATH=path.join(dir,'stats.sqlite');
 process.env.HTTPS_PROXY='';process.env.HTTP_PROXY='';
 let calls=0;
-globalThis.fetch=async()=>{calls++;return new Response('rate limited',{status:429});};
+globalThis.fetch=async()=>{calls++;if(process.env.TEST_NETWORK_FAILURE) throw new Error('test network unavailable');return new Response('rate limited',{status:429});};
 const {getApmStore}=await import('./apm-store.js');
 const store=getApmStore();
 try{

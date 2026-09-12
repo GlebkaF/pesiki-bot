@@ -92,10 +92,19 @@ export async function getAppFetch(): Promise<typeof fetch> {
   return async (input, init) => {
     const isOpenDota = new URL(String(input)).hostname === "api.opendota.com";
     if (isOpenDota && Date.now() < openDotaBlockedUntil) return new Response("OpenDota cooldown", {status:429});
-    const response = await (isOpenDota ? globalThis.fetch : transport)(input, {
+    let response: Response;
+    try {
+    response = await (isOpenDota ? globalThis.fetch : transport)(input, {
       ...init,
       signal: init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(12000)]) : AbortSignal.timeout(12000),
     });
+    } catch (error) {
+      if (isOpenDota) {
+        openDotaBlockedUntil = Date.now() + 2 * 60_000;
+        console.warn("[OPENDOTA] network unavailable: using saved data for 2 minutes");
+      }
+      throw error;
+    }
     if (isOpenDota && response.status === 429) {
       openDotaBlockedUntil = Date.now() + 15 * 60_000;
       console.warn("[OPENDOTA] 429: pausing API requests for 15 minutes; using saved data");
