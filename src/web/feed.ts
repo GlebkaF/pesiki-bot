@@ -135,13 +135,14 @@ export async function getFeed(force = false): Promise<{ matches: FeedMatch[]; up
   if (!force) {
     try {
       const cached = JSON.parse(await readFile(CACHE_PATH, "utf8")) as FeedCache;
-      if (!cached.matches.length) throw new Error("Empty feed cache");
-      if (Date.now() - cached.updatedAt >= FEED_TTL_MS) refreshInBackground();
+      if (!cached.matches.length && process.env.FEED_SYNC_DISABLED!=="1") throw new Error("Empty feed cache");
+      if (process.env.FEED_SYNC_DISABLED!=="1" && Date.now() - cached.updatedAt >= FEED_TTL_MS) refreshInBackground();
       return cached;
     } catch {
       // кэша нет — придётся собрать прямо сейчас
     }
   }
+  if(process.env.FEED_SYNC_DISABLED==="1")return {matches:[],updatedAt:0};
   return { matches: await rebuildFeed(), updatedAt: Date.now() };
 }
 

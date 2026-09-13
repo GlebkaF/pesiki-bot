@@ -7,6 +7,8 @@ import path from "node:path";
 import type { ParsedMatch } from "./replay.js";
 
 export const APM_VERSION = "spectator-orders-v1";
+const analyticsRank=(v:unknown)=>v==="combat-log-v2"?2:v==="combat-log-v1"?1:0;
+const parserRank=(v:unknown)=>typeof v==="string"?Number(/^pesiki-replay-v(\d+)$/.exec(v)?.[1]??0):0;
 export interface ProfileRoster {
   match_id:number; start_time?:number; duration_min:number; winner:string;
   players:{steam_id:string;hero:string;team:string}[];
@@ -49,16 +51,18 @@ export class ApmStore {
       FROM parsed_replays r, json_each(r.payload_json,'$.players') p
       WHERE NOT EXISTS (SELECT 1 FROM profile_rosters s WHERE s.match_id=r.match_id) GROUP BY r.match_id`);
   }
-  saveReplay(match: ParsedMatch): void {
-    if (!Number.isSafeInteger(match.match_id) || match.match_id <= 0 || !Array.isArray(match.players) || !match.players.length) return;
+  saveReplay(match: ParsedMatch): boolean {
+    return this.db.transaction(()=>{
+    if (!Number.isSafeInteger(match.match_id) || match.match_id <= 0 || !Array.isArray(match.players) || !match.players.length) return false;
     const existing = this.replay(match.match_id);
     // A legacy cache must not overwrite a newer, richer parse.
-    if (existing?.apm_version && !match.apm_version) return;
-    const stored = {...match, start_time: match.start_time ?? existing?.start_time, players: match.players.map(p => {
-      const old = existing?.players.find(x => x.steam_id === p.steam_id);
+    if (existing?.apm_version && !match.apm_version) return false;
+    if (existing && (analyticsRank(existing.analytics_version)>analyticsRank(match.analytics_version) || parserRank(existing.parser_version)>parserRank(match.parser_version))) return false;
+    const stored = {...match, analytics_version:match.analytics_version??existing?.analytics_version, start_time: match.start_time ?? existing?.start_time, players: match.players.map(p => {
+      const old = existing?.players.find(x => x.steam_id === p.steam_id && x.hero===p.hero && x.team===p.team);
       const counts = validActionCounts(p.action_counts, p.actions ?? -1) ? p.action_counts :
         old?.actions === p.actions && validActionCounts(old?.action_counts,p.actions ?? -1) ? old!.action_counts : undefined;
-      return {...p,action_counts:counts};
+      return {...p,action_counts:counts,combat_details:p.combat_details??old?.combat_details};
     })};
     this.db.prepare(`INSERT INTO parsed_replays(match_id,start_time,parsed_at,payload_json) VALUES(?,?,?,?)
       ON CONFLICT(match_id) DO UPDATE SET start_time=excluded.start_time, parsed_at=excluded.parsed_at, payload_json=excluded.payload_json
@@ -68,13 +72,16 @@ export class ApmStore {
       players:stored.players.map(p=>({steam_id:p.steam_id,hero:p.hero,team:p.team}))};
     this.db.prepare(`INSERT INTO profile_rosters VALUES(?,?) ON CONFLICT(match_id) DO UPDATE SET payload_json=excluded.payload_json
       WHERE profile_rosters.payload_json != excluded.payload_json`).run(match.match_id,JSON.stringify(roster));
+    return true;
+    }).immediate();
   }
   replay(matchId: number): ParsedMatch | undefined {
     const row = this.db.prepare("SELECT payload_json FROM parsed_replays WHERE match_id = ?").get(matchId) as {payload_json:string} | undefined;
     return row ? JSON.parse(row.payload_json) as ParsedMatch : undefined;
   }
   save(match: ParsedMatch): void {
-    this.saveReplay(match);
+    this.db.transaction(()=>{
+    if(!this.saveReplay(match))return;
     if (match.apm_version !== APM_VERSION || !Number.isSafeInteger(match.match_id) || match.match_id <= 0) return;
     const duration = match.apm_duration_seconds;
     if (!duration || !Number.isFinite(duration) || duration <= 0) return;
@@ -102,6 +109,7 @@ export class ApmStore {
           ON CONFLICT(match_id,account_id,version) DO UPDATE SET counts_json=excluded.counts_json`).run(match.match_id, account, APM_VERSION, JSON.stringify(p.action_counts));
       }
     })();
+    }).immediate();
   }
   /** Add offline parser detail without overwriting concurrent official-stat enrichment. */
   mergeReplayActions(parsed: ParsedMatch): void {
@@ -125,6 +133,27 @@ export class ApmStore {
       });
       this.save({...latest,players,start_time:latest.start_time ?? parsed.start_time,apm_version:parsed.apm_version,apm_duration_seconds:parsed.apm_duration_seconds});
     }).immediate();
+  }
+  /** Upgrade analytics while preserving the latest official enrichment and all APM values. */
+  mergeReplayAnalytics(parsed: ParsedMatch): void {
+    if (!analyticsRank(parsed.analytics_version) || !Array.isArray(parsed.players) || !parsed.players.length || !parsed.players.every(p=>p.combat_details?.version===parsed.analytics_version)) throw Error("Missing replay analytics");
+    this.db.transaction(()=>{
+      const previous=this.replay(parsed.match_id);
+      if(previous&&(analyticsRank(previous.analytics_version)>analyticsRank(parsed.analytics_version)||parserRank(previous.parser_version)>parserRank(parsed.parser_version)))throw Error("Analytics downgrade rejected");
+      this.mergeReplayActions(parsed);
+      const latest=this.replay(parsed.match_id)!;
+      this.saveReplay({...latest,analytics_version:parsed.analytics_version,parser_version:parsed.parser_version,
+        players:latest.players.map(p=>({...p,combat_details:parsed.players.find(q=>q.steam_id===p.steam_id&&q.hero===p.hero&&q.team===p.team)!.combat_details}))});
+    }).immediate();
+  }
+  economyHistory(accountId:number): {matchId:number;start:number|null;hero:string;mode:string;duration:number;items:string;networth10:number|null;networth20:number|null}[] {
+    const steam=String(BigInt(accountId)+76561197960265728n);
+    return this.db.prepare(`SELECT r.match_id matchId,r.start_time start,json_extract(p.value,'$.hero') hero,
+      json_extract(r.payload_json,'$.game_mode') mode,json_extract(r.payload_json,'$.duration_min') duration,
+      coalesce(json_extract(p.value,'$.item_timings'),'[]') items,
+      json_extract(p.value,'$.networth_by_minute[9]') networth10,json_extract(p.value,'$.networth_by_minute[19]') networth20
+      FROM parsed_replays r,json_each(r.payload_json,'$.players') p WHERE json_extract(p.value,'$.steam_id')=?
+      ORDER BY r.start_time DESC,r.match_id DESC LIMIT 250`).all(steam) as ReturnType<ApmStore["economyHistory"]>;
   }
   saveResults(accountId: number, matches: RecentMatch[], source: "opendota" | "feed" = "opendota"): void {
     const insert = this.db.prepare(`INSERT INTO player_match_results VALUES(?,?,?) ON CONFLICT(match_id,account_id) DO UPDATE SET payload_json=excluded.payload_json

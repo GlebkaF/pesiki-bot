@@ -28,16 +28,17 @@ type ItemBuy struct {
 }
 
 type Player struct {
-	ActionCounts map[string]int `json:"action_counts"`
-	Actions      *int           `json:"actions,omitempty"`
-	APM          *int           `json:"actions_per_min,omitempty"`
-	SteamID      uint64         `json:"steam_id,string"`
-	Name         string         `json:"name"`
-	Hero         string         `json:"hero"`
-	Team         string         `json:"team"`
-	Slot         int            `json:"slot"`
-	Lane         string         `json:"lane"`
-	LaneRole     string         `json:"lane_role"`
+	CombatDetails *CombatDetails `json:"combat_details,omitempty"`
+	ActionCounts  map[string]int `json:"action_counts"`
+	Actions       *int           `json:"actions,omitempty"`
+	APM           *int           `json:"actions_per_min,omitempty"`
+	SteamID       uint64         `json:"steam_id,string"`
+	Name          string         `json:"name"`
+	Hero          string         `json:"hero"`
+	Team          string         `json:"team"`
+	Slot          int            `json:"slot"`
+	Lane          string         `json:"lane"`
+	LaneRole      string         `json:"lane_role"`
 
 	Kills   int `json:"kills"`
 	Deaths  int `json:"deaths"`
@@ -109,20 +110,21 @@ type Teamfight struct {
 }
 
 type Output struct {
-	ParserVersion string      `json:"parser_version"`
-	APMVersion    string      `json:"apm_version,omitempty"`
-	APMDuration   float64     `json:"apm_duration_seconds,omitempty"`
-	MatchID       uint64      `json:"match_id"`
-	DurationM     float64     `json:"duration_min"`
-	Winner        string      `json:"winner"`
-	GameMode      string      `json:"game_mode"`
-	Players       []*Player   `json:"players"`
-	FirstBlood    *Kill       `json:"first_blood"`
-	Kills         []Kill      `json:"kills"`
-	Teamfights    []Teamfight `json:"teamfights"`
-	Buildings     []Building  `json:"buildings"`
-	Roshans       []float64   `json:"roshan_kills_min"`
-	ParseStats    struct {
+	AnalyticsVersion string      `json:"analytics_version,omitempty"`
+	ParserVersion    string      `json:"parser_version"`
+	APMVersion       string      `json:"apm_version,omitempty"`
+	APMDuration      float64     `json:"apm_duration_seconds,omitempty"`
+	MatchID          uint64      `json:"match_id"`
+	DurationM        float64     `json:"duration_min"`
+	Winner           string      `json:"winner"`
+	GameMode         string      `json:"game_mode"`
+	Players          []*Player   `json:"players"`
+	FirstBlood       *Kill       `json:"first_blood"`
+	Kills            []Kill      `json:"kills"`
+	Teamfights       []Teamfight `json:"teamfights"`
+	Buildings        []Building  `json:"buildings"`
+	Roshans          []float64   `json:"roshan_kills_min"`
+	ParseStats       struct {
 		CombatLogEntries int     `json:"combat_log_entries"`
 		ParseSeconds     float64 `json:"-"`
 	} `json:"parse_stats"`
@@ -154,7 +156,7 @@ func main() {
 		panic(err)
 	}
 
-	out := &Output{ParserVersion: "pesiki-replay-v3"}
+	out := &Output{ParserVersion: "pesiki-replay-v6", AnalyticsVersion: analyticsVersion}
 	byHero := map[string]*Player{}
 	bySlot := map[int]*Player{}
 	var gameStart float64 = -1
@@ -162,6 +164,7 @@ func main() {
 	gameEnded := false
 	radiantWin := false
 	apm := newAPMCounter(p, func() bool { return gameStart >= 0 && !gameEnded })
+	wards := newWardCollector(p, func() bool { return gameStart >= 0 && !gameEnded }, func() float64 { return (lastTS - gameStart) / 60 })
 
 	p.Callbacks.OnCDemoFileInfo(func(m *dota.CDemoFileInfo) error {
 		gi := m.GetGameInfo().GetDota()
@@ -258,6 +261,29 @@ func main() {
 		return nil
 	})
 
+	deathPoint := func(e *dota.CMsgDOTACombatLogEntry, min float64, target string) combatPoint {
+		pt := point(e, min)
+		if pt.X != nil && pt.Y != nil {
+			return pt
+		}
+		idx, ok := canonical[short(target)]
+		if !ok {
+			for key, value := range canonical {
+				if normalizedHero(key) == normalizedHero(target) {
+					idx, ok = value, true
+					break
+				}
+			}
+		}
+		if ok {
+			if lh := live[idx]; lh != nil && lh.haveCell && lh.haveVec {
+				x := float32(float64(lh.cellX)*CellWidth + float64(lh.vecX) - CellOffset)
+				y := float32(float64(lh.cellY)*CellWidth + float64(lh.vecY) - CellOffset)
+				pt.X, pt.Y, pt.CoordinatesSource = &x, &y, "hero_entity"
+			}
+		}
+		return pt
+	}
 	name := func(idx int32) string {
 		s, _ := p.LookupStringByIndex("CombatLogNames", idx)
 		return s
@@ -300,6 +326,7 @@ func main() {
 			for i := 0; i < 10; i++ {
 				nwCurve[i] = append(nwCurve[i], int(curNW[i]))
 			}
+			sampleCombat(byHero)
 			nextMinute++
 		}
 
@@ -318,6 +345,7 @@ func main() {
 		attacker := name(int32(e.GetAttackerName()))
 		inflictor := name(int32(e.GetInflictorName()))
 
+		collectCombat(e, min, attacker, target, inflictor, byHero, bySlot)
 		switch typ {
 		case dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_DAMAGE:
 			if e.GetIsTargetHero() && !e.GetIsTargetIllusion() {
@@ -350,6 +378,8 @@ func main() {
 				lastDeath[target] = ts
 				vp, ap := hero(target), hero(attacker)
 				if vp != nil {
+					d := combatFor(vp)
+					d.Deaths = append(d.Deaths, deathEvent{combatPoint: deathPoint(e, min, target), Killer: short(attacker), Incoming: d.deathIncoming(min * 60)})
 					vp.Deaths++
 					vp.DeathTimes = append(vp.DeathTimes, round(min, 2))
 					if ap != nil {
@@ -417,8 +447,12 @@ func main() {
 			if pl := hero(target); pl != nil {
 				switch item {
 				case "item_ward_observer":
+					d := combatFor(pl)
+					d.Wards = append(d.Wards, wardEvent{combatPoint: point(e, min), Kind: "observer", Event: "purchase"})
 					pl.ObsPlaced++
 				case "item_ward_sentry":
+					d := combatFor(pl)
+					d.Wards = append(d.Wards, wardEvent{combatPoint: point(e, min), Kind: "sentry", Event: "purchase"})
 					pl.SenPlaced++
 				}
 			}
@@ -530,10 +564,12 @@ func main() {
 		if lv := heroLevels[pl.Hero]; lv > pl.Level {
 			pl.Level = lv
 		}
+		finalizeCombat(pl)
 		pl.TopSpells = topN(pl.TopSpells, 4)
 		out.Players = append(out.Players, pl)
 	}
 	sort.Slice(out.Players, func(i, j int) bool { return out.Players[i].Slot < out.Players[j].Slot })
+	wards.apply(out.Players)
 	assignRoles(out.Players)
 	computeMapStats(out.Players, track, out.Kills)
 	out.Teamfights = detectTeamfights(out.Kills, out.Players)

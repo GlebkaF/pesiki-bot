@@ -71,7 +71,7 @@ function impactScore(p: ParsedPlayer, team: ParsedPlayer[], deathCostAvailable: 
 }
 
 /** Перелом матча — момент, где преимущество команды по нетворсу максимально меняет знак. */
-function findTurningPoint(parsed: ParsedMatch, ourTeam: "radiant" | "dire"): string {
+export function findTurningPoint(parsed: ParsedMatch, ourTeam: "radiant" | "dire"): string {
   const ours = parsed.players.filter((p) => p.team === ourTeam);
   const theirs = parsed.players.filter((p) => p.team !== ourTeam);
   const minutes = Math.min(...parsed.players.map((p) => (p.networth_by_minute ?? []).length));
@@ -95,9 +95,9 @@ function findTurningPoint(parsed: ParsedMatch, ourTeam: "radiant" | "dire"): str
   const trough = adv.indexOf(Math.min(...adv));
   return [
     `(плюс = впереди МЫ, минус = впереди ОНИ)`,
-    `на ${bestIdx} мин самый резкий сдвиг: ${adv[bestIdx] > 0 ? "+" : ""}${adv[bestIdx]} золота (за минуту качнуло на ${bestSwing})`,
-    `пик преимущества нас: ${peak} мин (${adv[peak] > 0 ? "+" : ""}${adv[peak]})`,
-    `худший момент: ${trough} мин (${adv[trough]})`,
+    `на ${bestIdx+1} мин самый резкий сдвиг: ${adv[bestIdx] > 0 ? "+" : ""}${adv[bestIdx]} золота (за минуту качнуло на ${bestSwing})`,
+    `пик преимущества нас: ${peak+1} мин (${adv[peak] > 0 ? "+" : ""}${adv[peak]})`,
+    `худший момент: ${trough+1} мин (${adv[trough]})`,
     `на конец: ${adv[adv.length - 1] > 0 ? "+" : ""}${adv[adv.length - 1]}`,
   ].join("; ");
 }

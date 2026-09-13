@@ -27,7 +27,31 @@ const PARSED_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const SALT_POLL_ATTEMPTS = 12;
 const SALT_POLL_INTERVAL_MS = 10_000;
 
+/** Explicit combat-log observations. Optional on older retained parses. */
+export interface CombatDetails {
+  version: "combat-log-v1" | "combat-log-v2";
+  coverage: { ultimate_classification:boolean; death_positions:boolean; xp:boolean; ward_placements:boolean; healing_target_identity?:boolean };
+  healing: { self:number; other_heroes:number; units:number; by_target:Record<string,number>; by_ability?:Record<string,number> };
+  /** Real hero targets, excluding attacker/target illusions. Raw damage type codes. */
+  damage: { by_ability:Record<string,number>; by_target:Record<string,number>; by_type:Record<string,number> };
+  casts: { min:number; ability:string; target?:string; ultimate?:boolean; item?:boolean }[];
+  deaths: { min:number; killer:string; x?:number; y?:number; coordinates_source?:"hero_entity"; incoming?:{window_seconds:number;total:number;by_attacker:Record<string,number>;by_ability:Record<string,number>;complete:boolean} }[];
+  /** Purchase is not placement. Destroy coordinates only when explicitly present. */
+  wards: { min:number; kind:"observer"|"sentry"|"other"; event:"purchase"|"destroy"|"place"; x?:number; y?:number; coordinates_source?:"ward_entity" }[];
+  buybacks: { min:number; x?:number; y?:number }[];
+  gold: { min:number; value:number; reason?:number }[];
+  /** Cumulative sampled values; index 0 is minute 1. XP unavailable when coverage.xp=false. */
+  xp_by_minute:number[];
+  last_hits_by_minute:number[];
+  denies_by_minute:number[];
+  /** Modifier removals; durations overlap and are not unique seconds of control. */
+  modifiers: { min:number; target:string; modifier:string; stun?:number; slow?:number; elapsed?:number; silence?:boolean; root?:boolean }[];
+  dropped_events:number;
+  xp_events:number;
+}
+
 export interface ParsedPlayer {
+  combat_details?: CombatDetails;
   action_counts?: Record<string, number>;
   actions?: number;
   actions_per_min?: number;
@@ -84,6 +108,7 @@ export interface ParsedPlayer {
 }
 
 export interface ParsedMatch {
+  analytics_version?: "combat-log-v1" | "combat-log-v2";
   parser_version?: string;
   apm_version?: string;
   apm_duration_seconds?: number;

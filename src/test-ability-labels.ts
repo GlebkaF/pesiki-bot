@@ -1,0 +1,13 @@
+import assert from "node:assert/strict";
+import {abilityLabel,abilityIsUltimate,abilityCatalogSource} from "./ability-labels.js";
+for(const name of ["crystal_maiden_freezing_field","warlock_rain_of_chaos","zuus_thundergods_wrath","invoker_invoke","pudge_dismember"])assert.equal(abilityIsUltimate(name),true,name);
+assert.equal(abilityIsUltimate("crystal_maiden_crystal_nova"),false);
+assert.equal(abilityIsUltimate("brand_new_ultimate"),null,"name must never imply classification");
+assert.equal(abilityIsUltimate("toString"),null,"prototype properties are not catalog entries");
+assert.equal(abilityIsUltimate("crystal_maiden_freezing_field_stop"),true,"Valve's auxiliary Ultimate tags must be preserved, not silently rewritten");
+assert.equal(abilityLabel("crystal_maiden_freezing_field"),"Freezing Field");
+assert.equal(abilityLabel("item_magic_wand"),"Magic Wand");
+assert.equal(abilityLabel("brand_new_ability"),"brand new ability");
+assert.equal(abilityLabel("unknown_or_attack"),"Атака / источник не указан");
+assert.ok(abilityCatalogSource.classifiedAbilities>300);assert.equal(abilityCatalogSource.heroFiles,128);
+console.log("Ability catalog tests passed: pinned explicit types, partial coverage, game labels, auxiliary tags, unknown safety.");

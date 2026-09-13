@@ -1,12 +1,14 @@
+import {renderReplayInsights} from "./match-render.js";
+import {MATCH_SCRIPT} from "./match-script.js";
+import {MATCH_CSS} from "./match-style.js";
+import {PROFILE_CSS} from "./profile-style.js";
+import {PROFILE_SCRIPT} from "./profile-script.js";
 /** HTML-рендер витрины: список матчей и страница матча с разбором. */
-import { PLAYERS } from "../config.js";
 import type { FeedMatch } from "./feed.js";
 import type { Job, StoredAnalysis } from "./jobs.js";
-import type { ParsedMatch, ParsedPlayer } from "../replay.js";
+import type { ParsedMatch } from "../replay.js";
 import type { MatchApi } from "../opendota.js";
-import { toSteam32 } from "../replay.js";
 
-const OUR_IDS = new Set(PLAYERS.map((p) => p.steamId));
 
 export function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -16,10 +18,6 @@ function dur(sec: number): string {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 }
 
-function mmss(min: number): string {
-  return `${Math.floor(min)}:${String(Math.round((min % 1) * 60)).padStart(2, "0")}`;
-}
-
 function num(n: number): string {
   return n.toLocaleString("ru-RU").replace(/ /g, " ");
 }
@@ -27,26 +25,6 @@ function num(n: number): string {
 function dateLabel(ts: number): string {
   const d = new Date(ts * 1000);
   return d.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
-}
-
-/** Спарклайн: площадь, нулевая линия для знакопеременных рядов, точка на конце. */
-function spark(series: number[], w = 150, h = 34): string {
-  if (!series.length) return "";
-  const lo = Math.min(...series);
-  const hi = Math.max(...series);
-  const rng = hi - lo || 1;
-  const step = w / Math.max(1, series.length - 1);
-  const pts = series.map((v, i) => [i * step, h - ((v - lo) / rng) * h] as const);
-  const d = pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
-  const zero =
-    lo < 0 && hi > 0
-      ? `<line x1="0" y1="${(h - ((0 - lo) / rng) * h).toFixed(1)}" x2="${w}" y2="${(h - ((0 - lo) / rng) * h).toFixed(1)}" class="spark-zero"/>`
-      : "";
-  const last = pts[pts.length - 1];
-  return `<svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" aria-hidden="true">
-    <path d="${d} L${w},${h} L0,${h} Z" fill="var(--accent)" opacity=".12"/>${zero}
-    <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="1.6"/>
-    <circle cx="${last[0].toFixed(1)}" cy="${last[1].toFixed(1)}" r="2.4" fill="var(--accent)"/></svg>`;
 }
 
 const CSS = `
@@ -163,12 +141,14 @@ footer { color:var(--muted); font-size:12px; text-align:center; padding-top:8px;
 export function layout(title: string, body: string, script = "", extraCss = "", preview?: {description:string;image?:string}): string {
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(title)}</title>
+<title>${esc(title)}</title><script>try{const t=localStorage.getItem('pesikiTheme');if(t==='dark'||t==='light')document.documentElement.dataset.theme=t;}catch{}</script>
 ${preview?`<meta name="description" content="${esc(preview.description)}"><meta property="og:type" content="website"><meta property="og:site_name" content="Пёсики"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(preview.description)}">${preview.image?`<meta property="og:image" content="${esc(preview.image)}">`:""}`:""}
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐕</text></svg>">
 <style>${CSS}
 .site-nav{display:flex;gap:22px;align-items:center;padding-bottom:18px;border-bottom:1px solid var(--line);font-size:13px}.site-nav a{text-decoration:none}.site-nav .brand{font-weight:800;letter-spacing:.13em;margin-right:auto}
-${extraCss}</style></head><body><div class="wrap"><nav class="site-nav" aria-label="Навигация"><a class="brand" href="/">ПЁСИКИ</a><a href="/">Матчи</a><a href="/players">Игроки ↗</a></nav>${body}</div>${script ? `<script>${script}</script>` : ""}</body></html>`;
+${extraCss||PROFILE_CSS}
+.theme-toggle{width:44px;height:44px;flex:0 0 44px;border:1px solid var(--line);border-radius:4px;background:var(--surface);color:var(--ink);font-size:21px;cursor:pointer}.theme-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style></head><body><div class="wrap"><nav class="site-nav" aria-label="Навигация"><a class="brand" href="/">ПЁСИКИ</a><a href="/">Матчи</a><a href="/players">Игроки</a><button id="theme-toggle" class="theme-toggle" type="button" aria-label="Сменить цветовую тему">◐</button></nav>${body}</div><script>{const b=document.getElementById('theme-toggle');const update=()=>{const t=document.documentElement.dataset.theme;b.title=b.ariaLabel='Тема: '+(t==='dark'?'тёмная':t==='light'?'светлая':'системная')+'. Нажми, чтобы сменить';};b.addEventListener('click',()=>{const current=document.documentElement.dataset.theme,next=current==='dark'?'light':current==='light'?'auto':'dark';if(next==='auto')delete document.documentElement.dataset.theme;else document.documentElement.dataset.theme=next;try{localStorage.setItem('pesikiTheme',next);}catch{}update();});update();}</script>${script ? `<script>${script}</script>` : ""}</body></html>`;
 }
 
 export function renderFeed(
@@ -204,14 +184,14 @@ export function renderFeed(
       <span class="res-mark">${m.win ? "W" : "L"}</span>
       <span><span class="when">${esc(dateLabel(m.startTime))}</span><br><span class="rsub mono">${dur(m.duration)}</span> <span class="rsub">· ${m.matchId}</span></span>
       <span class="players">${ours}</span>
-      <span class="tail">${analyzed.has(m.matchId) ? '<span class="chip chip-deep">разобран</span>' : '<span class="chip">открыть</span>'}</span>
+      <span class="tail">${analyzed.has(m.matchId) ? '<span class="chip chip-deep">сводка</span>' : '<span class="chip">открыть</span>'}</span>
     </a>`;
     })
     .join("");
 
   return layout(
     "Песики · матчи стака",
-    `<div class="top">
+    `<main class="feed-view"><div class="top">
       <div><h1>Песики</h1><p class="sub">Матчи стака и разбор по реплеям</p></div>
       <form method="post" action="/refresh"><button class="btn ghost" type="submit">Обновить ленту</button></form>
     </div>
@@ -220,68 +200,13 @@ export function renderFeed(
       <div class="stat"><span class="label">побед</span><span class="v">${wins}/${matches.length}</span></div>
       <div class="stat"><span class="label">винрейт</span><span class="v">${matches.length ? Math.round((wins / matches.length) * 100) : 0}%</span></div>
       <div class="stat"><span class="label">часов</span><span class="v">${hours.toFixed(0)}</span></div>
-      <div class="stat"><span class="label">разобрано</span><span class="v">${analyzed.size}</span></div>
+      <div class="stat"><span class="label">сводок</span><span class="v">${matches.filter(m=>analyzed.has(m.matchId)).length}</span></div>
     </div>
     ${chips}
     <div class="feed">${rows || '<div class="row"><span class="dim">Матчей не найдено</span></div>'}</div>
-    <footer>Обновлено ${esc(new Date(updatedAt).toLocaleString("ru-RU"))} · данные: OpenDota + реплеи Valve</footer>`,
+    <footer>Обновлено ${esc(new Date(updatedAt).toLocaleString("ru-RU"))} · данные: OpenDota + реплеи Valve</footer></main>`,
+    "{const f=document.querySelector('.filters'),c=f?.querySelector('.chip-on');if(f&&c)f.scrollLeft=Math.max(0,c.offsetLeft-f.offsetLeft-8);}",
   );
-}
-
-function playerRow(p: ParsedPlayer, ourTeam: string): string {
-  const isOur = OUR_IDS.has(toSteam32(p.steam_id));
-  return `<tr class="${isOur ? "ours" : ""}">
-    <td><span class="dot ${p.team}"></span>${esc(p.hero)}<span class="pname">${isOur ? `<a href="/player/${toSteam32(p.steam_id)}">${esc(PLAYERS.find(x=>x.steamId===toSteam32(p.steam_id))?.dotaName ?? p.name)}</a>` : esc(p.name)}</span>${isOur ? ' <span class="chip chip-deep">наш</span>' : ""}</td>
-    <td class="mono">${esc(p.lane)}/${esc(p.lane_role.slice(0, 4))}</td>
-    <td class="mono">${p.kills}/${p.deaths}/${p.assists}</td>
-    <td class="mono">${p.actions_per_min ?? "—"}</td>
-    <td class="mono">${p.last_hits}<span class="sm">+${p.denies}</span></td>
-    <td class="mono">${p.cs_at_10}</td>
-    <td class="mono">${num(p.networth_final)}</td>
-    <td class="mono">${num(p.hero_damage)}</td>
-    <td>${spark(p.networth_by_minute ?? [], 110, 24)}</td>
-  </tr>`;
-}
-
-function parsedBlock(parsed: ParsedMatch): string {
-  const ourTeam =
-    parsed.players.find((p) => OUR_IDS.has(toSteam32(p.steam_id)))?.team ?? "radiant";
-  const minutes = Math.min(...parsed.players.map((p) => (p.networth_by_minute ?? []).length));
-  const adv: number[] = [];
-  for (let i = 0; i < minutes; i++) {
-    const a = parsed.players.filter((p) => p.team === ourTeam).reduce((s, p) => s + (p.networth_by_minute?.[i] ?? 0), 0);
-    const b = parsed.players.filter((p) => p.team !== ourTeam).reduce((s, p) => s + (p.networth_by_minute?.[i] ?? 0), 0);
-    adv.push(a - b);
-  }
-
-  const rows = [...parsed.players]
-    .sort((a, b) => (a.team === ourTeam ? -1 : 1) - (b.team === ourTeam ? -1 : 1) || b.networth_final - a.networth_final)
-    .map((p) => playerRow(p, ourTeam))
-    .join("");
-
-  const fights = (parsed.teamfights ?? [])
-    .slice(0, 12)
-    .map((t) => {
-      const weLost = ourTeam === "radiant" ? t.radiant_died : t.dire_died;
-      const theyLost = ourTeam === "radiant" ? t.dire_died : t.radiant_died;
-      return `<li><span class="mono t">${mmss(t.start_min)}</span>
-        <span class="fbar"><i style="width:${Math.min(100, t.deaths * 14)}%"></i></span>
-        <span class="${weLost < theyLost ? "good" : "bad"}">мы −${weLost}, они −${theyLost}</span>
-        <span class="dim">${esc(t.heroes_died.slice(0, 5).join(", "))}</span></li>`;
-    })
-    .join("");
-
-  return `<div class="card">
-    <div class="top">
-      <div><h2>Данные реплея</h2><p class="dim">${parsed.duration_min} мин · играли за ${ourTeam} · ${parsed.kills?.length ?? 0} убийств</p></div>
-      <div style="text-align:right"><span class="label">преимущество по золоту</span><br>${spark(adv, 220, 44)}
-        <br><span class="mono" style="color:var(--accent);font-weight:600">${adv.length && adv[adv.length - 1] > 0 ? "+" : ""}${adv.length ? num(adv[adv.length - 1]) : "—"}</span></div>
-    </div>
-    <div class="tablewrap"><table>
-      <thead><tr><th>игрок</th><th>линия</th><th>K/D/A</th><th>APM</th><th>CS</th><th>CS@10</th><th>нетворс</th><th>урон</th><th>экономика</th></tr></thead>
-      <tbody>${rows}</tbody></table></div>
-    <h3>Тимфайты</h3><ul class="fights">${fights || '<li class="dim">крупных замесов не было</li>'}</ul>
-  </div>`;
 }
 
 export interface ApiSidePlayer {
@@ -331,11 +256,12 @@ export function renderMatch(
   job: Job | undefined,
   api?: ApiOverview | null,
   savedParsed?: ParsedMatch,
+  options?:{player?:string;official?:MatchApi},
 ): string {
-  const parsed = stored?.parsed ?? savedParsed;
+  const parsed = savedParsed ?? stored?.parsed;
   const head = feedMatch
     ? `<p class="sub">${esc(dateLabel(feedMatch.startTime))} · <span class="mono">${dur(feedMatch.duration)}</span> · ${feedMatch.win ? '<span class="good">победа</span>' : '<span class="bad">поражение</span>'} · наши: ${esc(feedMatch.ours.map((o) => o.name).join(", "))}</p>`
-    : `<p class="sub">Матча нет в ленте — можно разобрать по номеру</p>`;
+    : parsed?`<p class="sub">${parsed.start_time?esc(dateLabel(parsed.start_time))+" · ":""}${dur(Math.round(parsed.duration_min*60))} · ${parsed.winner==="radiant"?"Победа Radiant":parsed.winner==="dire"?"Победа Dire":"Исход неизвестен"}</p>`:`<p class="sub">Матча нет в ленте — можно разобрать по номеру</p>`;
 
   const analysisBlock = stored
     ? `<div class="card"><h2>Разбор</h2><p class="dim">формат: ${esc(stored.format)} · ${esc(new Date(stored.createdAt).toLocaleString("ru-RU"))}</p>
@@ -351,12 +277,12 @@ export function renderMatch(
        <div class="progress" id="prog"><span class="spin"></span><span id="pmsg">Запускаю…</span><span class="pbar"><i id="pbar"></i></span></div>
        <p class="err" id="err"></p></div>`;
 
-  const body = `<div class="top">
-      <div><h1><a href="/">Песики</a> <span class="dim">/ матч ${matchId}</span></h1>${head}</div>
+  const body = `<main class="match-view"><div class="top match-head">
+      <div><h1>Матч <span class="mono">${matchId}</span></h1>${head}</div>
       <a class="btn ghost" href="https://www.opendota.com/matches/${matchId}" target="_blank" rel="noopener">OpenDota</a>
     </div>
-    ${analysisBlock}
-    ${parsed ? parsedBlock(parsed) : ""}
+    ${parsed ? renderReplayInsights(parsed,options?.player,options?.official) : ""}
+    <section id="analysis" class="insight-panel"><div class="section-head"><h2><a href="#analysis">Сводка бота</a></h2><button class="share-section" type="button" data-share-section="analysis" aria-label="Скопировать ссылку на сводку">↗</button></div>${analysisBlock}</section>
     ${
       api
         ? `<div class="card"><h2>Составы и итоги</h2>
@@ -373,7 +299,7 @@ export function renderMatch(
           ? '<div class="note">Ссылки на реплей пока нет. У свежих матчей она обычно просто ещё не появилась: бот попросит её у Valve и подождёт до двух минут. У старых матчей файл уже мог быть удалён.</div>'
           : parsed ? '<div class="note">Данные реплея уже сохранены.</div>' : '<div class="note">Доступность реплея проверится при запуске разбора.</div>'
         : ""
-    }`;
+    }</main>`;
 
   const script = `
 
@@ -452,5 +378,5 @@ if (btn) btn.addEventListener('click', async () => {
   }, 1500);
 });`;
 
-  return layout(`Матч ${matchId} · Песики`, body, script);
+  return layout(`Матч ${matchId} · Песики`, body, script+(parsed?PROFILE_SCRIPT+MATCH_SCRIPT:""),PROFILE_CSS+MATCH_CSS);
 }

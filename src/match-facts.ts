@@ -11,7 +11,7 @@ import type { MatchAnalysis, OurPlayer } from "./analyze-v2.js";
 import type { ParsedPlayer } from "./replay.js";
 
 export type MatchShape = "big-comeback" | "comeback" | "throw" | "stomp" | "stomped" | "win" | "loss";
-export const MATCH_FACT_VERSION = 9 as const;
+export const MATCH_FACT_VERSION = 10 as const;
 
 export interface EconomyPoint {
   minute: number;
@@ -54,6 +54,11 @@ interface OurPlayerFacts {
   heroDamage: number;
   towerDamage: number;
   damageTaken: number;
+  /** Only recipient-verified replay detail; absent for legacy aggregate HEAL. */
+  healing_self?: number;
+  healing_allies?: number;
+  observer_wards_placed?:number;
+  sentry_wards_placed?:number;
   teamfightParticipationPct?: number;
   deathsAt: number[];
   deathTimelineReliable: boolean;
@@ -127,7 +132,7 @@ function isWin(match: RecentMatch): boolean {
   return (match.player_slot < 128) === match.radiant_win;
 }
 
-function economyTimeline(a: MatchAnalysis): EconomyPoint[] {
+export function economyTimeline(a: MatchAnalysis): EconomyPoint[] {
   const ours = a.parsed.players.filter((p) => p.team === a.ourTeam);
   const enemies = a.parsed.players.filter((p) => p.team !== a.ourTeam);
   const lengths = a.parsed.players.map((p) => p.networth_by_minute?.length ?? 0).filter(Boolean);
@@ -137,7 +142,7 @@ function economyTimeline(a: MatchAnalysis): EconomyPoint[] {
   for (let minute = 0; minute < Math.min(...lengths); minute++) {
     const ourGold = sum(ours.map((p) => p.networth_by_minute?.[minute] ?? 0));
     const enemyGold = sum(enemies.map((p) => p.networth_by_minute?.[minute] ?? 0));
-    points.push({ minute, advantage: ourGold - enemyGold });
+    points.push({ minute:minute+1, advantage: ourGold - enemyGold });
   }
   // Поминутная кривая заканчивается перед фактическим финалом. Итоговые
   // networth_final добавляем отдельной точкой, иначе best/worst/final занижены.
@@ -326,7 +331,28 @@ export function inferEffectiveRole(laneRole: string, csAt10: number): "core" | "
   return (laneRole === "core" && csAt10 >= 15) || csAt10 >= 25 ? "core" : "support";
 }
 
-function playerFacts(our: OurPlayer, team: ParsedPlayer[], history?: PlayerHistory): OurPlayerFacts {
+export function compactHealingFacts(player:ParsedPlayer,team:ParsedPlayer[]):{healing_self?:number;healing_allies?:number} {
+  const d=player.combat_details;
+  if(!d||!["combat-log-v1","combat-log-v2"].includes(d.version))return {};
+  const valid=(n:unknown):n is number=>typeof n==="number"&&Number.isFinite(n)&&n>=0;
+  const normalize=(hero:string)=>hero.replace(/^npc_dota_hero_/,"").replace(/_/g,"");
+  const self=normalize(player.hero);
+  const allies=new Set(team.filter(p=>p.team===player.team&&normalize(p.hero)!==self).map(p=>normalize(p.hero)));
+  const targets=d.healing?.by_target;
+  const identitiesKnown=d.healing?.units===0||(d.coverage as {healing_target_identity?:boolean}|undefined)?.healing_target_identity===true;
+  const canSplit=identitiesKnown&&targets&&typeof targets==="object"&&!Array.isArray(targets)&&Object.values(targets).every(valid)&&(player.team==="radiant"||player.team==="dire");
+  return {healing_self:valid(d.healing?.self)?d.healing.self:undefined,
+    healing_allies:canSplit?Object.entries(targets).filter(([hero])=>allies.has(normalize(hero))).reduce((sum,[,value])=>sum+value,0):undefined};
+}
+
+export function compactWardFacts(player:ParsedPlayer):{observer_wards_placed?:number;sentry_wards_placed?:number} {
+  const d=player.combat_details;
+  if(!d||!["combat-log-v1","combat-log-v2"].includes(d.version)||d.coverage?.ward_placements!==true||!Array.isArray(d.wards))return {};
+  const placements=d.wards.filter(w=>w.event==="place");
+  return {observer_wards_placed:placements.filter(w=>w.kind==="observer").length,sentry_wards_placed:placements.filter(w=>w.kind==="sentry").length};
+}
+
+export function playerFacts(our: OurPlayer, team: ParsedPlayer[], history?: PlayerHistory): OurPlayerFacts {
   const p = our.parsed;
   const profile = our.config.analysisProfile;
   const rawDeathTimes = p.death_times_min ?? [];
@@ -353,6 +379,8 @@ function playerFacts(our: OurPlayer, team: ParsedPlayer[], history?: PlayerHisto
     heroDamage: p.hero_damage,
     towerDamage: p.tower_damage,
     damageTaken: p.damage_taken,
+    ...compactHealingFacts(p,team),
+    ...compactWardFacts(p),
     teamfightParticipationPct:
       p.teamfight_participation === undefined ? undefined : Math.round(p.teamfight_participation * 100),
     deathsAt: deathTimes,
@@ -547,7 +575,11 @@ export function renderFactPacket(packet: MatchFactPacket): string {
   // В коде тайминги хранятся дробными минутами (10.53 = 10:32), но модель
   // закономерно читает их как часы (10:53). Голосу отдаём только готовые mm:ss.
   const voicePacket = {
-    ...packet,
+    version:packet.version,
+    lanes:packet.lanes,
+    enemyPlayers:packet.enemyPlayers.map(({name,hero,kda})=>({name,hero,kda})),
+    awards:packet.awards,
+    history:packet.history,
     match: { ...packet.match, duration: timestamp(packet.match.durationMin), durationMin: undefined },
     economy: {
       at10: economyPoint(packet.economy.at10),
@@ -573,7 +605,16 @@ export function renderFactPacket(packet: MatchFactPacket): string {
       })),
     },
     ourPlayers: packet.ourPlayers.map((player) => ({
-      ...player,
+      name:player.name,grammaticalGender:player.grammaticalGender,hero:player.hero,
+      lane:player.lane,role:player.role,unusualRole:player.unusualRole,profileNotes:player.profileNotes,
+      kda:player.kda,apm:player.apm,csAt10:player.csAt10,
+      networthAt10:player.networthAt10,networthAt20:player.networthAt20,networthFinal:player.networthFinal,
+      heroDamage:player.heroDamage,towerDamage:player.towerDamage,damageTaken:player.damageTaken,
+      healing_self:player.healing_self,healing_allies:player.healing_allies,
+      observer_wards_placed:player.observer_wards_placed,sentry_wards_placed:player.sentry_wards_placed,
+      teamfightParticipationPct:player.teamfightParticipationPct,
+      deathTimelineReliable:player.deathTimelineReliable,mostKilled:player.mostKilled,mostKilledBy:player.mostKilledBy,
+      teamRanks:player.teamRanks,history:player.history,
       deathsAt: player.deathsAt.map(timestamp),
       worstDeathCluster: player.worstDeathCluster
         ? {

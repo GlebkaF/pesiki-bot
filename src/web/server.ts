@@ -1,3 +1,4 @@
+import {buildPlayerProgress} from "../player-progress.js";
 import { loadProfiles, periodOf } from "../player-profile.js";
 import { buildEconomy } from "../profile-economy.js";
 import { renderPlayers, renderPlayer } from "./player-render.js";
@@ -89,7 +90,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     const page = Number(url.searchParams.get("page")) || 1;
     const economyMatch=profile.matches.find(m=>m.id===Number(url.searchParams.get("economy")))??profile.measured[0];
     const economy=economyMatch?buildEconomy(getApmStore(),profile.account,economyMatch.id):null;
-    return send(res,200,renderPlayer(profile,profiles,Number.isSafeInteger(page)?page:1,Number(url.searchParams.get("match"))||undefined,url.searchParams.get("hero")||undefined,economy));
+    return send(res,200,renderPlayer(profile,profiles,Number.isSafeInteger(page)?page:1,Number(url.searchParams.get("match"))||undefined,url.searchParams.get("hero")||undefined,economy,buildPlayerProgress(getApmStore(),profile)));
   }
   if (p === "/" && req.method === "GET") {
     const { matches, updatedAt } = await getFeed();
@@ -110,8 +111,8 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     const { matches } = await getFeed();
     const feedMatch: FeedMatch | undefined = matches.find((m) => m.matchId === matchId);
     const stored = await getStoredAnalysis(matchId);
-    const parsed = stored?.parsed ?? getApmStore().replay(matchId);
-    return send(res, 200, renderMatch(matchId, feedMatch, stored, getJob(matchId), parsed ? null : await matchOverview(matchId), parsed));
+    const parsed = getApmStore().replay(matchId) ?? stored?.parsed;
+    return send(res, 200, renderMatch(matchId, feedMatch, stored, getJob(matchId), parsed ? null : await matchOverview(matchId), parsed,{player:url.searchParams.get("player")||undefined,official:getApmStore().matchApi(matchId)}));
   }
 
   const analyzeApi = p.match(/^\/api\/analyze\/(\d+)$/);

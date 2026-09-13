@@ -1,0 +1,50 @@
+export const MATCH_SCRIPT = `
+const insightNode=document.getElementById('match-insights-data');
+if(insightNode){
+ const data=JSON.parse(insightNode.textContent),selected=data.selected;
+ const panels=[...document.querySelectorAll('.match-insights>.insight-panel,#analysis')];
+ function showMatchSection(){let target;try{target=document.getElementById(decodeURIComponent(location.hash.slice(1)));}catch{}const active=target?.closest('.insight-panel')||panels[0];panels.forEach(panel=>panel.hidden=panel!==active);if(typeof updateJump==='function')updateJump();}
+ addEventListener('hashchange',showMatchSection);showMatchSection();
+ const escapeText=s=>String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));
+ const fmt=n=>Math.round(n).toLocaleString('ru-RU'),clock=s=>Math.floor(s/60)+':'+String(Math.round(s)%60).padStart(2,'0');
+ const picker=document.querySelector('.player-picker');picker.querySelector('button').hidden=true;
+ picker.querySelector('select').addEventListener('change',()=>{picker.action=location.pathname+location.hash;picker.requestSubmit();});
+ document.querySelectorAll('[data-select-player]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();const u=new URL(location.href);u.searchParams.set('player',a.dataset.selectPlayer);u.hash='combat';location.href=u.href;}));
+ const colors=Array.from({length:10},(_,i)=>'var(--series-'+i+')');
+ const metric=document.getElementById('farm-metric'),range=document.getElementById('farm-minute'),hiddenPlayers=new Set();
+ const state=new URL(location.href);for(const value of (state.searchParams.get('hide')||'').split(',')){const i=Number(value);if(value!==''&&Number.isInteger(i)&&i>=0&&i<data.players.length)hiddenPlayers.add(i);}if(['networth','xp','lastHits','denies'].includes(state.searchParams.get('metric')))metric.value=state.searchParams.get('metric');const at=Number(state.searchParams.get('minute'));if(at>=1&&at<=Number(range.max))range.value=at;
+ function renderFarm(update=false){
+  const key=metric.value,minute=Number(range.value),all=data.players.flatMap((p,i)=>(p.economy[key]||[]).map(v=>({...v,i}))),visible=all.filter(v=>!hiddenPlayers.has(v.i));
+  const max=Math.max(1,...visible.map(p=>p.value)),last=Number(range.max),x=m=>45+m/last*540,y=v=>210-v/max*185;
+  let svg='<svg viewBox="0 0 600 240" role="img" aria-label="Сравнение фарма по минутам">';
+  for(const f of [0,.5,1])svg+='<line x1="45" x2="590" y1="'+y(f*max)+'" y2="'+y(f*max)+'" stroke="var(--line)"/><text x="40" y="'+(y(f*max)+5)+'" text-anchor="end" fill="var(--muted)" font-size="17">'+(max>=1000?Math.round(f*max/1000)+'к':Math.round(f*max))+'</text>';
+  data.players.forEach((p,i)=>{if(hiddenPlayers.has(i))return;const runs=[];for(const point of p.economy[key]||[]){const run=runs[runs.length-1];if(!run||point.minute!==run[run.length-1].minute+1)runs.push([point]);else run.push(point);}for(const run of runs){svg+='<polyline fill="none" stroke="'+colors[i%10]+'" stroke-width="'+(p.steamId===selected.steamId?3:1.7)+'" points="'+run.map(v=>x(v.minute)+','+y(v.value)).join(' ')+'"/>';}});
+  svg+='<line x1="'+x(minute)+'" x2="'+x(minute)+'" y1="18" y2="215" stroke="var(--ink)" stroke-dasharray="4 4"/><text x="45" y="235" fill="var(--muted)" font-size="17">0 мин</text><text x="585" y="235" text-anchor="end" fill="var(--muted)" font-size="17">'+last+' мин</text></svg>';
+  document.getElementById('farm-chart').innerHTML=visible.length?svg:'<p class="empty">Нет наблюдений для выбранного показателя или все герои скрыты.</p>';
+  document.getElementById('farm-minute-label').textContent=minute;
+  const list=document.getElementById('farm-values');list.replaceChildren();data.players.forEach((p,i)=>{const point=(p.economy[key]||[]).find(v=>v.minute===minute),b=document.createElement('button');b.type='button';b.className='farm-value';b.setAttribute('aria-pressed',String(!hiddenPlayers.has(i)));b.innerHTML='<i style="background:'+colors[i%10]+'"></i><span>'+escapeText(p.name)+'<small>'+escapeText(p.hero)+'</small></span><strong>'+(point?fmt(point.value):'—')+'</strong>';b.onclick=()=>{hiddenPlayers.has(i)?hiddenPlayers.delete(i):hiddenPlayers.add(i);renderFarm(true);};list.append(b);});
+  if(update){const u=new URL(location.href);u.searchParams.set('metric',key);u.searchParams.set('minute',range.value);if(hiddenPlayers.size)u.searchParams.set('hide',[...hiddenPlayers].sort((a,b)=>a-b).join(','));else u.searchParams.delete('hide');history.replaceState(null,'',u.pathname+u.search+u.hash);}
+ }
+ metric.addEventListener('change',()=>renderFarm(true));range.addEventListener('input',()=>renderFarm(true));renderFarm();
+ function drawMap(id,events){
+  const target=document.getElementById(id);const located=events.filter(e=>Number.isFinite(e.x)&&Number.isFinite(e.y));
+  if(!located.length){target.innerHTML='<p class="empty">Для этих событий нет координат в сохранённом реплее.</p>';return;}
+  const bound=Math.max(10000,...located.flatMap(e=>[Math.abs(e.x),Math.abs(e.y)])),x=v=>20+(v+bound)/(2*bound)*300,y=v=>320-(v+bound)/(2*bound)*300;
+  target.innerHTML='<svg viewBox="0 0 340 340" role="group" aria-label="Схематическая карта событий"><rect x="20" y="20" width="300" height="300" fill="var(--surface-2)" stroke="var(--line)"/><path d="M20 320L320 20" stroke="var(--line)" stroke-width="18"/><text x="28" y="310" fill="var(--muted)" font-size="13">Radiant</text><text x="262" y="39" fill="var(--muted)" font-size="13">Dire</text>'+located.map((e,i)=>'<circle cx="'+x(e.x)+'" cy="'+y(e.y)+'" r="7" fill="'+(e.event==='place'?'var(--good)':e.event==='destroy'?'var(--attack)':'var(--bad)')+'" stroke="var(--surface)" stroke-width="2"><title>'+clock(e.seconds)+' · '+escapeText(e.kind||'смерть')+'</title></circle>').join('')+'</svg><p class="map-selection micro-note" role="status">Коснись маркера, чтобы посмотреть событие.</p><p class="micro-note">'+located.length+' событий с координатами. Зелёный — установка, жёлтый — уничтожение; красный — смерть. Схема координат, не карта видимости.</p>';
+  const svg=target.querySelector('svg'),markers=[...svg.querySelectorAll('circle')],status=target.querySelector('.map-selection');
+  const choose=index=>{const e=located[index];status.textContent=clock(e.seconds)+' · '+(e.event==='place'?'Установка ':e.event==='destroy'?'Уничтожение ':'Смерть ')+(e.kind||'героя');markers.forEach((marker,i)=>{marker.setAttribute('stroke',i===index?'var(--ink)':'var(--surface)');marker.setAttribute('stroke-width',i===index?'4':'2');});};
+  markers.forEach((marker,i)=>{marker.setAttribute('tabindex','0');marker.setAttribute('role','button');marker.setAttribute('aria-label',clock(located[i].seconds)+' '+(located[i].event||'смерть')+' '+(located[i].kind||''));marker.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();choose(i);}});});
+  svg.addEventListener('pointerdown',e=>{const rect=svg.getBoundingClientRect(),px=(e.clientX-rect.left)/rect.width*340,py=(e.clientY-rect.top)/rect.height*340;let best=0,distance=Infinity;located.forEach((point,i)=>{const d=Math.hypot(px-x(point.x),py-y(point.y));if(d<distance){distance=d;best=i;}});if(distance<=28)choose(best);});
+ }
+ const deathSelect=document.getElementById('death-select');
+ function renderDeath(update=false){const index=deathSelect?Number(deathSelect.value):0;drawMap('death-map',selected.deaths?.[index]?[selected.deaths[index]]:[]);document.querySelectorAll('[data-death]').forEach(e=>e.hidden=Number(e.dataset.death)!==index);if(update){const u=new URL(location.href);u.searchParams.set('death',index);history.replaceState(null,'',u.pathname+u.search+u.hash);}}
+ if(deathSelect){const d=Number(state.searchParams.get('death'));if(d>=0&&d<deathSelect.options.length)deathSelect.value=d;deathSelect.addEventListener('change',()=>renderDeath(true));}renderDeath();
+ const visionRange=document.getElementById('vision-time');visionRange.max=data.duration;visionRange.value=data.duration;const savedTime=Number(state.searchParams.get('visionTime'));if(state.searchParams.has('visionTime')&&savedTime>=0&&savedTime<=data.duration)visionRange.value=savedTime;
+ function renderVision(update=false){const sec=Number(visionRange.value);document.getElementById('vision-time-label').textContent=clock(sec);drawMap('vision-map',(selected.vision.events||[]).filter(e=>e.event!=='purchase'&&e.seconds<=sec));document.querySelectorAll('#vision-events [data-event-time]').forEach(e=>e.hidden=Number(e.dataset.eventTime)>sec);if(update){const u=new URL(location.href);u.searchParams.set('visionTime',sec);history.replaceState(null,'',u.pathname+u.search+u.hash);}}
+ visionRange.addEventListener('input',()=>renderVision(true));renderVision();
+ const eventData=JSON.parse(document.getElementById('combat-events-data').textContent),filter=document.getElementById('event-filter'),search=document.getElementById('event-search'),more=document.getElementById('more-events');let limit=50;
+ if([...filter.options].some(o=>o.value===state.searchParams.get('event')))filter.value=state.searchParams.get('event');search.value=state.searchParams.get('q')||'';
+ function renderEvents(reset=false,update=false){if(reset)limit=50;const rows=eventData.filter(e=>(filter.value==='all'||e.type===filter.value)&&e.text.toLocaleLowerCase().includes(search.value.trim().toLocaleLowerCase()));document.getElementById('combat-events').innerHTML=rows.slice(0,limit).map(e=>'<div class="event-row"><time>'+clock(e.seconds)+'</time><span>'+escapeText(e.text)+'</span></div>').join('');document.getElementById('event-count').textContent=rows.length?'Показано '+Math.min(limit,rows.length)+' из '+rows.length:'Событий по этому фильтру нет';more.hidden=limit>=rows.length;if(update){const u=new URL(location.href);u.searchParams.set('event',filter.value);if(search.value)u.searchParams.set('q',search.value);else u.searchParams.delete('q');history.replaceState(null,'',u.pathname+u.search+u.hash);}}
+ filter.addEventListener('change',()=>renderEvents(true,true));search.addEventListener('input',()=>renderEvents(true,true));more.addEventListener('click',()=>{limit+=50;renderEvents();});renderEvents();
+}
+`;
