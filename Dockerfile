@@ -34,6 +34,7 @@ RUN apk add --no-cache --virtual .build-deps python3 make g++ \
     && apk del .build-deps
 
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/src/web/assets ./dist/web/assets
 COPY --from=parser /parser/replay-parser ./tools/replay-parser/replay-parser
 
 # Разобранные реплеи и готовые разборы должны переживать перезапуск контейнера

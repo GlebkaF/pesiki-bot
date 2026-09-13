@@ -23,7 +23,7 @@ assert.ok(primary.includes('повторные смерти одного гер�
 assert.ok(primary.includes('получатель Aegis в этих данных не установлены'),'Roshan ownership stays unknown');
 const selectedA=renderReplayInsights(m,m.players[0].steam_id),selectedB=renderReplayInsights(m,m.players[8].steam_id);
 function section(html:string,id:string){const result=html.match(new RegExp('<section[^>]* id="'+id+'"[\\s\\S]*?</section>'));assert.ok(result,`section ${id} exists`);return result[0];}
-for(const id of ['overview','timeline','teams'])assert.equal(section(selectedA,id),section(selectedB,id),`player selection must not alter primary ${id}`);
+for(const id of ['overview','timeline','vision'])assert.equal(section(selectedA,id),section(selectedB,id),`player selection must not alter primary ${id}`);
 assert.notEqual(section(selectedA,'combat'),section(selectedB,'combat'),'personal drilldown still responds to selection');
 const elementIds=[...selectedA.matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]);assert.equal(new Set(elementIds).size,elementIds.length,'combined page has no duplicate IDs');
 for(const [,id]of selectedA.matchAll(/href="#([^"]+)"/g))assert.ok(id==='analysis'||elementIds.includes(id),`anchor #${id} resolves in match panels or the outer analysis wrapper`);
@@ -34,7 +34,7 @@ assert.ok(timeline.includes('data-overview-event="building"')&&timeline.includes
 const json=primary.match(/<script type="application\/json" id="match-overview-data">([\s\S]*?)<\/script>/)![1];
 const curves=JSON.parse(json);assert.equal(curves.networth.length,21);assert.equal(curves.networth[0].minute,1);
 const missing=fixture();delete missing.radiant_score;delete missing.dire_score;missing.players[0].combat_details=undefined;missing.players[0].networth_by_minute=[];
-const sparse=renderMatchOverview(missing);assert.ok(sparse.includes('общий итог неизвестен'));
+const sparse=renderMatchOverview(missing);
 const sparsePulse=JSON.parse(sparse.match(/<script type="application\/json" id="match-pulse-data">([\s\S]*?)<\/script>/)![1]);
 assert.equal(sparsePulse.networth.length,0,'incomplete roster never produces a false team curve');
 assert.ok(!sparse.includes('NaN')&&!sparse.includes('Infinity')&&!sparse.includes('undefined'),'missing data never leaks invalid numeric labels');

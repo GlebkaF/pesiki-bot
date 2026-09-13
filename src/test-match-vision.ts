@@ -1,0 +1,9 @@
+import assert from 'node:assert/strict';
+import {renderMatchVision} from './web/match-vision-render.js';
+import {VISION_SCRIPT} from './web/match-vision-script.js';
+import type {MatchInsights} from './match-insights.js';
+const event=(seconds:number,kind:string,event:string,x:number|null=0)=>({seconds,kind,event,x,y:0});
+const fixture={durationSeconds:600,players:[{steamId:'11',heroLabel:'Crystal Maiden',team:'radiant',vision:{events:[event(20,'observer','purchase'),event(40,'observer','place'),event(80,'sentry','place')]}},{steamId:'22',heroLabel:'Warlock',team:'dire',vision:{events:[event(60,'observer','destroy'),event(90,'sentry','place',null)]}},{steamId:'33',heroLabel:'</script><img src=x>',team:'dire',vision:{events:null}}]} as unknown as MatchInsights;
+const html=renderMatchVision(fixture),data=JSON.parse(html.match(/id="match-vision-data">([\s\S]*?)<\/script>/)![1]);
+assert.equal(data.events.length,4);assert.ok(!data.events.some((e:any)=>e.event==='purchase'));assert.deepEqual(data.events.map((e:any)=>e.mapNumber),[1,2,3,4]);assert.deepEqual(data.events.map((e:any)=>e.seconds),[40,60,80,90]);assert.equal(data.events.filter((e:any)=>e.team==='radiant').length,2);assert.equal(data.events.filter((e:any)=>e.team==='dire').length,2);assert.ok(html.includes('Журнал 1/2 героев'));assert.ok(!data.events.some((e:any)=>e.event==='purchase'));assert.ok(html.includes('а не живые варды'));assert.ok(!html.includes('</script><img src=x>'));assert.ok(html.includes('&lt;/script&gt;&lt;img src=x&gt;'));for(const id of ['ward-team','ward-hero','vision-time','vision-map','vision-events'])assert.ok(html.includes('id="'+id+'"'));new Function(VISION_SCRIPT);
+console.log('Whole-match ward tests passed: both teams, chronological stable IDs, purchases excluded, missing coverage, escaped identity and filters.');

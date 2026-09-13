@@ -13,6 +13,8 @@ const store={economyHistory:()=>{reads++;return [...raw.values()].map(m=>({match
 const profile={account,period:"all",matches,measured:matches} as PlayerProfile;
 const result=buildPlayerProgress(store,profile,1000);
 assert.equal(result.totals.kills,70,"feed KDA excluded from official milestones");
+const fromScoreboards=buildPlayerProgress(store,{...profile,matches:profile.matches.map(m=>({...m,kdaSource:m.kdaSource==="OpenDota"?"табло реплея":m.kdaSource}))},1000);
+assert.equal(fromScoreboards.officialKdaGames,result.officialKdaGames,"replay scoreboards retain verified history coverage");assert.deepEqual(fromScoreboards.totals,result.totals,"scoreboard migration preserves kill/assist milestones");assert.deepEqual(fromScoreboards.milestones,result.milestones);
 assert.equal(result.totals.assists,140);assert.equal(result.totals.wins,6);
 assert.equal(result.streaks.currentWins,2,"unknown outcome breaks streak");
 assert.equal(result.streaks.bestWins,3);

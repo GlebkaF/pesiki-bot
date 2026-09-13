@@ -43,7 +43,7 @@ export function buildProfile(store:ApmStore, account:number, period:Period, now=
     rows.set(m.match_id, {...old, id:m.match_id,start:validDate(m.start_time)??old?.start??null,duration:m.duration,
       hero:HERO_CATALOG.find(h=>h.id===m.hero_id)?.localized_name ?? old?.hero ?? "Неизвестный герой",
       win:(m.player_slot<128)===m.radiant_win,kda:[m.kills,m.deaths,m.assists],
-      kdaSource:m.result_source === "opendota" ? "OpenDota" : "сохранённая сводка", teammates:old?.teammates ?? []});
+      kdaSource:m.result_source === "replay-scoreboard" ? "табло реплея" : m.result_source === "opendota" ? "OpenDota" : "сохранённая сводка", teammates:old?.teammates ?? []});
   }
   for (const a of store.history(account)) {
     const old=rows.get(a.match_id);

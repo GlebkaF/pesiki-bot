@@ -46,6 +46,7 @@ interface OurPlayerFacts {
   unusualRole: boolean;
   profileNotes: string[];
   kda: string;
+  kdaSource?: ParsedPlayer["kda_source"];
   apm?: number;
   csAt10: number;
   networthAt10: number;
@@ -74,6 +75,7 @@ interface EnemyPlayerFacts {
   name: string;
   hero: string;
   kda: string;
+  kdaSource?: ParsedPlayer["kda_source"];
 }
 
 interface PreviousStackMatch {
@@ -371,6 +373,7 @@ export function playerFacts(our: OurPlayer, team: ParsedPlayer[], history?: Play
     unusualRole: Boolean(profile?.usualRoles?.length && !profile.usualRoles.includes(effectiveRole)),
     profileNotes: profile?.notes ?? [],
     kda: `${p.kills}/${p.deaths}/${p.assists}`,
+    kdaSource:p.kda_source,
     apm: p.actions_per_min,
     csAt10: p.cs_at_10,
     networthAt10: p.networth_at_10,
@@ -546,6 +549,7 @@ export async function collectMatchFacts(a: MatchAnalysis): Promise<MatchFactPack
       name: enemy.name,
       hero: enemy.hero,
       kda: `${enemy.kills}/${enemy.deaths}/${enemy.assists}`,
+      kdaSource:enemy.kda_source,
     })),
     awards: {
       mvp: a.mvp ? `${a.mvp.name} (${a.mvp.hero})` : undefined,
@@ -607,7 +611,7 @@ export function renderFactPacket(packet: MatchFactPacket): string {
     ourPlayers: packet.ourPlayers.map((player) => ({
       name:player.name,grammaticalGender:player.grammaticalGender,hero:player.hero,
       lane:player.lane,role:player.role,unusualRole:player.unusualRole,profileNotes:player.profileNotes,
-      kda:player.kda,apm:player.apm,csAt10:player.csAt10,
+      kda:player.kda,kdaSource:player.kdaSource,apm:player.apm,csAt10:player.csAt10,
       networthAt10:player.networthAt10,networthAt20:player.networthAt20,networthFinal:player.networthFinal,
       heroDamage:player.heroDamage,towerDamage:player.towerDamage,damageTaken:player.damageTaken,
       healing_self:player.healing_self,healing_allies:player.healing_allies,

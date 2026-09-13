@@ -1,3 +1,10 @@
+import {ROSTER_SCRIPT} from './match-roster-script.js';
+import {ROSTER_CSS} from './match-roster-style.js';
+import {TEAM_DAMAGE_MATRIX_SCRIPT,TEAM_DAMAGE_MATRIX_CSS} from './team-damage-matrix-render.js';
+import {MATCH_DEATHS_CSS} from './match-deaths-render.js';
+import {MATCH_DEATHS_SCRIPT} from './match-deaths-script.js';
+import {VISION_SCRIPT} from './match-vision-script.js';
+import {WARD_CSS} from './ward-style.js';
 import {COMBAT_WINDOW_CSS} from './match-combat-window-render.js';
 import {PLAYER_AVATAR_CSS} from "./player-avatar-render.js";
 import {GAME_ICON_CSS,GAME_IMAGE_SCRIPT} from "./game-icon.js";
@@ -225,7 +232,7 @@ export function renderMatch(
     : `<p class="sub">Матча нет в ленте — можно разобрать по номеру</p>`;
 
   const analysisBlock = stored
-    ? `<div class="card"><h2>Разбор</h2><p class="dim">формат: ${esc(stored.format)} · ${esc(new Date(stored.createdAt).toLocaleString("ru-RU"))}</p>
+    ? `<div class="card"><p class="dim">Обновлён ${esc(new Date(stored.createdAt).toLocaleString("ru-RU"))}</p>
        <div class="analysis" style="margin-top:14px">${esc(stored.text)}</div>
        <div class="actions">
          <button class="btn" id="post" data-match="${matchId}">Запостить в чат</button>
@@ -238,12 +245,12 @@ export function renderMatch(
        <div class="progress" id="prog"><span class="spin"></span><span id="pmsg">Запускаю…</span><span class="pbar"><i id="pbar"></i></span></div>
        <p class="err" id="err"></p></div>`;
 
+  const commentary=`<details id="analysis" class="match-commentary"><summary><span>Комментарий бота <b aria-hidden="true">⌄</b></span>${stored?`<p>${esc(stored.text.replace(/\s+/g," ").slice(0,240))}</p>`:"<p>Получить разбор этой игры</p>"}</summary><div class="commentary-full">${analysisBlock}<button class="plain-button" type="button" data-share-section="analysis">Скопировать ссылку на комментарий ↗</button></div></details>`;
   const body = `<main class="match-view"><nav class="breadcrumbs" aria-label="Путь по сайту"><a href="/">← Матчи</a><span aria-hidden="true">/</span><span>Матч ${matchId}</span></nav><div class="top match-head">
       <div><h1>Матч <span class="mono">${matchId}</span></h1>${head}</div>
       <a class="btn ghost" href="https://www.opendota.com/matches/${matchId}" target="_blank" rel="noopener">OpenDota</a>
     </div>
-    ${parsed ? renderReplayInsights(parsed,options?.player,options?.official,options?.officialPlayers,options?.episode) : ""}
-    <section id="analysis" class="insight-panel"><div class="section-head"><h2><a href="#analysis">Комментарий бота о стаке</a></h2><button class="share-section" type="button" data-share-section="analysis" aria-label="Скопировать ссылку на сводку">↗</button></div>${analysisBlock}</section>
+    ${parsed ? renderReplayInsights(parsed,options?.player,options?.official,options?.officialPlayers,options?.episode,commentary) : commentary}
     ${
       api
         ? `<div class="card"><h2>Составы и итоги</h2>
@@ -339,5 +346,5 @@ if (btn) btn.addEventListener('click', async () => {
   }, 1500);
 });`;
 
-  return layout(`Матч ${matchId} · Песики`, body, script+(parsed?PROFILE_SCRIPT+MATCH_SCRIPT+OVERVIEW_SCRIPT+EPISODE_SCRIPT+PULSE_SCRIPT:""),PROFILE_CSS+MATCH_CSS+OVERVIEW_CSS+EPISODE_CSS+PULSE_CSS+COMBAT_WINDOW_CSS);
+  return layout(`Матч ${matchId} · Песики`, body, script+(parsed?PROFILE_SCRIPT+MATCH_SCRIPT+OVERVIEW_SCRIPT+EPISODE_SCRIPT+PULSE_SCRIPT+VISION_SCRIPT+MATCH_DEATHS_SCRIPT+ROSTER_SCRIPT+TEAM_DAMAGE_MATRIX_SCRIPT:""),PROFILE_CSS+MATCH_CSS+OVERVIEW_CSS+EPISODE_CSS+PULSE_CSS+COMBAT_WINDOW_CSS+WARD_CSS+MATCH_DEATHS_CSS+ROSTER_CSS+TEAM_DAMAGE_MATRIX_CSS);
 }

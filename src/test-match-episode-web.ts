@@ -25,9 +25,9 @@ assert.ok(html.includes('в другой части карты'));assert.ok(html
 assert.ok(html.includes('Разбивка урона перед этой смертью не сохранена'));assert.ok(!/NaN|Infinity|undefined/.test(html));
 const official=[{account_id:account,hero_id:5,player_slot:0,kills:7,deaths:9,assists:17}];
 const page=renderReplayInsights(m,steam,undefined,official as any,selected);
-assert.ok(page.includes('<b>7 / 9 / 17</b>'));assert.ok(!page.includes('<b>999 / 999 / 999</b>'));
-assert.ok(!renderReplayInsights(m,steam,undefined,[{...official[0],player_slot:128}] as any).includes('<b>7 / 9 / 17</b>'),'wrong team must not match');
-assert.ok(!renderReplayInsights(m,steam,undefined,[{...official[0],account_id:account+1}] as any).includes('<b>7 / 9 / 17</b>'),'wrong public account must not match');
+assert.ok(page.includes('<strong>7 / 9 / 17</strong>'));assert.ok(!page.includes('<strong>999 / 999 / 999</strong>'));
+assert.ok(!renderReplayInsights(m,steam,undefined,[{...official[0],player_slot:128}] as any).includes('<strong>7 / 9 / 17</strong>'),'wrong team must not match');
+assert.ok(!renderReplayInsights(m,steam,undefined,[{...official[0],account_id:account+1}] as any).includes('<strong>7 / 9 / 17</strong>'),'wrong public account must not match');
 const ids=[...page.matchAll(/\bid="([^"]+)"/g)].map(m=>m[1]);assert.equal(new Set(ids).size,ids.length);
 for(const [,id]of page.matchAll(/href="#([^"]+)"/g))assert.ok(id==='analysis'||ids.includes(id),`anchor ${id} exists`);
 for(const [,id]of html.matchAll(/data-share-section="([^"]+)"/g))assert.ok(ids.includes(id));
@@ -45,7 +45,7 @@ let output='';worker.stdout.on('data',c=>output+=c);worker.stderr.on('data',c=>o
 try{
  await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>reject(Error(output)),10000);worker.once('exit',()=>{clearTimeout(timer);reject(Error(output));});worker.stdout.on('data',c=>{if(String(c).includes('витрина на')){clearTimeout(timer);resolve();}});});
  const response=await fetch(`http://localhost:3027/match/777?player=${steam}&episode=${selected}`);assert.equal(response.status,200);const body=await response.text();
- assert.ok(body.includes(`value="${selected}" selected`),'route forwards selected episode');assert.ok(body.includes('<b>7 / 9 / 17</b>'),'route forwards saved partial official players without full API snapshot');
+ assert.ok(body.includes(`value="${selected}" selected`),'route forwards selected episode');assert.ok(body.includes('<strong>7 / 9 / 17</strong>'),'route forwards saved partial official players without full API snapshot');
  assert.ok(!output.includes('UNEXPECTED_NETWORK_CALL'),output);assert.ok(!output.includes('ошибка запроса'),output);
  console.log('Match episode web tests passed: selected detail, honest scope, missing data, XSS roundtrip, IDs, official matching, offline HTTP route.');
 }finally{const exited=once(worker,'exit');worker.kill('SIGTERM');await exited;await rm(dir,{recursive:true,force:true});}

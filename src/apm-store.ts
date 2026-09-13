@@ -1,4 +1,5 @@
 /** Permanent APM history, independent of the replay JSON cache and its TTL. */
+import { verifiedReplayScoreboard } from "./replay-scoreboard.js";
 import { validActionCounts } from "./action-counts.js";
 import type { RecentMatch, MatchApi, MatchApiPlayer } from "./opendota.js";
 import Database from "better-sqlite3";
@@ -33,7 +34,7 @@ export interface ProfileRoster {
   match_id:number; start_time?:number; duration_min:number; winner:string;
   players:{steam_id:string;hero:string;team:string}[];
 }
-export type SavedResult = RecentMatch & { result_source: "opendota" | "feed" };
+export type SavedResult = RecentMatch & { result_source: "opendota" | "feed" | "replay-scoreboard"; scoreboard_provenance?:{version:string;parser_version?:string;resource_slot:number;team_slot:number} };
 export interface ApmRecord {
   match_id: number; account_id: number; hero: string; start_time: number | null;
   action_counts?: Record<string, number>;
@@ -84,7 +85,7 @@ export class ApmStore {
       const old = existing?.players.find(x => x.steam_id === p.steam_id && x.hero===p.hero && x.team===p.team);
       const counts = validActionCounts(p.action_counts, p.actions ?? -1) ? p.action_counts :
         old?.actions === p.actions && validActionCounts(old?.action_counts,p.actions ?? -1) ? old!.action_counts : undefined;
-      return {...p,action_counts:counts,combat_details:p.combat_details??old?.combat_details};
+      return {...p,action_counts:counts,combat_details:p.combat_details??old?.combat_details,replay_scoreboard:verifiedReplayScoreboard(p)??old?.replay_scoreboard};
     })};
     this.db.prepare(`INSERT INTO parsed_replays(match_id,start_time,parsed_at,payload_json) VALUES(?,?,?,?)
       ON CONFLICT(match_id) DO UPDATE SET start_time=excluded.start_time, parsed_at=excluded.parsed_at, payload_json=excluded.payload_json
@@ -94,6 +95,16 @@ export class ApmStore {
       players:stored.players.map(p=>({steam_id:p.steam_id,hero:p.hero,team:p.team}))};
     this.db.prepare(`INSERT INTO profile_rosters VALUES(?,?) ON CONFLICT(match_id) DO UPDATE SET payload_json=excluded.payload_json
       WHERE profile_rosters.payload_json != excluded.payload_json`).run(match.match_id,JSON.stringify(roster));
+    // Independent result projection gains verified KDA without rewriting legacy replay counters.
+    if(["radiant","dire"].includes(stored.winner))for(const p of stored.players){
+      const scoreboard=verifiedReplayScoreboard(p);if(!scoreboard||!/^\d+$/.test(p.steam_id))continue;
+      const account=Number(BigInt(p.steam_id)-76561197960265728n);if(!Number.isSafeInteger(account)||account<=0||account>4294967295)continue;
+      const row={match_id:stored.match_id,start_time:stored.start_time??0,duration:stored.apm_duration_seconds??stored.duration_min*60,
+        player_slot:(p.team==="radiant"?0:128)+scoreboard.team_slot,radiant_win:stored.winner==="radiant",hero_id:scoreboard.hero_id,
+        kills:scoreboard.kills,deaths:scoreboard.deaths,assists:scoreboard.assists,
+        scoreboard_provenance:{version:scoreboard.version,parser_version:stored.parser_version,resource_slot:scoreboard.resource_slot,team_slot:scoreboard.team_slot}};
+      this.saveResults(account,[row],"replay-scoreboard");
+    }
     return true;
     }).immediate();
   }
@@ -166,7 +177,7 @@ export class ApmStore {
       const latest=this.replay(parsed.match_id)!;
       this.saveReplay({...latest,analytics_version:parsed.analytics_version,parser_version:parsed.parser_version,
         combat_timeline:parsed.combat_timeline?projectTimeline(parsed.combat_timeline,parsed.players,latest.players):latest.combat_timeline,
-        players:latest.players.map(p=>({...p,combat_details:parsed.players.find(q=>q.steam_id===p.steam_id&&q.hero===p.hero&&q.team===p.team)!.combat_details}))});
+        players:latest.players.map(p=>({...p,combat_details:parsed.players.find(q=>q.steam_id===p.steam_id&&q.hero===p.hero&&q.team===p.team)!.combat_details,replay_scoreboard:parsed.players.find(q=>q.steam_id===p.steam_id&&q.hero===p.hero&&q.team===p.team)!.replay_scoreboard??p.replay_scoreboard}))});
     }).immediate();
   }
   economyHistory(accountId:number): {matchId:number;start:number|null;hero:string;mode:string;duration:number;items:string;networth10:number|null;networth20:number|null}[] {
@@ -178,17 +189,35 @@ export class ApmStore {
       FROM parsed_replays r,json_each(r.payload_json,'$.players') p WHERE json_extract(p.value,'$.steam_id')=?
       ORDER BY r.start_time DESC,r.match_id DESC LIMIT 250`).all(steam) as ReturnType<ApmStore["economyHistory"]>;
   }
-  saveResults(accountId: number, matches: RecentMatch[], source: "opendota" | "feed" = "opendota"): void {
+  saveResults(accountId: number, matches: RecentMatch[], source: "opendota" | "feed" | "replay-scoreboard" = "opendota"): void {
+    const find=this.db.prepare("SELECT payload_json FROM player_match_results WHERE match_id=? AND account_id=?");
     const insert = this.db.prepare(`INSERT INTO player_match_results VALUES(?,?,?) ON CONFLICT(match_id,account_id) DO UPDATE SET payload_json=excluded.payload_json
-      WHERE player_match_results.payload_json != excluded.payload_json AND (json_extract(excluded.payload_json, '$.result_source') = 'opendota' OR json_extract(player_match_results.payload_json, '$.result_source') != 'opendota')`);
+      WHERE player_match_results.payload_json != excluded.payload_json`);
+    const rank=(s:unknown)=>s==="replay-scoreboard"?3:s==="opendota"?2:1;
+    const protectedFields=new Set(["match_id","account_id","hero_id","player_slot","start_time","duration","radiant_win","kills","deaths","assists","result_source","scoreboard_provenance"]);
     this.db.transaction(() => {
       for (const m of matches) {
-        if (!Number.isSafeInteger(m.match_id) || m.match_id <= 0 || !Number.isFinite(m.start_time) || m.start_time <= 0 ||
+        if (!Number.isSafeInteger(m.match_id) || m.match_id <= 0 || !Number.isFinite(m.start_time) || m.start_time < 0 || (m.start_time === 0 && source !== "replay-scoreboard") ||
             !Number.isFinite(m.duration) || m.duration <= 0 || typeof m.radiant_win !== "boolean" ||
             ![m.kills,m.deaths,m.assists,m.hero_id,m.player_slot].every(n => Number.isSafeInteger(n) && n >= 0)) continue;
-        insert.run(m.match_id,accountId,JSON.stringify({...m,result_source:source}));
+        const saved=find.get(m.match_id,accountId) as {payload_json:string}|undefined;
+        const old=saved?JSON.parse(saved.payload_json) as SavedResult:undefined;
+        let next:SavedResult;
+        if(old?.result_source==="replay-scoreboard"&&source==="opendota"){
+          // Refresh independently sourced API metrics, never replay KDA/identity/provenance.
+          if(m.hero_id!==old.hero_id||m.player_slot!==old.player_slot)continue;
+          const extras=Object.fromEntries(Object.entries(m).filter(([key,value])=>!protectedFields.has(key)&&value!==undefined&&value!==null));
+          next={...old,...extras};
+        }else{
+          if(old&&rank(source)<rank(old.result_source))continue;
+          // A scoreboard row is intentionally small; keep all existing API extras.
+          const incoming=Object.fromEntries(Object.entries(m).filter(([,value])=>value!==undefined&&value!==null));
+          next={...old,...incoming,result_source:source} as SavedResult;
+          if(source==="replay-scoreboard"&&m.start_time===0&&old&&old.start_time>0)next.start_time=old.start_time;
+        }
+        insert.run(m.match_id,accountId,JSON.stringify(next));
       }
-    })();
+    }).immediate();
   }
   results(accountId: number): SavedResult[] {
     return (this.db.prepare("SELECT payload_json FROM player_match_results WHERE account_id=?").all(accountId) as {payload_json:string}[]).map(r => JSON.parse(r.payload_json));

@@ -50,7 +50,15 @@ export interface CombatDetails {
   xp_events:number;
 }
 
+/** Final replicated Valve scoreboard, attached only after end state and exact roster identity verification. */
+export interface ReplayScoreboard {
+ version:"player-resource-v1"; source:"CDOTA_PlayerResource";
+ resource_slot:number; team_slot:number; hero_id:number; kills:number; deaths:number; assists:number;
+ complete:true; end_state_observed:true;
+}
 export interface ParsedPlayer {
+ replay_scoreboard?: ReplayScoreboard;
+ kda_source?: "replay-scoreboard" | "opendota";
   combat_details?: CombatDetails;
   action_counts?: Record<string, number>;
   actions?: number;

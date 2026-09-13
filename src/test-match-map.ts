@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {renderMatchDeaths} from './web/match-deaths-render.js';
+import {buildMatchInsights} from './match-insights.js';
+import {replayMap} from './web/replay-map.js';
+import type {ParsedMatch} from './replay.js';
+import {MATCH_DEATHS_SCRIPT} from './web/match-deaths-script.js';
+const m={match_id:777,game_mode:'mode_23',duration_min:10,winner:'radiant',players:['axe','lina'].map((hero,i)=>({hero,steam_id:String(76561197960265728n+BigInt(i+1)),team:i?'dire':'radiant',death_times_min:[1+i,3+i],networth_by_minute:[],item_timings:[]})),kills:[],buildings:[],roshan_kills_min:[],teamfights:[]} as unknown as ParsedMatch;
+const data=buildMatchInsights(m),html=renderMatchDeaths(data);
+const payload=JSON.parse(html.match(/id="match-deaths-data">([\s\S]*?)<\/script>/)![1]);
+assert.equal(payload.events.length,4);assert.deepEqual(payload.events.map((e:any)=>e.team),['radiant','dire','radiant','dire']);
+assert.equal(new Set(payload.events.map((e:any)=>e.id)).size,4);assert.ok(payload.events.every((e:any)=>e.x===null&&e.y===null));assert.ok(html.includes('а не официальный счёт'));
+assert.equal(replayMap(m),null);assert.equal(replayMap(m,{match_id:778,patch:60} as any),null);assert.equal(replayMap(m,{match_id:777,patch:59} as any),null);
+assert.deepEqual(replayMap(m,{match_id:777,patch:60} as any),{imageUrl:'/assets/dota-741-minimap.png',xMin:-9472,xMax:9472,yMin:-9472,yMax:9472,label:'Карта Valve · 7.41. События по реплею; область видимости не рассчитывается.'});
+assert.equal(replayMap({...m,game_mode:'mode_99'},{match_id:777,patch:60} as any),null);
+const attack='</script><img src=x onerror=evil>';data.players[0].heroLabel=attack;
+const unsafe=renderMatchDeaths(data);assert.ok(!unsafe.includes(attack));assert.equal(JSON.parse(unsafe.match(/id="match-deaths-data">([\s\S]*?)<\/script>/)![1]).events[0].hero,attack);
+new Function(MATCH_DEATHS_SCRIPT);
+console.log('Whole match map tests passed: both teams, stable identities, missing coordinates, neutral counts, exact patch/mode binding, safe labels and script syntax.');

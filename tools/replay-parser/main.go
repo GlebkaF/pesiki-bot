@@ -28,17 +28,18 @@ type ItemBuy struct {
 }
 
 type Player struct {
-	CombatDetails *CombatDetails `json:"combat_details,omitempty"`
-	ActionCounts  map[string]int `json:"action_counts"`
-	Actions       *int           `json:"actions,omitempty"`
-	APM           *int           `json:"actions_per_min,omitempty"`
-	SteamID       uint64         `json:"steam_id,string"`
-	Name          string         `json:"name"`
-	Hero          string         `json:"hero"`
-	Team          string         `json:"team"`
-	Slot          int            `json:"slot"`
-	Lane          string         `json:"lane"`
-	LaneRole      string         `json:"lane_role"`
+	ReplayScoreboard *ReplayScoreboard `json:"replay_scoreboard,omitempty"`
+	CombatDetails    *CombatDetails    `json:"combat_details,omitempty"`
+	ActionCounts     map[string]int    `json:"action_counts"`
+	Actions          *int              `json:"actions,omitempty"`
+	APM              *int              `json:"actions_per_min,omitempty"`
+	SteamID          uint64            `json:"steam_id,string"`
+	Name             string            `json:"name"`
+	Hero             string            `json:"hero"`
+	Team             string            `json:"team"`
+	Slot             int               `json:"slot"`
+	Lane             string            `json:"lane"`
+	LaneRole         string            `json:"lane_role"`
 
 	Kills   int `json:"kills"`
 	Deaths  int `json:"deaths"`
@@ -157,7 +158,7 @@ func main() {
 		panic(err)
 	}
 
-	out := &Output{ParserVersion: "pesiki-replay-v7", AnalyticsVersion: analyticsVersion}
+	out := &Output{ParserVersion: "pesiki-replay-v8", AnalyticsVersion: analyticsVersion}
 	byHero := map[string]*Player{}
 	bySlot := map[int]*Player{}
 	var gameStart float64 = -1
@@ -166,6 +167,7 @@ func main() {
 	radiantWin := false
 	apm := newAPMCounter(p, func() bool { return gameStart >= 0 && !gameEnded })
 	timeline := newCombatTimeline()
+	scoreboard := newReplayScoreboard(p)
 	wards := newWardCollector(p, func() bool { return gameStart >= 0 && !gameEnded }, func() float64 { return (lastTS - gameStart) / 60 })
 
 	p.Callbacks.OnCDemoFileInfo(func(m *dota.CDemoFileInfo) error {
@@ -572,6 +574,7 @@ func main() {
 		out.Players = append(out.Players, pl)
 	}
 	sort.Slice(out.Players, func(i, j int) bool { return out.Players[i].Slot < out.Players[j].Slot })
+	scoreboard.apply(out.Players, gameEnded)
 	out.CombatTimeline = timeline.finish(out.Players)
 	wards.apply(out.Players)
 	assignRoles(out.Players)

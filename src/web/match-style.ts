@@ -1,5 +1,7 @@
 /** Match analysis extends the profile's shared colour and touch-target system. */
 export const MATCH_CSS = `
+.hero-focus{display:flex;align-items:center;gap:14px;margin:18px 0}.hero-focus>img{width:76px;height:46px;object-fit:cover;border-radius:7px}.hero-focus>div{display:flex;flex-direction:column;gap:6px;min-width:0}.hero-focus strong{font-size:20px;overflow-wrap:anywhere}.hero-focus span{font-size:12px;color:var(--muted)}.hero-kpis{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}.hero-kpis>div{display:flex;flex-direction:column;gap:7px;padding:13px;background:var(--surface-2);border-radius:8px}.hero-kpis span{font-size:11px;color:var(--muted)}.hero-kpis strong{font-size:22px;font-variant-numeric:tabular-nums}
+
 .match-view{display:flex;flex-direction:column;gap:14px;min-width:0}
 .match-head{padding:22px 24px;background:var(--surface);border:1px solid var(--line);border-top:3px solid var(--accent);border-radius:5px}
 .match-view .btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center;background:var(--accent);border-color:var(--accent);color:var(--surface);border-radius:4px}.match-view .btn.ghost{background:transparent;color:var(--accent)}.match-view .card{border-radius:5px;padding:18px}.match-head h1{font-size:30px;line-height:1.2;letter-spacing:-.025em;margin:0 0 8px}

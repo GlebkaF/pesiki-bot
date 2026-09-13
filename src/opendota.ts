@@ -1,3 +1,4 @@
+import { verifiedReplayScoreboard } from "./replay-scoreboard.js";
 import { getApmStore } from "./apm-store.js";
 import { HERO_CATALOG } from "./hero-catalog.js";
 import { getAppFetch, isOpenDotaLimited } from "./proxy.js";
@@ -319,6 +320,7 @@ export interface MatchApiPlayer {
 }
 
 export interface MatchApi {
+  patch?: number;
   match_id: number;
   duration: number;
   start_time: number;
@@ -353,6 +355,7 @@ export function savedRecentMatches(accountId: number): RecentMatch[] {
   return getApmStore().allReplays().flatMap(m => {
     const p=m.players.find(p=>p.steam_id===steamId);
     if(!p || !m.start_time) return [];
-    return [{match_id:m.match_id,player_slot:p.team==="radiant"?0:128,radiant_win:m.winner==="radiant",start_time:m.start_time,duration:Math.round(m.duration_min*60),hero_id:heroIds.get(p.hero)??0,kills:p.kills,deaths:p.deaths,assists:p.assists}];
+    const scoreboard=verifiedReplayScoreboard(p);
+    return [{match_id:m.match_id,player_slot:p.team==="radiant"?0:128,radiant_win:m.winner==="radiant",start_time:m.start_time,duration:Math.round(m.duration_min*60),hero_id:heroIds.get(p.hero)??0,kills:scoreboard?.kills??p.kills,deaths:scoreboard?.deaths??p.deaths,assists:scoreboard?.assists??p.assists}];
   }).sort((a,b)=>b.start_time-a.start_time);
 }

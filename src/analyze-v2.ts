@@ -1,3 +1,4 @@
+import { withReplayScoreboards } from "./replay-scoreboard.js";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { withAnalysisApm } from "./analysis-apm.js";
@@ -124,7 +125,7 @@ function buildLaneReport(parsed: ParsedMatch, ourTeam: "radiant" | "dire"): stri
 
 /**
  * Счёт из combat log расходится с официальным (ассисты в логе считаются шире),
- * а игроки видели свой KDA своими глазами. Поэтому базовые числа берём из API,
+ * точное табло PlayerResource имеет приоритет при анализе. API дополняет остальные факты,
  * а из реплея оставляем то, чего в API нет: линии, тимфайты, тайминги, кривые.
  */
 export async function mergeOfficialStats(parsed: ParsedMatch): Promise<ParsedMatch> {
@@ -139,6 +140,7 @@ export async function mergeOfficialStats(parsed: ParsedMatch): Promise<ParsedMat
 }
 
 export function analyseParsedMatch(parsed: ParsedMatch): MatchAnalysis {
+  parsed=withReplayScoreboards(parsed);
   const ours: OurPlayer[] = [];
   for (const p of parsed.players) {
     const cfg = bySteam32.get(toSteam32(p.steam_id));

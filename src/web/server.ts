@@ -81,6 +81,13 @@ function sendJson(res: ServerResponse, status: number, data: unknown): void {
 async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   const p = url.pathname;
+  if(p==='/assets/dota-741-minimap.png'&&(req.method==='GET'||req.method==='HEAD')){
+    const bytes=await readFile(new URL('./assets/dota-741-minimap.png',import.meta.url));
+    const etag='"valve-minimap-741-v1"';
+    const headers={'content-type':'image/png','cache-control':'public, max-age=604800','etag':etag,'x-content-type-options':'nosniff'};
+    if(req.headers['if-none-match']===etag){res.writeHead(304,headers);res.end();return;}
+    res.writeHead(200,{...headers,'content-length':bytes.length});res.end(req.method==='HEAD'?undefined:bytes);return;
+  }
   const avatar=p.match(/^\/assets\/player-avatar\/(\d+)$/);
   if(avatar&&(req.method==='GET'||req.method==='HEAD')){
     const image=readPlayerAvatar(Number(avatar[1]));if(!image)return send(res,404,'Avatar unavailable','text/plain');

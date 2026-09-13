@@ -66,7 +66,7 @@ function benchmarks(store:ApmStore,profile:PlayerProfile,now:number){
 }
 /** Own stored history only. Official KDA is never reconstructed from combat events. */
 export function buildPlayerProgress(store:ApmStore,profile:PlayerProfile,now=Date.now()):PlayerProgress {
-  const official=profile.matches.filter(m=>m.kdaSource==="OpenDota"&&m.kda?.every(finite));
+  const official=profile.matches.filter(m=>["OpenDota","табло реплея"].includes(m.kdaSource??"")&&m.kda?.every(finite));
   const totals={kills:official.reduce((sum,m)=>sum+m.kda![0],0),assists:official.reduce((sum,m)=>sum+m.kda![2],0),wins:profile.matches.filter(m=>m.win===true).length,heroes:new Set(profile.matches.map(m=>m.hero).filter(h=>h&&h!=="Неизвестный герой")).size};
   const dated=profile.matches.filter(m=>finite(m.start)&&m.start>0).sort((a,b)=>b.start!-a.start!||b.id-a.id);
   let bestWins=0,run=0;for(const m of [...dated].reverse()){run=m.win===true?run+1:0;bestWins=Math.max(bestWins,run);}

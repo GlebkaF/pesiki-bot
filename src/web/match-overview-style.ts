@@ -1,5 +1,7 @@
 /** Whole-match overview. Uses the existing light/dark design tokens. */
 export const OVERVIEW_CSS = `
+.match-commentary{margin:0 0 12px;border-bottom:1px solid var(--line);padding-bottom:12px;scroll-margin-top:var(--section-offset,120px)}.match-commentary>summary{list-style:none;cursor:pointer;min-height:44px}.match-commentary>summary::-webkit-details-marker{display:none}.match-commentary>summary>span{display:flex;justify-content:space-between;font-size:12px;font-weight:750;color:var(--accent)}.match-commentary>summary p{margin:6px 0 0;font-size:13px;line-height:1.5;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}.match-commentary .card{margin:12px 0 0;padding:0;border:0;background:none}.commentary-full{padding-top:8px}.overview-story{margin-top:16px}
+
 .ov-summary{padding-bottom:18px;margin-bottom:18px;border-bottom:1px solid var(--line);min-width:0}
 .ov-kicker{margin:0 0 7px;color:var(--accent);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 .ov-title,.ov-summary h3{margin:0 0 9px;font-size:25px;font-weight:750;line-height:1.25;letter-spacing:-.025em;overflow-wrap:anywhere}

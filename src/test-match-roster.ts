@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import type {ParsedMatch} from './replay.js';
+import type {MatchInsights,MatchPlayerInsights} from './match-insights.js';
+import {renderMatchRoster} from './web/match-roster-render.js';
+import {resolveOfficialRosterPlayer} from './web/match-official.js';
+import {ROSTER_SCRIPT} from './web/match-roster-script.js';
+const account=94014640,steam=String(76561197960265728n+BigInt(account));
+const p={steamId:steam,hero:'crystal_maiden',heroLabel:'Crystal Maiden',team:'radiant',damage:{heroes:999999,buildings:90},healing:{allies:80},control:{stunSeconds:6}} as unknown as MatchPlayerInsights;
+const m={match_id:777,duration_min:10,players:[{steam_id:steam,hero:'crystal_maiden',team:'radiant',actions_per_min:120,networth_final:7000,kills:999,deaths:999,assists:999}]} as unknown as ParsedMatch;
+const official={account_id:account,hero_id:5,player_slot:0,kills:7,deaths:9,assists:17} as any;
+assert.equal(resolveOfficialRosterPlayer(m,p,undefined,[official]),official);
+for(const patch of [{account_id:account+1},{hero_id:6},{player_slot:128},{kills:-1},{assists:NaN}])assert.equal(resolveOfficialRosterPlayer(m,p,undefined,[{...official,...patch}]),undefined);
+assert.equal(resolveOfficialRosterPlayer(m,p,{match_id:778,players:[official]} as any),undefined);
+assert.equal(resolveOfficialRosterPlayer(m,p,undefined,[official,official]),undefined,'ambiguous official identities do not select arbitrary row');
+const html=renderMatchRoster(m,{players:[p]} as MatchInsights,undefined,[official]);assert.ok(html.includes('7 / 9 / 17'));assert.ok(!html.includes('999 / 999 / 999'));assert.ok(!html.includes('999999'),'legacy broad damage must not become enemy damage');assert.ok(html.includes('Журнал урона врагам и лечения не сохранён'));assert.ok(html.includes('<details class="roster-fold" id="scoreboard">'));assert.ok(html.includes('id="teams"'));assert.ok(html.includes('roster-compact-teams'));assert.ok(!html.includes('<details class="roster-fold" id="scoreboard" open'));
+new Function(ROSTER_SCRIPT);console.log('Match roster tests passed: official identity validation, wrong match/team/account/hero rejection, ambiguity, closed compact summary and no legacy enemy-damage substitution.');
