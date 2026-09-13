@@ -1,3 +1,5 @@
+import {playerAvatar} from "./player-avatar-render.js";
+import {gameLabel} from "./game-icon.js";
 import {buildMatchEpisodes} from "../match-episodes.js";
 import {renderMatchEpisodes} from "./match-episode-render.js";
 import {renderMatchOverview} from "./match-overview-render.js";
@@ -23,14 +25,14 @@ function breakdown(rows:BreakdownEntry[]|null,emptyText:string){
  if(rows===null)return missing(emptyText);
  if(!rows.length)return missing("В этом матче таких событий не зафиксировано.");
  const max=Math.max(...rows.map(r=>r.value),1);
- const row=(r:BreakdownEntry)=>`<div class="bar-row"><span>${esc(label(r.key))}</span><b>${number(r.value)}</b><i style="width:${r.value/max*100}%"></i></div>`;
+ const row=(r:BreakdownEntry)=>`<div class="bar-row"><span>${gameLabel(r.key,label(r.key))}</span><b>${number(r.value)}</b><i style="width:${r.value/max*100}%"></i></div>`;
  return `<div class="stat-bars">${rows.slice(0,8).map(row).join("")}</div>`+(rows.length>8?fold(`Все источники (${rows.length})`,rows.slice(8).map(row).join("")):"");
 }
 function scoreboard(m:ParsedMatch,x:MatchInsights,api?:MatchApi,officialPlayers?:MatchApiPlayer[]){
  return ["radiant","dire"].map(team=>`<div class="score-team"><h3 class="team-title ${team}">${team==='radiant'?'Radiant':'Dire'} ${m.winner===team?'· ПОБЕДА':''}</h3><div class="score-grid">${x.players.filter(p=>p.team===team).map(p=>{
  const raw=m.players.find(q=>q.steam_id===p.steamId&&q.hero===p.hero)!;
  const id=account(p.steamId),official=(officialPlayers??(api?.match_id===m.match_id?api.players:[])).find(q=>HERO_CATALOG.find(h=>h.id===q.hero_id)?.localized_name===p.heroLabel&&(q.player_slot<128)===(p.team==="radiant")&&(!q.account_id||q.account_id===4294967295||id===null||q.account_id===id)),ours=PLAYERS.some(q=>q.steamId===id);
- return `<article class="score-player ${ours?'ours':''}"><a class="score-identity" href="/match/${m.match_id}?player=${esc(p.steamId)}#combat" data-select-player="${esc(p.steamId)}">${portrait(p)}<span><strong>${esc(name(p))}</strong>${name(p)!==p.heroLabel?`<small>${esc(p.heroLabel)}</small>`:""}</span></a><div class="score-stats"><span><small>K / D / A</small><b>${official?`${official.kills} / ${official.deaths} / ${official.assists}`:'—'}</b></span><span><small>APM</small><b>${number(raw.actions_per_min)}</b></span><span><small>Имущество</small><b>${number(raw.networth_final)}</b></span><span><small>Добивания</small><b>${number(raw.last_hits)}</b></span></div></article>`;
+ return `<article class="score-player ${ours?'ours':''}"><a class="score-identity" href="/match/${m.match_id}?player=${esc(p.steamId)}#combat" data-select-player="${esc(p.steamId)}">${ours&&id?playerAvatar(id,name(p)):''}${portrait(p)}<span><strong>${esc(name(p))}</strong>${name(p)!==p.heroLabel?`<small>${esc(p.heroLabel)}</small>`:""}</span></a><div class="score-stats"><span><small>K / D / A</small><b>${official?`${official.kills} / ${official.deaths} / ${official.assists}`:'—'}</b></span><span><small>APM</small><b>${number(raw.actions_per_min)}</b></span><span><small>Имущество</small><b>${number(raw.networth_final)}</b></span><span><small>Добивания</small><b>${number(raw.last_hits)}</b></span></div></article>`;
  }).join("")}</div></div>`).join("")+`<p class="micro-note">KDA показывается из сохранённого ответа OpenDota. Остальные показатели — из реплея. Прочерк означает отсутствие измерения.</p>`;
 }
 function farm(x:MatchInsights){
@@ -51,7 +53,7 @@ function deaths(p:MatchPlayerInsights){
 }
 function builds(m:ParsedMatch,p:MatchPlayerInsights){
  const raw=m.players.find(q=>q.steam_id===p.steamId&&q.hero===p.hero)!;
- const rows=(raw.item_timings??[]).map(i=>`<div class="event-row"><time>${clock(Math.round(i.min*60))}</time><span>${esc(label(i.item))}</span></div>`).join("");
+ const rows=(raw.item_timings??[]).map(i=>`<div class="event-row"><time>${clock(Math.round(i.min*60))}</time><span>${gameLabel(i.item,label(i.item),'item')}</span></div>`).join("");
  return `<p class="sub">Покупки ${esc(p.heroLabel)}. Время покупки, а не доставки или завершения сборки.</p>${rows||missing('Покупки не сохранены.')}<p class="micro-note">Предстартовые покупки и часть расходников могут отсутствовать. Список показывает наблюдаемые события, повторные покупки сохраняются.</p>`;
 }
 function events(p:MatchPlayerInsights,x:MatchInsights){

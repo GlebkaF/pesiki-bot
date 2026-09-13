@@ -1,3 +1,4 @@
+import {readPlayerAvatar} from "../player-avatars.js";
 import {buildPlayerProgress} from "../player-progress.js";
 import { loadProfiles, periodOf } from "../player-profile.js";
 import { buildEconomy } from "../profile-economy.js";
@@ -8,7 +9,7 @@ import { getApmStore } from "../apm-store.js";
  * Никаких фреймворков: маршрутов мало, а лишняя зависимость на сервере — лишний риск.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { readdir } from "node:fs/promises";
+import { readdir,readFile } from "node:fs/promises";
 import path from "node:path";
 import { getFeed, rebuildFeed, startFeedSync, type FeedMatch } from "./feed.js";
 import { enqueue, getJob, getStoredAnalysis, markPosted, purgeLegacyAnalyses } from "./jobs.js";
@@ -80,6 +81,15 @@ function sendJson(res: ServerResponse, status: number, data: unknown): void {
 async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   const p = url.pathname;
+  const avatar=p.match(/^\/assets\/player-avatar\/(\d+)$/);
+  if(avatar&&(req.method==='GET'||req.method==='HEAD')){
+    const image=readPlayerAvatar(Number(avatar[1]));if(!image)return send(res,404,'Avatar unavailable','text/plain');
+    const headers={'content-type':image.contentType,'cache-control':'public, max-age=300','etag':'"'+image.etag+'"','x-content-type-options':'nosniff'};
+    if(req.headers['if-none-match']===headers.etag){res.writeHead(304,headers);res.end();return;}
+    let bytes:Buffer;try{bytes=await readFile(image.path);}catch{return send(res,404,'Avatar unavailable','text/plain');}
+    res.writeHead(200,{...headers,'content-length':bytes.length});res.end(req.method==='HEAD'?undefined:bytes);return;
+  }
+
 
   if (req.method === "GET" && (p === "/players" || /^\/player\/\d+$/.test(p))) {
     const period = periodOf(url.searchParams.get("period"));
@@ -95,7 +105,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   if (p === "/" && req.method === "GET") {
     const { matches, updatedAt } = await getFeed();
     const player = url.searchParams.get("player") || undefined;
-    return send(res, 200, renderFeed(matches, updatedAt, await analyzedIds(), player));
+    return send(res, 200, renderFeed(matches, updatedAt, await analyzedIds(), player,getApmStore().profileRosters(),Number(url.searchParams.get("page"))||1));
   }
 
   if (p === "/refresh" && req.method === "POST") {

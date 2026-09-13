@@ -1,0 +1,35 @@
+export const PULSE_SCRIPT=`
+{
+ const node=document.getElementById('match-pulse-data');
+ if(node){
+ const data=JSON.parse(node.textContent),root=document.querySelector('.match-pulse'),range=document.getElementById('pulse-minute'),chart=document.getElementById('pulse-chart'),play=document.getElementById('pulse-play');
+ const state=new URL(location.href),maxMinute=Number(range.max),reduced=matchMedia('(prefers-reduced-motion: reduce)');let metric=(state.searchParams.get('pulseMetric')??state.searchParams.get('overviewMetric'))==='xp'?'xp':'networth',timer=null;
+ const requested=Number(state.searchParams.get('pulseMinute')??state.searchParams.get('overviewMinute'));if(Number.isInteger(requested)&&requested>=1&&requested<=maxMinute)range.value=requested;
+ const num=n=>Math.round(n).toLocaleString('ru-RU'),clock=m=>Math.floor(m)+':'+String(Math.floor(m*60)%60).padStart(2,'0');
+ const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const stop=()=>{if(timer!==null){clearInterval(timer);timer=null;}play.textContent='▶';play.setAttribute('aria-label','Воспроизвести ход матча');play.setAttribute('aria-pressed','false');};
+ function updateUrl(){const u=new URL(location.href);u.searchParams.set('pulseMinute',range.value);u.searchParams.set('pulseMetric',metric);history.replaceState(null,'',u.pathname+u.search+u.hash);}
+ function draw(update=false){
+  const points=data[metric],minute=Number(range.value),p=points.find(p=>p.minute===minute),bound=Math.max(1,...points.map(p=>Math.abs(p.advantage))),W=640,H=300,left=44,right=620,mid=130,amplitude=104,x=m=>left+m/maxMinute*(right-left),y=v=>mid-v/bound*amplitude;
+  document.querySelectorAll('[data-pulse-metric]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.pulseMetric===metric)));
+  const leader=p?(p.advantage>0?'Radiant':p.advantage<0?'Dire':'Равенство'):'Нет полного снимка';document.getElementById('pulse-leader').textContent=leader;document.getElementById('pulse-advantage').textContent=p?(p.advantage===0?'0':'+'+num(Math.abs(p.advantage))):'—';root.dataset.leading=p?(p.advantage<0?'dire':'radiant'):'unknown';
+  document.getElementById('pulse-time').textContent=clock(minute);document.getElementById('pulse-radiant').textContent=p?num(p.radiant):'—';document.getElementById('pulse-dire').textContent=p?num(p.dire):'—';document.getElementById('pulse-sample').textContent=points.length+'/'+maxMinute+' снимков';
+  range.setAttribute('aria-valuetext',minute+' минута, '+leader+(p?', перевес '+num(Math.abs(p.advantage)):''));
+  const runs=[];for(const point of points){const last=runs[runs.length-1];if(!last||point.minute!==last[last.length-1].minute+1)runs.push([point]);else last.push(point);}
+  let svg='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+escape((metric==='xp'?'Опыт':'Имущество')+': преимущество команд по минутам')+'"><defs><linearGradient id="pulse-r-fill" x1="0" y1="0" x2="0" y2="1"><stop stop-color="var(--radiant)" stop-opacity=".36"/><stop offset="1" stop-color="var(--radiant)" stop-opacity=".03"/></linearGradient><linearGradient id="pulse-d-fill" x1="0" y1="1" x2="0" y2="0"><stop stop-color="var(--dire)" stop-opacity=".36"/><stop offset="1" stop-color="var(--dire)" stop-opacity=".03"/></linearGradient><clipPath id="pulse-pos"><rect x="0" y="0" width="640" height="130"/></clipPath><clipPath id="pulse-neg"><rect x="0" y="130" width="640" height="150"/></clipPath></defs>';
+  for(const v of[-bound,0,bound])svg+='<line x1="44" y1="'+y(v)+'" x2="620" y2="'+y(v)+'" class="pulse-grid-line"/><text x="37" y="'+(y(v)+5)+'" text-anchor="end">'+(v===0?'0':Math.round(Math.abs(v)/1000)+'к')+'</text>';
+  for(const run of runs){const line=run.map((q,i)=>(i?'L':'M')+x(q.minute)+','+y(q.advantage)).join(' '),area=line+' L'+x(run[run.length-1].minute)+','+mid+' L'+x(run[0].minute)+','+mid+' Z';for(const team of['r','d']){svg+='<g clip-path="url(#pulse-'+(team==='r'?'pos':'neg')+')"><path d="'+area+'" fill="url(#pulse-'+team+'-fill)"/><path d="'+line+'" fill="none" stroke="var(--'+(team==='r'?'radiant':'dire')+')" stroke-width="3" class="pulse-wave"/></g>';}if(run.length===1)svg+='<circle cx="'+x(run[0].minute)+'" cy="'+y(run[0].advantage)+'" r="3" fill="var(--ink)"/>';}
+  svg+='<line x1="'+x(minute)+'" y1="15" x2="'+x(minute)+'" y2="243" class="pulse-cursor"/>'+(p?'<circle cx="'+x(minute)+'" cy="'+y(p.advantage)+'" r="6" fill="var(--ink)" stroke="var(--surface)" stroke-width="2"/>':'');
+  data.events.forEach(e=>{const m=Math.min(maxMinute,e.startMinute),yy=e.kind==='fight'?253:265;svg+='<circle data-pulse-event-minute="'+Math.max(1,Math.floor(e.startMinute))+'" cx="'+x(m)+'" cy="'+yy+'" r="'+(Math.floor(e.startMinute)===minute?4:2.5)+'" fill="'+(e.kind==='fight'?'var(--accent)':'var(--muted)')+'"><title>'+escape(clock(e.startMinute)+' · '+e.label)+'</title></circle>';});
+  svg+='<text x="44" y="18">Radiant</text><text x="44" y="227">Dire</text><text x="44" y="297">0 мин</text><text x="620" y="297" text-anchor="end">'+maxMinute+' мин</text></svg>';chart.innerHTML=svg;
+  const events=data.events.filter(e=>Math.floor(e.startMinute)===minute);document.getElementById('pulse-event-count').textContent=events.length?events.length===1?'1 событие':events.length+' событий':'';document.getElementById('pulse-events').innerHTML=events.length?events.map(e=>'<a class="pulse-event" href="'+escape(e.href)+'"><time>'+clock(e.startMinute)+'</time><span>'+escape(e.label)+'</span><b aria-hidden="true">↗</b></a>').join(''):'<p class="pulse-quiet">Ключевых событий в этой минуте не записано.</p>';
+  document.querySelectorAll('[data-pulse-minute]').forEach(b=>{b.disabled=Number(b.dataset.pulseMinute)>maxMinute;b.setAttribute('aria-pressed',String(Number(b.dataset.pulseMinute)===minute));});
+  if(update)updateUrl();
+ }
+ range.addEventListener('input',()=>{stop();draw(true)});document.querySelectorAll('[data-pulse-metric]').forEach(b=>b.addEventListener('click',()=>{metric=b.dataset.pulseMetric;stop();draw(true)}));document.querySelectorAll('[data-pulse-minute]').forEach(b=>b.addEventListener('click',()=>{range.value=b.dataset.pulseMinute;stop();draw(true)}));
+ chart.addEventListener('pointerdown',e=>{const rect=chart.getBoundingClientRect(),at=(e.clientX-rect.left)/rect.width*640;const eventMinute=e.target.closest('[data-pulse-event-minute]')?.dataset.pulseEventMinute;range.value=eventMinute??Math.max(1,Math.min(maxMinute,Math.round((at-44)/576*maxMinute)));stop();draw(true)});
+ play.addEventListener('click',()=>{if(timer!==null){stop();return;}if(Number(range.value)>=maxMinute)range.value='1';play.textContent='Ⅱ';play.setAttribute('aria-label','Приостановить ход матча');play.setAttribute('aria-pressed','true');draw(true);timer=setInterval(()=>{if(Number(range.value)>=maxMinute){stop();return;}range.value=Number(range.value)+1;draw(true)},reduced.matches?1500:700)});
+ reduced.addEventListener('change',stop);document.addEventListener('visibilitychange',()=>{if(document.hidden)stop()});addEventListener('hashchange',()=>{if(root.closest('[hidden]'))stop()});draw();
+ }
+}
+`;

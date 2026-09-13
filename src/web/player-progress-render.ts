@@ -1,10 +1,11 @@
+import {gameLabel} from "./game-icon.js";
 import type { PlayerProgress, ItemBenchmark } from "../player-progress.js";
 import { esc } from "./render.js";
 const n=(v:number)=>v.toLocaleString("ru-RU");
 const clock=(v:number)=>`${Math.floor(v/60)}:${String(v%60).padStart(2,"0")}`;
 function benchmarkRow(b:ItemBenchmark,account:number,period:string){
   const difference=b.differenceSeconds===0?"как обычно":`${clock(Math.abs(b.differenceSeconds))} ${b.differenceSeconds<0?"раньше":"позже"}`;
-  return `<article style="padding:12px 0;border-bottom:1px solid var(--line)"><div style="display:flex;justify-content:space-between;gap:12px"><strong>${esc(b.itemLabel)}</strong><b>${clock(b.latestSeconds)}</b></div><p class="sub">${esc(b.hero)} · ${esc(b.mode==="mode_23"?"Turbo":b.mode==="mode_22"?"Рейтинговый All Pick":b.mode==="mode_1"?"All Pick":b.mode==="mode_18"?"Ability Draft":"Другой режим")}</p><p style="margin:6px 0">${difference}. Личная медиана: <b>${clock(b.medianSeconds)}</b>.</p><p class="micro-note">${b.sample} других игр на этом герое в этом режиме, где покупался предмет.</p><a href="/player/${account}?period=${esc(period)}&amp;economy=${b.matchId}#economy" style="display:inline-flex;align-items:center;min-height:44px">Открыть покупки матча ↗</a></article>`;
+  return `<article style="padding:12px 0;border-bottom:1px solid var(--line)"><div style="display:flex;justify-content:space-between;gap:12px"><strong>${gameLabel(b.item,b.itemLabel,'item')}</strong><b>${clock(b.latestSeconds)}</b></div><p class="sub">${esc(b.hero)} · ${esc(b.mode==="mode_23"?"Turbo":b.mode==="mode_22"?"Рейтинговый All Pick":b.mode==="mode_1"?"All Pick":b.mode==="mode_18"?"Ability Draft":"Другой режим")}</p><p style="margin:6px 0">${difference}. Личная медиана: <b>${clock(b.medianSeconds)}</b>.</p><p class="micro-note">${b.sample} других игр на этом герое в этом режиме, где покупался предмет.</p><a href="/player/${account}?period=${esc(period)}&amp;economy=${b.matchId}#economy" style="display:inline-flex;align-items:center;min-height:44px">Открыть покупки матча ↗</a></article>`;
 }
 export function renderProgress(progress:PlayerProgress):string {
   const s=progress.streaks;

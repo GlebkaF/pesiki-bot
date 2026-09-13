@@ -10,6 +10,7 @@ import { formatStatsMessage, stripHtml } from "./formatter.js";
 import { startLfgPolling, getLfgStats } from "./lfg.js";
 import { checkAndSendBirthdayGreetings } from "./birthday.js";
 import { startWebServer } from "./web/server.js";
+import { startPlayerAvatarSync } from "./player-avatars.js";
 
 // Health check configuration
 const HEALTH_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -200,6 +201,7 @@ async function main(): Promise<void> {
   // Веб-витрина матчей: работает в этом же процессе рядом с ботом
   if (process.env.WEB_ENABLED !== "false") {
     startWebServer();
+    startPlayerAvatarSync();
   }
 
   // Start periodic health check logging

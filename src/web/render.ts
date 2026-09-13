@@ -1,3 +1,9 @@
+import {PLAYER_AVATAR_CSS} from "./player-avatar-render.js";
+import {GAME_ICON_CSS,GAME_IMAGE_SCRIPT} from "./game-icon.js";
+import {renderHome} from "./home-render.js";
+import type {ProfileRoster} from "../apm-store.js";
+import {PULSE_SCRIPT} from "./match-pulse-script.js";
+import {PULSE_CSS} from "./match-pulse-style.js";
 import {NAV_CSS} from "./site-navigation-style.js";
 import {EPISODE_SCRIPT} from "./match-episode-script.js";
 import {EPISODE_CSS} from "./match-episode-style.js";
@@ -153,66 +159,14 @@ ${preview?`<meta name="description" content="${esc(preview.description)}"><meta 
 .site-nav{display:flex;gap:22px;align-items:center;padding-bottom:18px;border-bottom:1px solid var(--line);font-size:13px}.site-nav a{text-decoration:none}.site-nav .brand{font-weight:800;letter-spacing:.13em;margin-right:auto}
 ${extraCss||PROFILE_CSS}
 ${NAV_CSS}
+${GAME_ICON_CSS}
+${PLAYER_AVATAR_CSS}
 .theme-toggle{width:44px;height:44px;flex:0 0 44px;border:1px solid var(--line);border-radius:4px;background:var(--surface);color:var(--ink);font-size:21px;cursor:pointer}.theme-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-</style></head><body><div class="wrap"><nav class="site-nav" aria-label="Навигация"><a class="brand" href="/">ПЁСИКИ</a><a href="/" data-site-route="matches">Матчи</a><a href="/players" data-site-route="players">Игроки</a><button id="theme-toggle" class="theme-toggle" type="button" aria-label="Сменить цветовую тему">◐</button></nav>${body}</div><nav class="mobile-site-nav" aria-label="Основная навигация"><a href="/" data-site-route="matches">Матчи</a><a href="/players" data-site-route="players">Игроки</a></nav><script>{const section=location.pathname.startsWith('/player')?'players':'matches';document.querySelectorAll('[data-site-route]').forEach(a=>{if(a.dataset.siteRoute===section)a.setAttribute('aria-current','page');});}{const b=document.getElementById('theme-toggle');const update=()=>{const t=document.documentElement.dataset.theme;b.title=b.ariaLabel='Тема: '+(t==='dark'?'тёмная':t==='light'?'светлая':'системная')+'. Нажми, чтобы сменить';};b.addEventListener('click',()=>{const current=document.documentElement.dataset.theme,next=current==='dark'?'light':current==='light'?'auto':'dark';if(next==='auto')delete document.documentElement.dataset.theme;else document.documentElement.dataset.theme=next;try{localStorage.setItem('pesikiTheme',next);}catch{}update();});update();}</script>${script ? `<script>${script}</script>` : ""}</body></html>`;
+</style></head><body><div class="wrap"><nav class="site-nav" aria-label="Навигация"><a class="brand" href="/">ПЁСИКИ</a><a href="/" data-site-route="matches">Матчи</a><a href="/players" data-site-route="players">Игроки</a><button id="theme-toggle" class="theme-toggle" type="button" aria-label="Сменить цветовую тему">◐</button></nav>${body}</div><nav class="mobile-site-nav" aria-label="Основная навигация"><a href="/" data-site-route="matches">Матчи</a><a href="/players" data-site-route="players">Игроки</a></nav><script>${GAME_IMAGE_SCRIPT}{const section=location.pathname.startsWith('/player')?'players':'matches';document.querySelectorAll('[data-site-route]').forEach(a=>{if(a.dataset.siteRoute===section)a.setAttribute('aria-current','page');});}{const b=document.getElementById('theme-toggle');const update=()=>{const t=document.documentElement.dataset.theme;b.title=b.ariaLabel='Тема: '+(t==='dark'?'тёмная':t==='light'?'светлая':'системная')+'. Нажми, чтобы сменить';};b.addEventListener('click',()=>{const current=document.documentElement.dataset.theme,next=current==='dark'?'light':current==='light'?'auto':'dark';if(next==='auto')delete document.documentElement.dataset.theme;else document.documentElement.dataset.theme=next;try{localStorage.setItem('pesikiTheme',next);}catch{}update();});update();}</script>${script ? `<script>${script}</script>` : ""}</body></html>`;
 }
 
-export function renderFeed(
-  matches: FeedMatch[],
-  updatedAt: number,
-  analyzed: Set<number>,
-  filter?: string,
-): string {
-  const all = matches;
-  if (filter) matches = matches.filter((m) => m.ours.some((o) => o.name === filter));
-  const names = [...new Set(all.flatMap((m) => m.ours.map((o) => o.name)))].sort();
-  const chips =
-    '<div class="filters"><a class="chip' + (filter ? "" : " chip-on") + '" href="/">все</a>' +
-    names
-      .map(
-        (n) =>
-          '<a class="chip' + (filter === n ? " chip-on" : "") + '" href="/?player=' +
-          encodeURIComponent(n) + '">' + esc(n) + "</a>",
-      )
-      .join("") + "</div>";
-  const wins = matches.filter((m) => m.win).length;
-  const hours = matches.reduce((s, m) => s + m.duration, 0) / 3600;
-
-  const rows = matches
-    .map((m) => {
-      const ours = m.ours
-        .map(
-          (o) =>
-            `<span><b>${esc(o.name)}</b> <span class="hero">${esc(o.hero)}</span> <span class="kda">${o.kills}/${o.deaths}/${o.assists}</span></span>`,
-        )
-        .join("");
-      return `<a class="row ${m.win ? "win" : "loss"}" href="/match/${m.matchId}">
-      <span class="res-mark">${m.win ? "W" : "L"}</span>
-      <span><span class="when">${esc(dateLabel(m.startTime))}</span><br><span class="rsub mono">${dur(m.duration)}</span> <span class="rsub">· ${m.matchId}</span></span>
-      <span class="players">${ours}</span>
-      <span class="tail">${analyzed.has(m.matchId) ? '<span class="chip chip-deep">сводка</span>' : '<span class="chip">открыть</span>'}</span>
-    </a>`;
-    })
-    .join("");
-
-  return layout(
-    "Песики · матчи стака",
-    `<main class="feed-view"><div class="top">
-      <div><h1>Песики</h1><p class="sub">Матчи стака и разбор по реплеям</p></div>
-      <form method="post" action="/refresh"><button class="btn ghost" type="submit">Обновить ленту</button></form>
-    </div>
-    <div class="stats">
-      <div class="stat"><span class="label">матчей</span><span class="v">${matches.length}</span></div>
-      <div class="stat"><span class="label">побед</span><span class="v">${wins}/${matches.length}</span></div>
-      <div class="stat"><span class="label">винрейт</span><span class="v">${matches.length ? Math.round((wins / matches.length) * 100) : 0}%</span></div>
-      <div class="stat"><span class="label">часов</span><span class="v">${hours.toFixed(0)}</span></div>
-      <div class="stat"><span class="label">сводок</span><span class="v">${matches.filter(m=>analyzed.has(m.matchId)).length}</span></div>
-    </div>
-    ${chips}
-    <div class="feed">${rows || '<div class="row"><span class="dim">Матчей не найдено</span></div>'}</div>
-    <footer>Обновлено ${esc(new Date(updatedAt).toLocaleString("ru-RU"))} · данные: OpenDota + реплеи Valve</footer></main>`,
-    "{const f=document.querySelector('.filters'),c=f?.querySelector('.chip-on');if(f&&c)f.scrollLeft=Math.max(0,c.offsetLeft-f.offsetLeft-8);}",
-  );
+export function renderFeed(matches:FeedMatch[],updatedAt:number,analyzed:Set<number>,filter?:string,rosters?:ProfileRoster[],page=1):string {
+ return renderHome(matches,updatedAt,analyzed,filter,rosters,page);
 }
 
 export interface ApiSidePlayer {
@@ -384,5 +338,5 @@ if (btn) btn.addEventListener('click', async () => {
   }, 1500);
 });`;
 
-  return layout(`Матч ${matchId} · Песики`, body, script+(parsed?PROFILE_SCRIPT+MATCH_SCRIPT+OVERVIEW_SCRIPT+EPISODE_SCRIPT:""),PROFILE_CSS+MATCH_CSS+OVERVIEW_CSS+EPISODE_CSS);
+  return layout(`Матч ${matchId} · Песики`, body, script+(parsed?PROFILE_SCRIPT+MATCH_SCRIPT+OVERVIEW_SCRIPT+EPISODE_SCRIPT+PULSE_SCRIPT:""),PROFILE_CSS+MATCH_CSS+OVERVIEW_CSS+EPISODE_CSS+PULSE_CSS);
 }

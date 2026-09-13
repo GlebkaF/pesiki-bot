@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {renderHome} from './web/home-render.js';
+import type {FeedMatch} from './web/feed.js';
+const matches:FeedMatch[]=Array.from({length:25},(_,i)=>({matchId:100+i,startTime:1700000000-i*3600,duration:1800,win:true,ours:[{steamId:93921511,name:'<Our & player>',hero:'Axe',heroId:2,kills:10,deaths:2,assists:8,win:true}]}));
+const cards=(s:string)=>[...s.matchAll(/<article class="home-match /g)].length;
+const first=renderHome(matches,1700000000000,new Set());
+assert.equal(cards(first),12);assert.equal((first.match(/is-featured/g)||[]).length>=1,true);
+assert.ok(first.includes('Страница 1 / 3'));assert.ok(first.includes('/?page=2'));assert.ok(!first.includes('<Our & player>'));
+const second=renderHome(matches,1700000000000,new Set(),undefined,[],2);
+assert.equal(cards(second),12);assert.ok(!second.includes('<h2>Последняя катка</h2>'));
+const last=renderHome(matches,1700000000000,new Set(),'<Our & player>',[],99);
+assert.equal(cards(last),1);assert.ok(last.includes('Страница 3 / 3'));assert.ok(last.includes('player=%3COur'));
+const empty=renderHome(matches,1700000000000,new Set(),'unknown');assert.equal(cards(empty),0);assert.ok(empty.includes('Матчей по этому фильтру нет.'));
+const mixed={...matches[0],ours:[matches[0].ours[0],{...matches[0].ours[0],steamId:12,name:'Other',win:false}]};
+const neutral=renderHome([mixed],1700000000000,new Set());assert.ok(neutral.includes('Наши по разные стороны'));assert.ok(neutral.includes('0 побед · 0 поражений'));
+const filtered=renderHome([mixed],1700000000000,new Set(),'Other');assert.ok(filtered.includes('0 побед · 1 поражений'));
+console.log('Home tests passed: pagination, filters, mixed teams, escaping, empty state.');

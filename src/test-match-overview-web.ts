@@ -35,7 +35,8 @@ const json=primary.match(/<script type="application\/json" id="match-overview-da
 const curves=JSON.parse(json);assert.equal(curves.networth.length,21);assert.equal(curves.networth[0].minute,1);
 const missing=fixture();delete missing.radiant_score;delete missing.dire_score;missing.players[0].combat_details=undefined;missing.players[0].networth_by_minute=[];
 const sparse=renderMatchOverview(missing);assert.ok(sparse.includes('общий итог неизвестен'));
-assert.ok(sparse.includes('нет полного измерения имущества'));
+const sparsePulse=JSON.parse(sparse.match(/<script type="application\/json" id="match-pulse-data">([\s\S]*?)<\/script>/)![1]);
+assert.equal(sparsePulse.networth.length,0,'incomplete roster never produces a false team curve');
 assert.ok(!sparse.includes('NaN')&&!sparse.includes('Infinity')&&!sparse.includes('undefined'),'missing data never leaks invalid numeric labels');
 const unsafe=fixture();unsafe.players[0].hero='<script>alert(1)</script>';unsafe.kills[0].killer='<img onerror=evil>';
 const escaped=renderMatchOverview(unsafe);assert.ok(!escaped.includes('<script>alert(1)</script>'));assert.ok(escaped.includes('&lt;img onerror=evil&gt;'));
