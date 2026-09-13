@@ -98,5 +98,27 @@ try{
  store.saveReplay({...wardsSaved,ward_events:undefined});
  assert.deepEqual(store.replay(125)!.ward_events,[ward],"thin same-version enrichment retains unattributed ward events");
  store.close();store=new ApmStore(file);assert.deepEqual(store.replay(125)!.ward_events,[ward],"ward observations persist across restart");
+
+ const journal={version:'hero-death-journal-v1',entries:[],coverage:{clock_source:'gamerules',clock_complete:true,game_end_observed:true,raw_deaths:0,entries_stored:0,verified_deaths:0,verified_reincarnations:0,verified_kills:0,unverified:0,contradictions:0,counter_resets:0,truncated:false,dropped_events:0,dropped_counter_samples:0,final_audit:[]}} as const;
+ const beforeV11=store.replay(125)!,resultsV11=store.results(account),apmV11=store.history(account);
+ const v11={...beforeV11,parser_version:'pesiki-replay-v11',hero_death_journal:structuredClone(journal)} as unknown as ParsedMatch;
+ store.mergeReplayAnalytics(v11);
+ const afterV11=store.replay(125)!;
+ assert.deepEqual(afterV11.hero_death_journal,journal);
+ const withoutNew=(m:ParsedMatch)=>{const v=structuredClone(m);delete v.hero_death_journal;delete v.parser_version;return v;};
+ assert.deepEqual(withoutNew(afterV11),withoutNew(beforeV11),'journal upgrade preserves every preexisting match/player field');
+ assert.deepEqual(store.results(account),resultsV11);assert.deepEqual(store.history(account),apmV11);
+ store.mergeReplayAnalytics({...v11,hero_death_journal:undefined});
+ assert.deepEqual(store.replay(125),afterV11,'thin analytics retains journal');
+ store.saveReplay({...afterV11,hero_death_journal:undefined});
+ assert.deepEqual(store.replay(125),afterV11,'thin refresh retains journal');
+ assert.equal(store.saveReplay(beforeV11),false,'old parser cannot overwrite v11');
+ assert.throws(()=>store.mergeReplayAnalytics(beforeV11),/downgrade/);
+ const malformed={...v11,hero_death_journal:{...journal,coverage:{...journal.coverage,verified_deaths:1}}} as unknown as ParsedMatch;
+ assert.throws(()=>store.saveReplay(malformed),/Invalid hero death/);
+ assert.throws(()=>store.mergeReplayAnalytics(malformed),/Invalid hero death/);
+ assert.deepEqual(store.replay(125),afterV11,'invalid merge rolls back retained payload');
+ assert.deepEqual(store.results(account),resultsV11);assert.deepEqual(store.history(account),apmV11);
+ store.close();store=new ApmStore(file);assert.deepEqual(store.replay(125),afterV11,'journal survives restart');
  console.log("Combat storage tests passed: atomic merge, official KDA/APM preservation, downgrade protection, cache and restart");
 }finally{store.close();rmSync(dir,{recursive:true,force:true});}

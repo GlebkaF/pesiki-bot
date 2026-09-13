@@ -111,23 +111,24 @@ type Teamfight struct {
 }
 
 type Output struct {
-	WardLifetimes    *WardLifetimes  `json:"ward_lifetimes"`
-	WardEvents       []wardEvent     `json:"ward_events"`
-	CombatTimeline   *CombatTimeline `json:"combat_timeline,omitempty"`
-	AnalyticsVersion string          `json:"analytics_version,omitempty"`
-	ParserVersion    string          `json:"parser_version"`
-	APMVersion       string          `json:"apm_version,omitempty"`
-	APMDuration      float64         `json:"apm_duration_seconds,omitempty"`
-	MatchID          uint64          `json:"match_id"`
-	DurationM        float64         `json:"duration_min"`
-	Winner           string          `json:"winner"`
-	GameMode         string          `json:"game_mode"`
-	Players          []*Player       `json:"players"`
-	FirstBlood       *Kill           `json:"first_blood"`
-	Kills            []Kill          `json:"kills"`
-	Teamfights       []Teamfight     `json:"teamfights"`
-	Buildings        []Building      `json:"buildings"`
-	Roshans          []float64       `json:"roshan_kills_min"`
+	HeroDeathJournal *HeroDeathJournal `json:"hero_death_journal"`
+	WardLifetimes    *WardLifetimes    `json:"ward_lifetimes"`
+	WardEvents       []wardEvent       `json:"ward_events"`
+	CombatTimeline   *CombatTimeline   `json:"combat_timeline,omitempty"`
+	AnalyticsVersion string            `json:"analytics_version,omitempty"`
+	ParserVersion    string            `json:"parser_version"`
+	APMVersion       string            `json:"apm_version,omitempty"`
+	APMDuration      float64           `json:"apm_duration_seconds,omitempty"`
+	MatchID          uint64            `json:"match_id"`
+	DurationM        float64           `json:"duration_min"`
+	Winner           string            `json:"winner"`
+	GameMode         string            `json:"game_mode"`
+	Players          []*Player         `json:"players"`
+	FirstBlood       *Kill             `json:"first_blood"`
+	Kills            []Kill            `json:"kills"`
+	Teamfights       []Teamfight       `json:"teamfights"`
+	Buildings        []Building        `json:"buildings"`
+	Roshans          []float64         `json:"roshan_kills_min"`
 	ParseStats       struct {
 		CombatLogEntries int     `json:"combat_log_entries"`
 		ParseSeconds     float64 `json:"-"`
@@ -160,7 +161,7 @@ func main() {
 		panic(err)
 	}
 
-	out := &Output{ParserVersion: "pesiki-replay-v10", AnalyticsVersion: analyticsVersion}
+	out := &Output{ParserVersion: "pesiki-replay-v11", AnalyticsVersion: analyticsVersion}
 	byHero := map[string]*Player{}
 	bySlot := map[int]*Player{}
 	var gameStart float64 = -1
@@ -172,6 +173,7 @@ func main() {
 	scoreboard := newReplayScoreboard(p)
 	wards := newWardCollector(p, func() bool { return gameEnded })
 	lifetimes := newWardLifetimeCollector(p)
+	deathJournal := newHeroDeathJournal(p, lifetimes)
 
 	p.Callbacks.OnCDemoFileInfo(func(m *dota.CDemoFileInfo) error {
 		gi := m.GetGameInfo().GetDota()
@@ -584,6 +586,7 @@ func main() {
 	out.CombatTimeline = timeline.finish(out.Players)
 	out.WardEvents = wards.apply(out.Players, gameStart, endTS)
 	out.WardLifetimes = lifetimes.finish(out.Players, gameStart)
+	out.HeroDeathJournal = deathJournal.finish(out.Players, gameStart)
 	assignRoles(out.Players)
 	computeMapStats(out.Players, track, out.Kills)
 	out.Teamfights = detectTeamfights(out.Kills, out.Players)

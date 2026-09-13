@@ -23,7 +23,8 @@
     "test:replay-scoreboard": "tsx src/test-replay-scoreboard.ts",
     "test:comparison": "tsx src/test-match-comparison.ts",
     "test:ward-semantics": "tsx src/test-ward-semantics.ts && tsx src/test-ward-lifetimes.ts && tsx src/test-ward-map-link.ts",
-    "test:recent-scoreboard": "tsx src/test-recent-scoreboard.ts"
+    "test:recent-scoreboard": "tsx src/test-recent-scoreboard.ts",
+    "test:hero-death-journal": "tsx src/test-hero-death-contract.ts && tsx src/test-hero-death-journal.ts && tsx src/test-hero-kill-matrix.ts && tsx src/test-combat-storage.ts && tsx src/test-match-deaths-render.ts"
   },
   "keywords": [
     "dota2",

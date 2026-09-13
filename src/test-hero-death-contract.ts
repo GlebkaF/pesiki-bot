@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {assertHeroDeathJournal} from './hero-death-contract.js';
+import type {HeroDeathJournal} from './replay.js';
+const valid:HeroDeathJournal={version:'hero-death-journal-v1',entries:[],coverage:{clock_source:'gamerules',clock_complete:true,game_end_observed:true,raw_deaths:0,entries_stored:0,verified_deaths:0,verified_reincarnations:0,verified_kills:0,unverified:0,contradictions:0,counter_resets:0,truncated:false,dropped_events:0,dropped_counter_samples:0,final_audit:[]}};
+assert.doesNotThrow(()=>assertHeroDeathJournal(valid));
+for(const patch of [{clock_source:'ticks'},{raw_deaths:-1},{verified_deaths:1},{entries_stored:1},{dropped_events:1},{clock_complete:null},{final_audit:[{hero:'axe'}]}])assert.throws(()=>assertHeroDeathJournal({...valid,coverage:{...valid.coverage,...patch}}));
+const e={id:'death-1',seconds:10,victim_hero:'axe',victim_steam_id:'76561198000000000',victim_team:'dire',victim_resource_slot:5,raw_target:'npc_dota_hero_axe',raw_attacker:'x',raw_source:null,attacker_team:null,will_reincarnate:false,status:'verified_death',death_counter:{from:9.9,to:10.1,before:0,after:1,delta:1,source:'CDOTA_PlayerResource'},killer_hero:null,killer_steam_id:null,killer_team:null,killer_resource_slot:null,kill_counter:null,attribution:'unknown',source_controlled:false,source_illusion:false};
+const journal={...valid,entries:[e],coverage:{...valid.coverage,raw_deaths:1,entries_stored:1,verified_deaths:1}};
+assert.doesNotThrow(()=>assertHeroDeathJournal(journal));
+assert.doesNotThrow(()=>assertHeroDeathJournal({...journal,entries:[{...e,victim_resource_slot:63}]}));
+for(const patch of [{seconds:NaN},{seconds:11},{victim_resource_slot:64},{status:'imagined'},{will_reincarnate:true},{death_counter:{...e.death_counter,delta:2}},{death_counter:{...e.death_counter,from:12}},{death_counter:null},{attribution:'verified_enemy_kill'}])assert.throws(()=>assertHeroDeathJournal({...journal,entries:[{...e,...patch}]}));
+assert.throws(()=>assertHeroDeathJournal({...journal,entries:[e,e],coverage:{...journal.coverage,raw_deaths:2,entries_stored:2,verified_deaths:2}}));
+console.log('hero death contract tests passed');

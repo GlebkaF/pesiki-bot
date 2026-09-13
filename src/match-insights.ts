@@ -3,6 +3,7 @@ import type { ParsedMatch, ParsedPlayer, WardEvent } from "./replay.js";
 import { heroName } from "./player-profile.js";
 import {buildWardLifetimes,type WardLifetimeModel} from './ward-lifetimes.js';
 import {enrichWardMapCoordinates} from './ward-map-link.js';
+import {buildHeroDeathJournal,type HeroDeathModel} from './hero-death-journal.js';
 export type InsightFeature = "damage"|"damageBreakdown"|"healing"|"healingBreakdown"|"control"|"networth"|"gold"|"xp"|"lastHits"|"wards"|"wardMap"|"deaths"|"deathMap"|"ultimates"|"buybacks"|"buybackLog";
 export interface FeatureCoverage { available:number; total:number; reason:string }
 export interface MinutePoint { minute:number; value:number }
@@ -34,6 +35,7 @@ export interface MatchInsights {
   matchId:number; durationSeconds:number; players:MatchPlayerInsights[];
   wardEvents?:WardInsight[];
   wardLifetimes?:WardLifetimeModel|null;
+  heroDeathJournal?:HeroDeathModel|null;
   coverage:Record<InsightFeature,FeatureCoverage>;
   kills:{seconds:number;killer:string;victim:string;assists:number|null}[];
   buildings:{seconds:number;name:string;team:string}[];
@@ -113,7 +115,7 @@ export function buildMatchInsights(match:ParsedMatch):MatchInsights {
   let wardOffset=0;
   for(const p of players)if(p.vision.events!==null){const size=p.vision.events.length;p.vision.events=mappedWards.slice(wardOffset,wardOffset+size);wardOffset+=size;}
   return {matchId:match.match_id,durationSeconds,players,coverage,
-    wardLifetimes,
+    wardLifetimes,heroDeathJournal:buildHeroDeathJournal(match),
     wardEvents:mappedWards.slice(ownedWards.length),
     kills:(match.kills??[]).flatMap(k=>{const seconds=time(k.min,durationSeconds);return seconds===null?[]:[{seconds,killer:heroName(k.killer),victim:heroName(k.victim),assists:nonnegative(k.assists)}];}),
     buildings:(match.buildings??[]).flatMap(b=>{const seconds=time(b.min,durationSeconds);return seconds===null?[]:[{seconds,name:b.name,team:b.killed_by_team}];}),

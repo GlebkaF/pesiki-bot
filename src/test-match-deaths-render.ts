@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import type {MatchInsights} from './match-insights.js';
+import {renderMatchDeaths} from './web/match-deaths-render.js';
+const returns=new Set([10,40]);
+const base={matchId:1,durationSeconds:600,players:[{hero:'pudge',heroLabel:'Pudge',steamId:'11',team:'radiant',deaths:Array.from({length:61},(_,i)=>({seconds:i+1,x:0,y:0,killer:null,incoming:null})),buybacks:{events:[]}}]} as unknown as MatchInsights;
+const journal={players:[{hero:'pudge',heroLabel:'Pudge',steamId:'11',team:'radiant'}],entries:Array.from({length:61},(_,i)=>({id:'e'+i,seconds:i+1,status:returns.has(i)?'verified_reincarnation':'verified_death',victim:0,killer:null,legacyDeathId:'11:'+i})),cells:[],coverage:{complete:true,verifiedDeaths:59,verifiedKills:0,reincarnations:2,unresolved:0,nonHeroKills:59,invalid:0}};
+const data=(html:string)=>JSON.parse(html.match(/id="match-deaths-data">([\s\S]*?)<\/script>/)![1]);
+const html=renderMatchDeaths({...base,heroDeathJournal:journal as any}),events=data(html).events;
+assert.equal(events.length,59);assert.ok(!events.some((e:any)=>returns.has(e.index)));assert.ok(events.every((e:any)=>e.id==='11:'+e.index));assert.ok(events.some((e:any)=>e.id==='11:60'));assert.ok(html.includes('<span>Radiant</span><strong>59</strong>'));assert.ok(html.includes('<span>Dire</span><strong>0</strong>'));assert.ok(html.includes('Pudge: 59 подтверждённых смертей'));assert.ok(html.includes('Возвраты без смерти в D исключены: 2'));
+const missing={...journal,entries:journal.entries.map((e,i)=>i===5?{...e,legacyDeathId:null}:e)};const missingHtml=renderMatchDeaths({...base,heroDeathJournal:missing as any});assert.equal(data(missingHtml).events.length,58);assert.ok(missingHtml.includes('59 подтверждённых смертей, 58 связанных разборов; 1 без доступного разбора'));assert.ok(missingHtml.includes('<span>Radiant</span><strong>59</strong>'));
+const legacy=renderMatchDeaths(base);assert.equal(data(legacy).events.length,61);assert.ok(legacy.includes('<span>Radiant</span><strong>61</strong>'));assert.ok(legacy.includes('журнал смертей, а не официальный счёт'));
+console.log('Death recap regression: 59 deaths + 2 returns -> 59 recaps/team counts, original IDs retained, missing recaps disclosed, legacy unchanged.');

@@ -6,12 +6,15 @@ import {execFile} from "node:child_process";import {promisify} from "node:util";
 import {getApmStore} from "./apm-store.js";
 import {decompress,type ParsedMatch} from "./replay.js";
 import {assertReplayIdentity} from "./replay-identity.js";
+import {assertHeroDeathJournal} from './hero-death-contract.js';
+const validHeroJournal=(value:unknown):boolean=>{try{assertHeroDeathJournal(value);return true;}catch{return false;}};
 const store=getApmStore(),data=process.env.DATA_DIR||"data",dir=process.env.REPLAY_ARCHIVE_DIR||path.join(data,"replay-archives");
-const targetParser=process.env.TARGET_PARSER_VERSION||"pesiki-replay-v10",targetAnalytics=process.env.TARGET_ANALYTICS_VERSION||"combat-log-v3";
+const targetParser=process.env.TARGET_PARSER_VERSION||"pesiki-replay-v11",targetAnalytics=process.env.TARGET_ANALYTICS_VERSION||"combat-log-v3";
 const hasRequestedData=(m:ParsedMatch|undefined):boolean=>!!m&&m.parser_version===targetParser&&m.analytics_version===targetAnalytics&&
  (targetAnalytics!=="combat-log-v3"||m.combat_timeline?.version==="combat-timeline-v1")&&
- m.players.every(p=>p.combat_details?.version===targetAnalytics&&(!["pesiki-replay-v9","pesiki-replay-v10"].includes(targetParser)||p.combat_details?.coverage?.ward_destroy_semantics===true))&&
- (targetParser!=="pesiki-replay-v10"||(m.ward_lifetimes?.version==="ward-lifetimes-v1"&&m.ward_lifetimes.coverage?.clock_source==="gamerules"));
+ m.players.every(p=>p.combat_details?.version===targetAnalytics&&(!["pesiki-replay-v9","pesiki-replay-v10","pesiki-replay-v11"].includes(targetParser)||p.combat_details?.coverage?.ward_destroy_semantics===true))&&
+ (!["pesiki-replay-v10","pesiki-replay-v11"].includes(targetParser)||(m.ward_lifetimes?.version==="ward-lifetimes-v1"&&m.ward_lifetimes.coverage?.clock_source==="gamerules"))&&
+ (targetParser!=="pesiki-replay-v11"||validHeroJournal(m.hero_death_journal));
 const report:{startedAt:number;updated:number;skipped:number;failures:{id:number;error:string}[];finishedAt?:number}={startedAt:Date.now(),updated:0,skipped:0,failures:[]};
 const save=async()=>{await writeFile(path.join(data,"combat-backfill-report.json.tmp"),JSON.stringify(report,null,2));await rename(path.join(data,"combat-backfill-report.json.tmp"),path.join(data,"combat-backfill-report.json"));};
 for(const file of (await readdir(dir)).filter(f=>/^\d+\.dem\.archive$/.test(f)).sort().reverse()){

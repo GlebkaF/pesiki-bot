@@ -52,6 +52,22 @@ export interface WardLifetimes {
  game_end_observed:boolean;tick_interval_seconds:number|null;max_death_observation_window_seconds:number|null;
  truncated:boolean;dropped_entities:number;dropped_killer_events:number;clock_source:"gamerules";clock_samples_dropped:number;clock_complete:boolean};
 }
+export interface HeroCounterWindow {
+ from:number;to:number;before:number;after:number;delta:number;source:"CDOTA_PlayerResource";
+}
+export interface HeroDeathJournalEntry {
+ id:string;seconds:number;victim_hero:string|null;victim_steam_id:string|null;victim_team:"radiant"|"dire"|null;victim_resource_slot:number|null;
+ raw_target:string;raw_attacker:string;raw_source:string|null;attacker_team:"radiant"|"dire"|null;will_reincarnate:boolean|null;
+ status:"verified_death"|"verified_reincarnation"|"unverified"|"contradiction";death_counter:HeroCounterWindow|null;
+ killer_hero:string|null;killer_steam_id:string|null;killer_team:"radiant"|"dire"|null;killer_resource_slot:number|null;kill_counter:HeroCounterWindow|null;
+ attribution:"verified_enemy_kill"|"allied_deny"|"self"|"environment"|"unknown";source_controlled:boolean;source_illusion:boolean;
+}
+export interface HeroDeathJournal {
+ version:"hero-death-journal-v1";entries:HeroDeathJournalEntry[];
+ coverage:{clock_source:"gamerules";clock_complete:boolean;game_end_observed:boolean;raw_deaths:number;entries_stored:number;verified_deaths:number;
+ verified_reincarnations:number;verified_kills:number;unverified:number;contradictions:number;counter_resets:number;truncated:boolean;dropped_events:number;dropped_counter_samples:number;
+ final_audit:{hero:string;death_events:number;counter_deaths:number|null;kill_events:number;counter_kills:number|null;deaths_match:boolean|null;kills_match:boolean|null}[]};
+}
 /** Explicit combat-log observations. Optional on older retained parses. */
 export interface CombatDetails {
   version: "combat-log-v1" | "combat-log-v2" | "combat-log-v3";
@@ -153,6 +169,7 @@ export interface CombatTimeline {
 }
 
 export interface ParsedMatch {
+  hero_death_journal?:HeroDeathJournal;
   ward_lifetimes?:WardLifetimes;
   /** Ward destructions without an explicitly identified hero owner; never duplicated in player wards. */
   ward_events?: WardEvent[];
