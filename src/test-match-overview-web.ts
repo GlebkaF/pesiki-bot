@@ -42,5 +42,5 @@ const escaped=renderMatchOverview(unsafe);assert.ok(!escaped.includes('<script>a
 const apiScore={match_id:missing.match_id,radiant_score:799,dire_score:811} as any;
 assert.ok(renderMatchOverview(missing,apiScore).includes('799</strong>'));
 assert.ok(!renderMatchOverview(missing,{...apiScore,match_id:0}).includes('799</strong>'));
-assert.ok(sparse.includes('Счёт не сохранён полностью'));
+assert.ok(!sparse.includes('class="ov-scoreline"'),'empty scorestrip is omitted');
 console.log('Match overview web tests passed: neutral primary, selection independence, sources, coverage, anchors, unique IDs, escaping.');
