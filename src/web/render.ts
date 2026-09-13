@@ -1,3 +1,4 @@
+import {NAV_CSS} from "./site-navigation-style.js";
 import {EPISODE_SCRIPT} from "./match-episode-script.js";
 import {EPISODE_CSS} from "./match-episode-style.js";
 import {OVERVIEW_CSS} from "./match-overview-style.js";
@@ -151,8 +152,9 @@ ${preview?`<meta name="description" content="${esc(preview.description)}"><meta 
 <style>${CSS}
 .site-nav{display:flex;gap:22px;align-items:center;padding-bottom:18px;border-bottom:1px solid var(--line);font-size:13px}.site-nav a{text-decoration:none}.site-nav .brand{font-weight:800;letter-spacing:.13em;margin-right:auto}
 ${extraCss||PROFILE_CSS}
+${NAV_CSS}
 .theme-toggle{width:44px;height:44px;flex:0 0 44px;border:1px solid var(--line);border-radius:4px;background:var(--surface);color:var(--ink);font-size:21px;cursor:pointer}.theme-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-</style></head><body><div class="wrap"><nav class="site-nav" aria-label="Навигация"><a class="brand" href="/">ПЁСИКИ</a><a href="/">Матчи</a><a href="/players">Игроки</a><button id="theme-toggle" class="theme-toggle" type="button" aria-label="Сменить цветовую тему">◐</button></nav>${body}</div><script>{const b=document.getElementById('theme-toggle');const update=()=>{const t=document.documentElement.dataset.theme;b.title=b.ariaLabel='Тема: '+(t==='dark'?'тёмная':t==='light'?'светлая':'системная')+'. Нажми, чтобы сменить';};b.addEventListener('click',()=>{const current=document.documentElement.dataset.theme,next=current==='dark'?'light':current==='light'?'auto':'dark';if(next==='auto')delete document.documentElement.dataset.theme;else document.documentElement.dataset.theme=next;try{localStorage.setItem('pesikiTheme',next);}catch{}update();});update();}</script>${script ? `<script>${script}</script>` : ""}</body></html>`;
+</style></head><body><div class="wrap"><nav class="site-nav" aria-label="Навигация"><a class="brand" href="/">ПЁСИКИ</a><a href="/" data-site-route="matches">Матчи</a><a href="/players" data-site-route="players">Игроки</a><button id="theme-toggle" class="theme-toggle" type="button" aria-label="Сменить цветовую тему">◐</button></nav>${body}</div><nav class="mobile-site-nav" aria-label="Основная навигация"><a href="/" data-site-route="matches">Матчи</a><a href="/players" data-site-route="players">Игроки</a></nav><script>{const section=location.pathname.startsWith('/player')?'players':'matches';document.querySelectorAll('[data-site-route]').forEach(a=>{if(a.dataset.siteRoute===section)a.setAttribute('aria-current','page');});}{const b=document.getElementById('theme-toggle');const update=()=>{const t=document.documentElement.dataset.theme;b.title=b.ariaLabel='Тема: '+(t==='dark'?'тёмная':t==='light'?'светлая':'системная')+'. Нажми, чтобы сменить';};b.addEventListener('click',()=>{const current=document.documentElement.dataset.theme,next=current==='dark'?'light':current==='light'?'auto':'dark';if(next==='auto')delete document.documentElement.dataset.theme;else document.documentElement.dataset.theme=next;try{localStorage.setItem('pesikiTheme',next);}catch{}update();});update();}</script>${script ? `<script>${script}</script>` : ""}</body></html>`;
 }
 
 export function renderFeed(
@@ -281,7 +283,7 @@ export function renderMatch(
        <div class="progress" id="prog"><span class="spin"></span><span id="pmsg">Запускаю…</span><span class="pbar"><i id="pbar"></i></span></div>
        <p class="err" id="err"></p></div>`;
 
-  const body = `<main class="match-view"><div class="top match-head">
+  const body = `<main class="match-view"><nav class="breadcrumbs" aria-label="Путь по сайту"><a href="/">← Матчи</a><span aria-hidden="true">/</span><span>Матч ${matchId}</span></nav><div class="top match-head">
       <div><h1>Матч <span class="mono">${matchId}</span></h1>${head}</div>
       <a class="btn ghost" href="https://www.opendota.com/matches/${matchId}" target="_blank" rel="noopener">OpenDota</a>
     </div>

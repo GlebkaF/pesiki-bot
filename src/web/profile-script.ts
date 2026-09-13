@@ -1,6 +1,6 @@
 export const PROFILE_SCRIPT = `
 document.documentElement.classList.add("profile-js");
-document.querySelectorAll(".breakdown-picker").forEach(form=>{form.querySelector("button").hidden=true;form.querySelector("select").addEventListener("change",()=>form.requestSubmit());});
+document.querySelectorAll(".breakdown-picker").forEach(form=>{form.querySelector("button").hidden=true;form.querySelector("select").addEventListener("change",()=>{const u=new URL(location.href);for(const [key,value]of new FormData(form))u.searchParams.set(key,String(value));u.hash=new URL(form.action,location.href).hash||location.hash;location.href=u.href;});});
 
 const statusNode=document.getElementById('copy-status');
 let statusTimer;
@@ -17,9 +17,9 @@ showMatchup(new URL(location.href).searchParams.get('side'));
 matchupButtons.forEach(button=>button.addEventListener('click',()=>{showMatchup(button.dataset.matchup);const url=new URL(location.href);url.searchParams.set('side',button.dataset.matchup);history.replaceState(null,'',url.pathname+url.search+url.hash);}));
 const jumpLinks=[...document.querySelectorAll('.profile-jumps a')];
 let scrollQueued=false;
-function updateJump(){scrollQueued=false;let active=jumpLinks[0];for(const link of jumpLinks){const section=document.querySelector(link.getAttribute('href'));if(section&&!section.hidden&&section.getBoundingClientRect().top<=110)active=link;}jumpLinks.forEach(link=>{if(link===active)link.setAttribute('aria-current','location');else link.removeAttribute('aria-current');});}
+function updateJump(){scrollQueued=false;if(document.querySelector('.match-navigation')){jumpLinks.forEach(link=>{const section=document.getElementById(link.hash.slice(1));if(!link.hidden&&section&&!section.hidden)link.setAttribute('aria-current','location');else link.removeAttribute('aria-current');});return;}let active=jumpLinks[0];const nav=document.querySelector('.profile-jumps'),threshold=nav&&nav.getBoundingClientRect().top<24?nav.getBoundingClientRect().bottom+20:110;for(const link of jumpLinks){const section=document.querySelector(link.getAttribute('href'));if(section&&!section.hidden&&section.getBoundingClientRect().top<=threshold)active=link;}jumpLinks.forEach(link=>{if(link===active)link.setAttribute('aria-current','location');else link.removeAttribute('aria-current');});}
 addEventListener('scroll',()=>{if(!scrollQueued){scrollQueued=true;requestAnimationFrame(updateJump);}},{passive:true});updateJump();
-function revealHash(){let target;try{target=document.getElementById(decodeURIComponent(location.hash.slice(1)));}catch{return;}if(!target)return;let node=target;while(node){if(node.tagName==='DETAILS')node.open=true;node=node.parentElement;}requestAnimationFrame(()=>{target.scrollIntoView({block:'start',behavior:'auto'});const link=jumpLinks.find(a=>a.hash===location.hash);if(link){const nav=link.parentElement;nav.scrollLeft=link.offsetLeft-nav.clientWidth/2+link.offsetWidth/2;}});}
+function revealHash(){let target;try{target=document.getElementById(decodeURIComponent(location.hash.slice(1)));}catch{return;}if(!target)return;const nav=document.querySelector('.match-navigation')||document.querySelector('.profile-jumps');if(nav)document.documentElement.style.setProperty('--section-offset',(nav.offsetHeight+14)+'px');let node=target;while(node){if(node.tagName==='DETAILS')node.open=true;node=node.parentElement;}requestAnimationFrame(()=>{target.scrollIntoView({block:'start',behavior:'auto'});const link=jumpLinks.find(a=>a.hash===location.hash);if(link){const nav=link.parentElement;nav.scrollLeft=link.offsetLeft-nav.clientWidth/2+link.offsetWidth/2;}});}
 addEventListener('hashchange',revealHash);if(location.hash)revealHash();
 const dataNode=document.getElementById('apm-series');
 if(dataNode){
