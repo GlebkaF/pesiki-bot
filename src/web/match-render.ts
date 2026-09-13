@@ -8,7 +8,7 @@ import { heroName } from "../player-profile.js";
 import { esc } from "./render.js";
 const number=(v:number|null|undefined)=>v===null||v===undefined?"—":Math.round(v).toLocaleString("ru-RU");
 const clock=(s:number)=>`${Math.floor(s/60)}:${String(Math.floor(s)%60).padStart(2,"0")}`;
-const label=(s:string)=>s==="unknown"?"Источник не указан":s==="unknown_or_attack"?"Атака / источник не указан":s.startsWith("illusion:")?"Иллюзия: "+heroName(s.slice(9)):s==="attack"?"Атаки":s.startsWith("npc_dota_hero_")?heroName(s):abilityLabel(s);
+const label=(s:string)=>s==="unknown"?"Источник не указан":s==="unknown_or_attack"?"Атака / источник не указан":s.startsWith("illusion:")?"Иллюзия: "+heroName(s.slice(9)):s==="attack"?"Атаки":heroName(s)!==s?heroName(s):abilityLabel(s);
 const account=(s:string)=>{try{const id=Number(BigInt(s)-76561197960265728n);return id>0?id:null;}catch{return null;}};
 const name=(p:MatchPlayerInsights)=>PLAYERS.find(x=>x.steamId===account(p.steamId))?.dotaName??p.heroLabel;
 const art=(hero:string)=>{const h=HERO_CATALOG.find(h=>h.localized_name===hero);return h?`https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/${h.name.replace("npc_dota_hero_","")}.png`:"";};
