@@ -102,6 +102,24 @@ export class ApmStore {
       }
     })();
   }
+  /** Add offline parser detail without overwriting concurrent official-stat enrichment. */
+  mergeReplayActions(parsed: ParsedMatch): void {
+    if (parsed.apm_version !== APM_VERSION || !Number.isFinite(parsed.apm_duration_seconds) || !parsed.apm_duration_seconds || parsed.apm_duration_seconds <= 0 || !parsed.players.every(p =>
+      Number.isSafeInteger(p.actions) && p.actions_per_min === Math.floor(p.actions! * 60 / parsed.apm_duration_seconds!) && validActionCounts(p.action_counts,p.actions!))) throw Error("Invalid action breakdown");
+    this.db.transaction(() => {
+      const latest=this.replay(parsed.match_id);
+      if (!latest) { this.save(parsed); return; }
+      if (latest.players.length !== parsed.players.length) throw Error("Roster changed");
+      const players=latest.players.map(p => {
+        const next=parsed.players.find(n=>n.steam_id===p.steam_id && n.hero===p.hero);
+        if (!next) throw Error("Roster changed");
+        if (p.actions!==undefined && (p.actions!==next.actions || p.actions_per_min!==next.actions_per_min))
+          throw Error("APM changed; manual inspection required");
+        return {...p,actions:next.actions,actions_per_min:next.actions_per_min,action_counts:next.action_counts};
+      });
+      this.save({...latest,players,apm_version:parsed.apm_version,apm_duration_seconds:parsed.apm_duration_seconds});
+    }).immediate();
+  }
   saveResults(accountId: number, matches: RecentMatch[], source: "opendota" | "feed" = "opendota"): void {
     const insert = this.db.prepare(`INSERT INTO player_match_results VALUES(?,?,?) ON CONFLICT(match_id,account_id) DO UPDATE SET payload_json=excluded.payload_json
       WHERE player_match_results.payload_json != excluded.payload_json AND (json_extract(excluded.payload_json, '$.result_source') = 'opendota' OR json_extract(player_match_results.payload_json, '$.result_source') != 'opendota')`);

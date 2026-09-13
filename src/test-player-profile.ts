@@ -74,5 +74,14 @@ try {
   assert.equal(validActionCounts({},0),true);
   assert.equal(validActionCounts(null,0),false);
   assert.equal(groupActions({DOTA_UNIT_ORDER_MOVE_TO_DIRECTION:5,DOTA_UNIT_ORDER_HOLD_POSITION:3}).map(g=>g.count).join(","),"5,0,0,0,3");
+  const mergeStore=new ApmStore(":memory:");
+  const single={...match,players:[match.players[0]]};
+  mergeStore.save({...single,players:[{...single.players[0],kills:7,action_counts:undefined}]});
+  mergeStore.mergeReplayActions({...single,players:[{...single.players[0],kills:1}]});
+  assert.equal(mergeStore.replay(123)?.players[0].kills,7,"offline backfill preserves latest official enrichment");
+  assert.equal(mergeStore.history(id)[0].action_counts?.DOTA_UNIT_ORDER_MOVE_TO_POSITION,180);
+  assert.throws(()=>mergeStore.mergeReplayActions({...single,players:[{...single.players[0],actions:300,actions_per_min:150,action_counts:{x:300}}]}),/APM changed/);
+  assert.equal(mergeStore.history(id)[0].actions,200,"rejected backfill cannot partially mutate totals");
+  mergeStore.close();
   console.log("Player profile tests passed: persistence, sources, coverage, periods, teams, rendering, privacy.");
 } finally {store.close();rmSync(dir,{recursive:true,force:true});}
