@@ -6,7 +6,7 @@ if(insightNode){
  function showMatchSection(){let target;try{target=document.getElementById(decodeURIComponent(location.hash.slice(1)));}catch{}const active=target?.closest('.insight-panel')||panels[0];panels.forEach(panel=>panel.hidden=panel!==active);if(typeof updateJump==='function')updateJump();}
  addEventListener('hashchange',showMatchSection);showMatchSection();
  const escapeText=s=>String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));
- const fmt=n=>Math.round(n).toLocaleString('ru-RU'),clock=s=>Math.floor(s/60)+':'+String(Math.round(s)%60).padStart(2,'0');
+ const fmt=n=>Math.round(n).toLocaleString('ru-RU'),clock=s=>Math.floor(s/60)+':'+String(Math.floor(s)%60).padStart(2,'0');
  const picker=document.querySelector('.player-picker');picker.querySelector('button').hidden=true;
  picker.querySelector('select').addEventListener('change',()=>{picker.action=location.pathname+location.hash;picker.requestSubmit();});
  document.querySelectorAll('[data-select-player]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();const u=new URL(location.href);u.searchParams.set('player',a.dataset.selectPlayer);u.hash='combat';location.href=u.href;}));
