@@ -1,3 +1,5 @@
+import {buildMatchComparison} from '../match-comparison.js';
+import {renderComparison} from './match-comparison-render.js';
 import {sendText} from "./http-response.js";
 import {readPlayerAvatar} from "../player-avatars.js";
 import {buildPlayerProgress} from "../player-progress.js";
@@ -98,6 +100,18 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   }
 
 
+  const compareRoute=p.match(/^\/player\/(\d+)\/compare$/);
+  if(compareRoute&&req.method==='GET'){
+    const account=Number(compareRoute[1]),player=PLAYERS.find(p=>p.steamId===account);
+    if(!player)return send(res,404,layout('Игрок не найден','<h1>Игрок не найден</h1><a href="/players">Наши игроки</a>'));
+    const store=getApmStore(),profile=loadProfiles('all').find(p=>p.account===account)!,saved=new Set(store.profileRosters().map(m=>m.match_id)),candidates=profile.matches.filter(m=>saved.has(m.id));
+    if(candidates.length<2)return send(res,200,layout('Сравнение матчей',`<main><h1>Пока мало игр для сравнения</h1><p>Нужны два сохранённых реплея этого игрока.</p><a href="/player/${account}#history">Вернуться к матчам игрока</a></main>`));
+    const leftId=Number(url.searchParams.get('left'))||candidates[0].id,left=candidates.find(m=>m.id===leftId),rightId=Number(url.searchParams.get('right'))||(candidates.find(m=>m.id!==leftId&&m.hero===left?.hero)??candidates.find(m=>m.id!==leftId))!.id;
+    const comparison=buildMatchComparison(store,account,leftId,rightId);
+    if(!comparison)return send(res,404,layout('Матчи не найдены',`<main><h1>Эту пару не удалось сравнить</h1><p>Выбери две разные игры с сохранёнными реплеями этого игрока.</p><a href="/player/${account}/compare">Выбрать матчи</a></main>`));
+    const options=candidates.map(m=>({id:m.id,label:`${m.start?new Date(m.start*1000).toLocaleDateString('ru-RU',{timeZone:'Europe/Moscow',day:'numeric',month:'short'}):'Без даты'} · ${m.hero} · #${m.id}`}));
+    return send(res,200,renderComparison(comparison,options,player.dotaName));
+  }
   if (req.method === "GET" && (p === "/players" || /^\/player\/\d+$/.test(p))) {
     const period = periodOf(url.searchParams.get("period"));
     const profiles = loadProfiles(period);

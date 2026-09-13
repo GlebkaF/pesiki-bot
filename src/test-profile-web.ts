@@ -12,6 +12,9 @@ const store=new ApmStore(path.join(dir,"stats.sqlite"));
 store.save({match_id:123,start_time:Math.floor(Date.now()/1000)-3600,duration_min:2,winner:"radiant",
   apm_version:APM_VERSION,apm_duration_seconds:120,
   players:[{steam_id:String(76561197960265728n+94014640n),hero:"crystal_maiden",team:"radiant",actions:200,actions_per_min:100,action_counts:{DOTA_UNIT_ORDER_MOVE_TO_POSITION:200}}]} as any);
+store.save({match_id:124,start_time:Math.floor(Date.now()/1000)-7200,duration_min:3,winner:"dire",
+  apm_version:APM_VERSION,apm_duration_seconds:180,
+  players:[{steam_id:String(76561197960265728n+94014640n),hero:"crystal_maiden",team:"radiant",actions:360,actions_per_min:120,networth_by_minute:[500,900,1400]}]} as any);
 store.close();
 await writeFile(path.join(dir,"feed.json"),JSON.stringify({updatedAt:Date.now(),matches:[]}));
 const worker=spawn(process.execPath,["--import","tsx","--input-type=module","-e",`
@@ -41,6 +44,15 @@ try {
   for(const id of ["overview","timeline","episodes","teams","scoreboard","farm","combat","vision","deaths","builds","events","analysis"])assert.ok(matchHtml.includes(`id="${id}"`),id);
   assert.ok(matchHtml.includes("Стоимость имущества"));
   assert.equal((await fetch("http://localhost:3018/player/999999")).status,404);
+  const comparison=await fetch("http://localhost:3018/player/94014640/compare?left=123&right=124");
+  assert.equal(comparison.status,200);
+  const comparisonHtml=await comparison.text();
+  assert.match(comparisonHtml,/id="comparison-chart"/);
+  assert.match(comparisonHtml,/id="comparison-items"/);
+  assert.ok(!comparisonHtml.includes("NaN"));
+  assert.equal((await fetch("http://localhost:3018/player/94014640/compare?left=123&right=123")).status,404);
+  assert.equal((await fetch("http://localhost:3018/player/94014640/compare?left=123&right=999999")).status,404);
+  assert.equal((await fetch("http://localhost:3018/player/999999/compare")).status,404);
   assert.ok(!output.includes("UNEXPECTED_NETWORK_CALL"),output);
   assert.ok(!output.includes("ошибка запроса"),output);
   console.log("Profile HTTP tests passed: 14 players × 3 periods, per-match breakdown, 404, zero outgoing requests.");
