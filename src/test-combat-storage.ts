@@ -45,5 +45,48 @@ try{
  assert.equal(latest.players[0].combat_details!.version,"combat-log-v2","detail survives restart");assert.equal(latest.players[0].kills,13);assert.deepEqual(store.history(account),apm);
  assert.throws(()=>store.mergeReplayAnalytics({...fresh,players:[]}),/Missing/);
  assert.throws(()=>store.mergeReplayAnalytics({...fresh,players:fresh.players.map(p=>({...p,combat_details:undefined}))}),/Missing/);
+ // v6 -> v7, with a parser roster reordered relative to the authoritative cache.
+ const base={...fresh,match_id:125,parser_version:"pesiki-replay-v6",players:[fresh.players[0],{...fresh.players[0],steam_id:String(BigInt(original.players[0].steam_id)+1n),hero:"pudge",team:"dire"}]} as ParsedMatch;
+ store.save(base);
+ const v7={...base,parser_version:"pesiki-replay-v7",analytics_version:"combat-log-v3",players:[...base.players].reverse().map(p=>({...p,kills:777,combat_details:{...p.combat_details!,version:"combat-log-v3"}})),combat_timeline:{
+  version:"combat-timeline-v1",bucket_seconds:1,heroes:["pudge","warlock"],sources:["npc_dota_hero_warlock","unknown"],abilities:["attack"],
+  damage:[[8,0,1,0,0,1,0,50],[9,1,-1,1,0,2,0,7]],healing:[[10,0,1,1,0,-1,0,10]],
+  coverage:{target_scope:"real-heroes",damage_events:2,healing_events:1,stored_damage_events:2,stored_healing_events:1,owner_known_damage_events:1,damage_rows:2,healing_rows:1,dropped_events:0,truncated:false,complete_until_second:null,row_limit:16384,byte_limit:204800}
+ }} as ParsedMatch;
+ const priorApm=store.history(account),priorResults=store.results(account);
+ store.mergeReplayAnalytics(v7);
+ const upgraded=store.replay(125)!;
+ assert.equal(upgraded.analytics_version,"combat-log-v3");assert.equal(upgraded.parser_version,"pesiki-replay-v7");
+ assert.deepEqual(upgraded.players.map(p=>p.hero),["warlock","pudge"]);
+ assert.deepEqual(upgraded.combat_timeline!.heroes,["warlock","pudge"]);
+ assert.deepEqual(upgraded.combat_timeline!.damage,[[8,0,0,1,0,1,0,50],[9,1,-1,0,0,2,0,7]],"owner, unknown owner and target indices follow stored roster");
+ assert.deepEqual(upgraded.combat_timeline!.healing,[[10,0,0,0,0,-1,0,10]]);
+ assert.equal(upgraded.players[0].kills,base.players[0].kills,"official fields survive v7 upgrade");
+ assert.deepEqual(store.history(account),priorApm);assert.deepEqual(store.results(account),priorResults);
+ store.mergeReplayAnalytics({...v7,combat_timeline:undefined});
+ assert.deepEqual(store.replay(125),upgraded,"thin v7 analytic merge preserves existing timeline");
+ const reversed={...upgraded,combat_timeline:undefined,players:[...upgraded.players].reverse()};
+ assert.equal(store.saveReplay(reversed),true);
+ assert.deepEqual(store.replay(125)!.combat_timeline,v7.combat_timeline,"thin cache reorder reindexes retained timeline");
+ store.mergeReplayAnalytics(v7);
+ const stable=store.replay(125)!;
+ for(const old of [base,{...base,parser_version:"pesiki-replay-v5"}]){
+  assert.throws(()=>store.mergeReplayAnalytics(old),/downgrade/);assert.equal(store.saveReplay(old),false);
+ }
+ assert.deepEqual(store.replay(125),stable);
+ for(const broken of [
+  {...v7.combat_timeline!,heroes:["warlock","pudge"]},
+  {...v7.combat_timeline!,damage:[[8,0,9,0,0,1,0,50]]},
+  {...v7.combat_timeline!,healing:[[10,0,1,-1,0,-1,0,10]]}
+ ]){
+  assert.throws(()=>store.mergeReplayAnalytics({...v7,combat_timeline:broken} as ParsedMatch),/timeline/);
+  assert.deepEqual(store.replay(125),stable,"invalid timeline rolls back all merge writes");
+  assert.deepEqual(store.history(account),priorApm);
+ }
+ // Direct v5 upgrade is supported too, without synthesizing absent timeline data.
+ store.mergeReplayAnalytics({...fresh,parser_version:"pesiki-replay-v7",analytics_version:"combat-log-v3",players:fresh.players.map(p=>({...p,combat_details:{...p.combat_details!,version:"combat-log-v3"}}))});
+ assert.equal(store.replay(123)!.analytics_version,"combat-log-v3");assert.equal(store.replay(123)!.combat_timeline,undefined);
+ store.close();store=new ApmStore(file);
+ assert.deepEqual(store.replay(125),stable,"v7 timeline and roster mapping survive restart");
  console.log("Combat storage tests passed: atomic merge, official KDA/APM preservation, downgrade protection, cache and restart");
 }finally{store.close();rmSync(dir,{recursive:true,force:true});}

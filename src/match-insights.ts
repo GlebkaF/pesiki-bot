@@ -110,7 +110,7 @@ interface CombatDetails {
 }
 function applyCombatDetails(out:MatchPlayerInsights,player:ParsedPlayer,duration:number){
   const d=(player as ParsedPlayer&{combat_details?:CombatDetails}).combat_details;
-  if(!d||!["combat-log-v1","combat-log-v2"].includes(d.version??""))return;
+  if(!d||!["combat-log-v1","combat-log-v2","combat-log-v3"].includes(d.version??""))return;
   out.detailCoverage={ultimateClassificationComplete:d.coverage?.ultimate_classification===true,deathPositionsComplete:d.coverage?.death_positions===true,xpObserved:d.coverage?.xp===true};
   out.damage.byAbility=rows(d.damage?.by_ability);out.damage.byTarget=rows(d.damage?.by_target);out.damage.byType=rows(d.damage?.by_type);
   out.healing.self=nonnegative(d.healing?.self);out.healing.otherHeroes=nonnegative(d.healing?.other_heroes);out.healing.units=nonnegative(d.healing?.units);out.healing.byTarget=rows(d.healing?.by_target);out.healing.byAbility=rows(d.healing?.by_ability);

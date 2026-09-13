@@ -1,3 +1,4 @@
+import {sendText} from "./http-response.js";
 import {readPlayerAvatar} from "../player-avatars.js";
 import {buildPlayerProgress} from "../player-progress.js";
 import { loadProfiles, periodOf } from "../player-profile.js";
@@ -70,8 +71,7 @@ async function matchOverview(matchId: number): Promise<ApiOverview | null> {
 }
 
 function send(res: ServerResponse, status: number, body: string, type = "text/html; charset=utf-8"): void {
-  res.writeHead(status, { "content-type": type, "cache-control": "no-store" });
-  res.end(body);
+  void sendText(res,status,body,type).catch(()=>{if(!res.destroyed)res.destroy();});
 }
 
 function sendJson(res: ServerResponse, status: number, data: unknown): void {

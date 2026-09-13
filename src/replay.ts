@@ -29,7 +29,7 @@ const SALT_POLL_INTERVAL_MS = 10_000;
 
 /** Explicit combat-log observations. Optional on older retained parses. */
 export interface CombatDetails {
-  version: "combat-log-v1" | "combat-log-v2";
+  version: "combat-log-v1" | "combat-log-v2" | "combat-log-v3";
   coverage: { ultimate_classification:boolean; death_positions:boolean; xp:boolean; ward_placements:boolean; healing_target_identity?:boolean };
   healing: { self:number; other_heroes:number; units:number; by_target:Record<string,number>; by_ability?:Record<string,number> };
   /** Real hero targets, excluding attacker/target illusions. Raw damage type codes. */
@@ -107,8 +107,21 @@ export interface ParsedPlayer {
   top_spells?: Record<string, number>;
 }
 
+/** One-second observed amounts. Row flags bit 0 marks attacker illusions. */
+export type CombatTimelineRow=[second:number,sourceIndex:number,ownerHeroIndex:number,targetHeroIndex:number,abilityIndex:number,damageType:number,flags:number,amount:number];
+export interface CombatTimeline {
+  version:"combat-timeline-v1"; bucket_seconds:1;
+  /** Matches parsed.players order; owner -1 means no explicit owner in the roster. */
+  heroes:string[]; sources:string[]; abilities:string[];
+  damage:CombatTimelineRow[]; healing:CombatTimelineRow[];
+  coverage:{target_scope:"real-heroes";damage_events:number;healing_events:number;stored_damage_events:number;stored_healing_events:number;owner_known_damage_events:number;damage_rows:number;healing_rows:number;dropped_events:number;truncated:boolean;
+    /** Exclusive end of complete prefix; null means no dropped buckets. */
+    complete_until_second:number|null;row_limit:number;byte_limit:number};
+}
+
 export interface ParsedMatch {
-  analytics_version?: "combat-log-v1" | "combat-log-v2";
+  combat_timeline?:CombatTimeline;
+  analytics_version?: "combat-log-v1" | "combat-log-v2" | "combat-log-v3";
   parser_version?: string;
   apm_version?: string;
   apm_duration_seconds?: number;

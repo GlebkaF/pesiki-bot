@@ -1,3 +1,4 @@
+import {COMBAT_WINDOW_CSS} from './match-combat-window-render.js';
 import {PLAYER_AVATAR_CSS} from "./player-avatar-render.js";
 import {GAME_ICON_CSS,GAME_IMAGE_SCRIPT} from "./game-icon.js";
 import {renderHome} from "./home-render.js";
@@ -338,5 +339,5 @@ if (btn) btn.addEventListener('click', async () => {
   }, 1500);
 });`;
 
-  return layout(`Матч ${matchId} · Песики`, body, script+(parsed?PROFILE_SCRIPT+MATCH_SCRIPT+OVERVIEW_SCRIPT+EPISODE_SCRIPT+PULSE_SCRIPT:""),PROFILE_CSS+MATCH_CSS+OVERVIEW_CSS+EPISODE_CSS+PULSE_CSS);
+  return layout(`Матч ${matchId} · Песики`, body, script+(parsed?PROFILE_SCRIPT+MATCH_SCRIPT+OVERVIEW_SCRIPT+EPISODE_SCRIPT+PULSE_SCRIPT:""),PROFILE_CSS+MATCH_CSS+OVERVIEW_CSS+EPISODE_CSS+PULSE_CSS+COMBAT_WINDOW_CSS);
 }

@@ -19,6 +19,7 @@ m.buildings=[{min:161/60,name:"npc_dota_goodguys_tower1_mid",killed_by_team:"dir
 m.players[0].networth_by_minute[1]=NaN;e=buildMatchEpisodes(m).episodes[0];assert.equal(e.networth.before,null);assert.equal(e.networth.delta,null,"missing nearest snapshot cannot use stale data");
 const legacy=fixture();delete legacy.players[0].combat_details;legacy.players[0].death_times_min=[1,1.2,1.4];e=buildMatchEpisodes(legacy).episodes[0];assert.equal(e.deaths[0].source,"legacy-times");assert.equal(e.spatial.classification,"unknown");assert.equal(e.coverage.incomingDeaths,0);assert.equal(e.coverage.castPlayers,9);
 const empty=fixture();assert.equal(buildMatchEpisodes(empty).episodes.length,0);empty.players[0].combat_details!.deaths=[death(-1),death(500),death(NaN)];assert.equal(buildMatchEpisodes(empty).coverage.totalDeaths,0);
+assert.deepEqual(buildMatchEpisodes({...m,players:m.players.map(p=>({...p,combat_details:p.combat_details?{...p.combat_details,version:"combat-log-v3"}:undefined}))}),buildMatchEpisodes(m),"v3 retains complete deaths, casts, buybacks and incoming summaries");
 const before=JSON.stringify(m);assert.deepEqual(buildMatchEpisodes(m),buildMatchEpisodes(m));assert.equal(JSON.stringify(m),before,"pure model leaves parsed JSON unchanged");
 console.log("Match episode tests passed: temporal boundaries, repeats, spatial uncertainty, damage validation, explicit buybacks, cast provenance, context windows, partial data.");
 

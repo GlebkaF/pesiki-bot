@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-const analyticsVersion = "combat-log-v2"
+const analyticsVersion = "combat-log-v3"
 
 type combatPoint struct {
 	CoordinatesSource string   `json:"coordinates_source,omitempty"`

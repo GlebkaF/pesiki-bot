@@ -21,7 +21,7 @@ export interface MatchEpisodes {matchId:number;durationSeconds:number;settings:t
 const finite=(v:unknown):v is number=>typeof v==="number"&&Number.isFinite(v);
 const nonnegative=(v:unknown):v is number=>finite(v)&&v>=0;
 const actor=(p:ParsedPlayer):EpisodeActor=>({steamId:p.steam_id,hero:p.hero,heroLabel:heroName(p.hero),team:p.team==="radiant"||p.team==="dire"?p.team:null});
-const details=(p:ParsedPlayer):CombatDetails|undefined=>p.combat_details&&["combat-log-v1","combat-log-v2"].includes(p.combat_details.version)?p.combat_details:undefined;
+const details=(p:ParsedPlayer):CombatDetails|undefined=>p.combat_details&&["combat-log-v1","combat-log-v2","combat-log-v3"].includes(p.combat_details.version)?p.combat_details:undefined;
 function incoming(v:unknown):EpisodeIncoming|null {
  if(!v||typeof v!=="object")return null;const x=v as Record<string,unknown>;
  const rows=(m:unknown)=>m&&typeof m==="object"&&!Array.isArray(m)&&Object.values(m).every(nonnegative)?Object.entries(m).map(([key,value])=>({key,value:value as number})).sort((a,b)=>b.value-a.value||a.key.localeCompare(b.key)):null;

@@ -110,20 +110,21 @@ type Teamfight struct {
 }
 
 type Output struct {
-	AnalyticsVersion string      `json:"analytics_version,omitempty"`
-	ParserVersion    string      `json:"parser_version"`
-	APMVersion       string      `json:"apm_version,omitempty"`
-	APMDuration      float64     `json:"apm_duration_seconds,omitempty"`
-	MatchID          uint64      `json:"match_id"`
-	DurationM        float64     `json:"duration_min"`
-	Winner           string      `json:"winner"`
-	GameMode         string      `json:"game_mode"`
-	Players          []*Player   `json:"players"`
-	FirstBlood       *Kill       `json:"first_blood"`
-	Kills            []Kill      `json:"kills"`
-	Teamfights       []Teamfight `json:"teamfights"`
-	Buildings        []Building  `json:"buildings"`
-	Roshans          []float64   `json:"roshan_kills_min"`
+	CombatTimeline   *CombatTimeline `json:"combat_timeline,omitempty"`
+	AnalyticsVersion string          `json:"analytics_version,omitempty"`
+	ParserVersion    string          `json:"parser_version"`
+	APMVersion       string          `json:"apm_version,omitempty"`
+	APMDuration      float64         `json:"apm_duration_seconds,omitempty"`
+	MatchID          uint64          `json:"match_id"`
+	DurationM        float64         `json:"duration_min"`
+	Winner           string          `json:"winner"`
+	GameMode         string          `json:"game_mode"`
+	Players          []*Player       `json:"players"`
+	FirstBlood       *Kill           `json:"first_blood"`
+	Kills            []Kill          `json:"kills"`
+	Teamfights       []Teamfight     `json:"teamfights"`
+	Buildings        []Building      `json:"buildings"`
+	Roshans          []float64       `json:"roshan_kills_min"`
 	ParseStats       struct {
 		CombatLogEntries int     `json:"combat_log_entries"`
 		ParseSeconds     float64 `json:"-"`
@@ -156,7 +157,7 @@ func main() {
 		panic(err)
 	}
 
-	out := &Output{ParserVersion: "pesiki-replay-v6", AnalyticsVersion: analyticsVersion}
+	out := &Output{ParserVersion: "pesiki-replay-v7", AnalyticsVersion: analyticsVersion}
 	byHero := map[string]*Player{}
 	bySlot := map[int]*Player{}
 	var gameStart float64 = -1
@@ -164,6 +165,7 @@ func main() {
 	gameEnded := false
 	radiantWin := false
 	apm := newAPMCounter(p, func() bool { return gameStart >= 0 && !gameEnded })
+	timeline := newCombatTimeline()
 	wards := newWardCollector(p, func() bool { return gameStart >= 0 && !gameEnded }, func() float64 { return (lastTS - gameStart) / 60 })
 
 	p.Callbacks.OnCDemoFileInfo(func(m *dota.CDemoFileInfo) error {
@@ -346,6 +348,7 @@ func main() {
 		inflictor := name(int32(e.GetInflictorName()))
 
 		collectCombat(e, min, attacker, target, inflictor, byHero, bySlot)
+		timeline.observe(e, ts-gameStart, func(idx uint32) string { return name(int32(idx)) })
 		switch typ {
 		case dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_DAMAGE:
 			if e.GetIsTargetHero() && !e.GetIsTargetIllusion() {
@@ -569,6 +572,7 @@ func main() {
 		out.Players = append(out.Players, pl)
 	}
 	sort.Slice(out.Players, func(i, j int) bool { return out.Players[i].Slot < out.Players[j].Slot })
+	out.CombatTimeline = timeline.finish(out.Players)
 	wards.apply(out.Players)
 	assignRoles(out.Players)
 	computeMapStats(out.Players, track, out.Kills)

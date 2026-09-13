@@ -17,8 +17,8 @@
     "test:apm": "tsx src/test-apm.ts",
     "test:replay-storage": "tsx src/test-replay-storage.ts",
     "test:profiles": "tsx src/test-player-profile.ts && tsx src/test-profile-economy.ts && tsx src/test-retro-integrity.ts && tsx src/test-profile-web.ts",
-    "test:insights": "tsx src/test-match-insights.ts && tsx src/test-player-progress.ts && tsx src/test-combat-storage.ts && tsx src/test-ability-labels.ts && tsx src/test-match-overview.ts && tsx src/test-match-overview-web.ts && tsx src/test-match-episodes.ts && tsx src/test-official-player-data.ts && tsx src/test-match-episode-web.ts",
-    "test:visual-web": "tsx src/test-game-assets.ts && tsx src/test-player-avatars.ts && tsx src/test-home-web.ts && tsx src/test-player-avatar-web.ts",
+    "test:insights": "tsx src/test-match-insights.ts && tsx src/test-player-progress.ts && tsx src/test-combat-storage.ts && tsx src/test-ability-labels.ts && tsx src/test-match-overview.ts && tsx src/test-match-overview-web.ts && tsx src/test-match-episodes.ts && tsx src/test-official-player-data.ts && tsx src/test-match-episode-web.ts && tsx src/test-match-combat-window.ts && tsx src/test-match-combat-window-web.ts",
+    "test:visual-web": "tsx src/test-game-assets.ts && tsx src/test-player-avatars.ts && tsx src/test-home-web.ts && tsx src/test-player-avatar-web.ts && tsx src/test-http-response.ts",
     "sync:avatars": "tsx src/sync-player-avatars.ts"
   },
   "keywords": [

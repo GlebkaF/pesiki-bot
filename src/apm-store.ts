@@ -4,12 +4,31 @@ import type { RecentMatch, MatchApi, MatchApiPlayer } from "./opendota.js";
 import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import type { ParsedMatch } from "./replay.js";
+import type { ParsedMatch, CombatTimeline, CombatTimelineRow } from "./replay.js";
 import { HERO_CATALOG } from "./hero-catalog.js";
 
 export const APM_VERSION = "spectator-orders-v1";
-const analyticsRank=(v:unknown)=>v==="combat-log-v2"?2:v==="combat-log-v1"?1:0;
+const analyticsRank=(v:unknown)=>v==="combat-log-v3"?3:v==="combat-log-v2"?2:v==="combat-log-v1"?1:0;
 const parserRank=(v:unknown)=>typeof v==="string"?Number(/^pesiki-replay-v(\d+)$/.exec(v)?.[1]??0):0;
+/** Timeline indices belong to its parser roster, not the order of an enriched cache. */
+function projectTimeline(timeline: CombatTimeline, from: ParsedMatch["players"], to: ParsedMatch["players"]): CombatTimeline {
+  if(timeline.version!=="combat-timeline-v1" || !Array.isArray(timeline.heroes) || from.length!==to.length ||
+    timeline.heroes.length!==from.length || from.some((p,i)=>p.hero!==timeline.heroes[i])) throw Error("Combat timeline roster mismatch");
+  const used=new Set<number>();
+  const indices=from.map(p=>{
+    const i=to.findIndex((q,j)=>!used.has(j)&&q.steam_id===p.steam_id&&q.hero===p.hero&&q.team===p.team);
+    if(i<0)throw Error("Combat timeline roster mismatch");used.add(i);return i;
+  });
+  const rows=(input:CombatTimelineRow[]):CombatTimelineRow[]=>{
+    if(!Array.isArray(input))throw Error("Invalid combat timeline rows");
+    return input.map(row=>{
+      if(!Array.isArray(row)||row.length!==8||!Number.isInteger(row[2])||row[2]<-1||row[2]>=indices.length||
+        !Number.isInteger(row[3])||row[3]<0||row[3]>=indices.length)throw Error("Invalid combat timeline hero index");
+      return [row[0],row[1],row[2]===-1?-1:indices[row[2]],indices[row[3]],row[4],row[5],row[6],row[7]];
+    });
+  };
+  return {...timeline,heroes:to.map(p=>p.hero),damage:rows(timeline.damage),healing:rows(timeline.healing)};
+}
 export interface ProfileRoster {
   match_id:number; start_time?:number; duration_min:number; winner:string;
   players:{steam_id:string;hero:string;team:string}[];
@@ -59,7 +78,9 @@ export class ApmStore {
     // A legacy cache must not overwrite a newer, richer parse.
     if (existing?.apm_version && !match.apm_version) return false;
     if (existing && (analyticsRank(existing.analytics_version)>analyticsRank(match.analytics_version) || parserRank(existing.parser_version)>parserRank(match.parser_version))) return false;
-    const stored = {...match, analytics_version:match.analytics_version??existing?.analytics_version, start_time: match.start_time ?? existing?.start_time, players: match.players.map(p => {
+    const combat_timeline=match.combat_timeline ? projectTimeline(match.combat_timeline,match.players,match.players) :
+      existing?.combat_timeline ? projectTimeline(existing.combat_timeline,existing.players,match.players) : undefined;
+    const stored = {...match, combat_timeline, analytics_version:match.analytics_version??existing?.analytics_version, start_time: match.start_time ?? existing?.start_time, players: match.players.map(p => {
       const old = existing?.players.find(x => x.steam_id === p.steam_id && x.hero===p.hero && x.team===p.team);
       const counts = validActionCounts(p.action_counts, p.actions ?? -1) ? p.action_counts :
         old?.actions === p.actions && validActionCounts(old?.action_counts,p.actions ?? -1) ? old!.action_counts : undefined;
@@ -144,6 +165,7 @@ export class ApmStore {
       this.mergeReplayActions(parsed);
       const latest=this.replay(parsed.match_id)!;
       this.saveReplay({...latest,analytics_version:parsed.analytics_version,parser_version:parsed.parser_version,
+        combat_timeline:parsed.combat_timeline?projectTimeline(parsed.combat_timeline,parsed.players,latest.players):latest.combat_timeline,
         players:latest.players.map(p=>({...p,combat_details:parsed.players.find(q=>q.steam_id===p.steam_id&&q.hero===p.hero&&q.team===p.team)!.combat_details}))});
     }).immediate();
   }
