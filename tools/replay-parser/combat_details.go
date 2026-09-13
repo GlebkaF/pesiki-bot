@@ -28,8 +28,16 @@ type deathEvent struct {
 }
 type wardEvent struct {
 	combatPoint
-	Kind  string `json:"kind"`
-	Event string `json:"event"`
+	Kind             string `json:"kind"`
+	Event            string `json:"event"`
+	DestroyKind      string `json:"destroy_kind,omitempty"`
+	Attacker         string `json:"attacker,omitempty"`
+	AttackerHero     string `json:"attacker_hero,omitempty"`
+	AttackerTeam     string `json:"attacker_team,omitempty"`
+	TargetTeam       string `json:"target_team,omitempty"`
+	TargetOwnerHero  string `json:"target_owner_hero,omitempty"`
+	SourceControlled bool   `json:"source_controlled,omitempty"`
+	SourceIllusion   bool   `json:"source_illusion,omitempty"`
 }
 type goldEvent struct {
 	Min    float64 `json:"min"`
@@ -52,6 +60,7 @@ type CombatDetails struct {
 		DeathPositions         bool `json:"death_positions"`
 		XP                     bool `json:"xp"`
 		WardPlacements         bool `json:"ward_placements"`
+		WardDestroySemantics   bool `json:"ward_destroy_semantics"`
 		HealingTargetIdentity  bool `json:"healing_target_identity"`
 	} `json:"coverage"`
 	recentDamage    []damageObservation
@@ -200,10 +209,7 @@ func collectCombat(e *dota.CMsgDOTACombatLogEntry, min float64, attacker, target
 			d := combatFor(p)
 			d.Buybacks = append(d.Buybacks, point(e, min))
 		}
-	case dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_DEATH:
-		if strings.Contains(target, "ward") && ap != nil && !e.GetIsAttackerIllusion() {
-			ap.Wards = append(ap.Wards, wardEvent{combatPoint: point(e, min), Kind: wardKind(target), Event: "destroy"})
-		}
+
 	}
 }
 func sampleCombat(players map[string]*Player) {

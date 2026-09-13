@@ -1,11 +1,16 @@
 import {abilityIsUltimate} from "./ability-labels.js";
-import type { ParsedMatch, ParsedPlayer } from "./replay.js";
+import type { ParsedMatch, ParsedPlayer, WardEvent } from "./replay.js";
 import { heroName } from "./player-profile.js";
 export type InsightFeature = "damage"|"damageBreakdown"|"healing"|"healingBreakdown"|"control"|"networth"|"gold"|"xp"|"lastHits"|"wards"|"wardMap"|"deaths"|"deathMap"|"ultimates"|"buybacks"|"buybackLog";
 export interface FeatureCoverage { available:number; total:number; reason:string }
 export interface MinutePoint { minute:number; value:number }
 export interface BreakdownEntry { key:string; value:number }
 export interface LocatedEvent { seconds:number; x:number|null; y:number|null; coordinatesSource?:string }
+export interface WardInsight extends LocatedEvent {
+ kind:string; event:string; destroyKind:"enemy_deward"|"allied_deny"|"unknown";
+ attacker:string|null; attackerHero:string|null; attackerTeam:"radiant"|"dire"|null;
+ targetTeam:"radiant"|"dire"|null; targetOwnerHero:string|null; sourceControlled:boolean; sourceIllusion:boolean;
+}
 export interface DeathInsight extends LocatedEvent { killer:string|null; incoming:{windowSeconds:number;total:number;byAttacker:BreakdownEntry[];byAbility:BreakdownEntry[];complete:boolean}|null }
 export interface MatchPlayerInsights {
   steamId:string; hero:string; heroLabel:string; team:"radiant"|"dire";
@@ -16,7 +21,7 @@ export interface MatchPlayerInsights {
   abilityCasts:BreakdownEntry[]|null;
   castLog:{seconds:number;ability:string;target:string|null;ultimate:boolean}[]|null;
   economy:{networth:MinutePoint[]|null; gold:MinutePoint[]|null; xp:MinutePoint[]|null; lastHits:MinutePoint[]|null; goldLostToDeath:number|null; goldSpentOnSupport:number|null; goldEvents:{seconds:number;value:number;reason:number|null}[]|null; denies:MinutePoint[]|null};
-  vision:{observerPurchases:number|null; sentryPurchases:number|null; wardsKilled:number|null; placements:(LocatedEvent&{kind:string})[]|null; events:(LocatedEvent&{kind:string;event:string})[]|null};
+  vision:{destroySemantics?:boolean;observerPurchases:number|null; sentryPurchases:number|null; wardsKilled:number|null; placements:(LocatedEvent&{kind:string})[]|null; events:WardInsight[]|null};
   deaths:DeathInsight[]|null;
   killedBy:BreakdownEntry[]|null;
   ultimates:(LocatedEvent&{ability:string})[]|null;
@@ -24,6 +29,7 @@ export interface MatchPlayerInsights {
 }
 export interface MatchInsights {
   matchId:number; durationSeconds:number; players:MatchPlayerInsights[];
+  wardEvents?:WardInsight[];
   coverage:Record<InsightFeature,FeatureCoverage>;
   kills:{seconds:number;killer:string;victim:string;assists:number|null}[];
   buildings:{seconds:number;name:string;team:string}[];
@@ -39,6 +45,16 @@ function curve(v:unknown,duration:number):MinutePoint[]|null {
   return points.length?points:null;
 }
 const time=(minutes:unknown,duration:number):number|null=>nonnegative(minutes)!==null&&(minutes as number)*60<=duration?Math.round((minutes as number)*60):null;
+function wardInsight(e:WardEvent,duration:number,semantics:boolean):WardInsight|null {
+ if(!e||!Number.isFinite(e.min)||e.min*60>duration||(e.min<0&&e.event!=='place')||!['place','destroy','purchase'].includes(e.event))return null;
+ const side=(s:unknown):"radiant"|"dire"|null=>s==='radiant'||s==='dire'?s:null;
+ const attackerTeam=side(e.attacker_team),targetTeam=side(e.target_team),positioned=Number.isFinite(e.x)&&Number.isFinite(e.y);
+ const destroyKind=semantics&&attackerTeam&&targetTeam&&e.event==='destroy'&&((e.destroy_kind==='enemy_deward'&&attackerTeam!==targetTeam)||(e.destroy_kind==='allied_deny'&&attackerTeam===targetTeam))?e.destroy_kind!:'unknown';
+ return {seconds:Math.round(e.min*60),x:positioned?e.x!:null,y:positioned?e.y!:null,coordinatesSource:e.coordinates_source,
+ kind:['observer','sentry'].includes(e.kind)?e.kind:'other',event:e.event,destroyKind,
+ attacker:typeof e.attacker==='string'?e.attacker:null,attackerHero:typeof e.attacker_hero==='string'?e.attacker_hero:null,attackerTeam,targetTeam,
+ targetOwnerHero:typeof e.target_owner_hero==='string'?e.target_owner_hero:null,sourceControlled:e.source_controlled===true,sourceIllusion:e.source_illusion===true};
+}
 /** Only existing observations are exposed. Legacy HEAL has no recipient split; legacy ward counters count purchases. */
 export function buildMatchInsights(match:ParsedMatch):MatchInsights {
   const durationSeconds=Math.round((nonnegative(match.duration_min)??0)*60);
@@ -48,7 +64,7 @@ export function buildMatchInsights(match:ParsedMatch):MatchInsights {
     healing:{totalIncludingSelf:nonnegative(p.healing),self:null,allies:null,otherHeroes:null,units:null,byAbility:null,byTarget:null},
     control:{stunSeconds:nonnegative(p.stuns),observations:null},abilityCasts:rows(p.top_spells),castLog:null,
     economy:{networth:curve(p.networth_by_minute,durationSeconds),gold:null,xp:null,lastHits:null,goldLostToDeath:nonnegative(p.gold_lost_to_death),goldSpentOnSupport:nonnegative(p.gold_spent_on_support),goldEvents:null,denies:null},
-    vision:{observerPurchases:nonnegative(p.obs_wards_placed),sentryPurchases:nonnegative(p.sentry_wards_placed),wardsKilled:nonnegative(p.wards_killed),placements:null,events:null},
+    vision:{destroySemantics:false,observerPurchases:nonnegative(p.obs_wards_placed),sentryPurchases:nonnegative(p.sentry_wards_placed),wardsKilled:nonnegative(p.wards_killed),placements:null,events:null},
     deaths:Array.isArray(p.death_times_min)?p.death_times_min.flatMap(t=>{const seconds=time(t,durationSeconds);return seconds===null?[]:[{seconds,x:null,y:null,killer:null,incoming:null}];}):null,
     killedBy:rows(p.killed_by),ultimates:null,buybacks:{total:nonnegative(p.buybacks),events:null}
   }));
@@ -87,6 +103,7 @@ export function buildMatchInsights(match:ParsedMatch):MatchInsights {
   };
   const coverage=Object.fromEntries(Object.entries(selectors).map(([key,{read,reason}])=>[key,{available:players.filter(p=>read(p)!==null&&read(p)!==undefined).length,total:players.length,reason}])) as MatchInsights["coverage"];
   return {matchId:match.match_id,durationSeconds,players,coverage,
+    wardEvents:(match.ward_events??[]).flatMap(e=>{const row=wardInsight(e,durationSeconds,true);return row?[row]:[];}),
     kills:(match.kills??[]).flatMap(k=>{const seconds=time(k.min,durationSeconds);return seconds===null?[]:[{seconds,killer:heroName(k.killer),victim:heroName(k.victim),assists:nonnegative(k.assists)}];}),
     buildings:(match.buildings??[]).flatMap(b=>{const seconds=time(b.min,durationSeconds);return seconds===null?[]:[{seconds,name:b.name,team:b.killed_by_team}];}),
     roshans:(match.roshan_kills_min??[]).flatMap(t=>{const seconds=time(t,durationSeconds);return seconds===null?[]:[{seconds}];}),
@@ -101,7 +118,7 @@ interface CombatDetails {
   damage?:{by_ability?:Record<string,number>;by_target?:Record<string,number>;by_type?:Record<string,number>};
   casts?:{min:number;ability:string;target?:string;ultimate?:boolean}[];
   deaths?:{min:number;killer:string;x?:number;y?:number;coordinates_source?:string;incoming?:{window_seconds:number;total:number;by_attacker:Record<string,number>;by_ability:Record<string,number>;complete:boolean}}[];
-  wards?:{min:number;kind:string;event:string;x?:number;y?:number;coordinates_source?:string}[];
+  wards?:WardEvent[];
   buybacks?:{min:number}[];
   gold?:{min:number;value:number;reason?:number}[];
   xp_by_minute?:number[];last_hits_by_minute?:number[];denies_by_minute?:number[];
@@ -123,7 +140,8 @@ function applyCombatDetails(out:MatchPlayerInsights,player:ParsedPlayer,duration
     const incoming=v&&nonnegative(v.window_seconds)!==null&&nonnegative(v.total)!==null?{windowSeconds:v.window_seconds,total:v.total,byAttacker:rows(v.by_attacker)??[],byAbility:rows(v.by_ability)??[],complete:v.complete===true}:null;
     return [{...p,killer:typeof e.killer==="string"?heroName(e.killer):null,incoming}];
   });
-  if(Array.isArray(d.wards))out.vision.events=d.wards.flatMap(e=>{const p=located(e);return p?[{...p,kind:e.kind,event:e.event}]:[];}).sort((a,b)=>a.seconds-b.seconds);
+  out.vision.destroySemantics=d.coverage?.ward_destroy_semantics===true;
+  if(Array.isArray(d.wards))out.vision.events=d.wards.flatMap(e=>{const row=wardInsight(e,duration,d.coverage?.ward_destroy_semantics===true);return row?[row]:[];}).sort((a,b)=>a.seconds-b.seconds);
   // Only explicit ward entity creation can supply placement; PURCHASE coordinates cannot.
   const placed=out.vision.events?.filter(e=>e.event==="place")??[];
   if(placed.length||d.coverage?.ward_placements===true)out.vision.placements=placed;

@@ -1,6 +1,4 @@
-import { verifiedReplayScoreboard } from "./replay-scoreboard.js";
 import { getApmStore } from "./apm-store.js";
-import { HERO_CATALOG } from "./hero-catalog.js";
 import { getAppFetch, isOpenDotaLimited } from "./proxy.js";
 
 const OPENDOTA_API_BASE = "https://api.opendota.com/api";
@@ -129,6 +127,7 @@ export interface RecentMatch {
   kills: number;
   deaths: number;
   assists: number;
+  kda_source?: "replay-scoreboard" | "opendota";
 }
 
 export interface PlayerProfile {
@@ -185,7 +184,7 @@ export async function fetchRecentMatches(
   const cacheKey = `matches:${accountId}:${days ?? "recent"}`;
   const cached = getFromCache<RecentMatch[]>(cacheKey);
   if (cached && !fresh) {
-    return cached;
+    return preferSavedRecentKda(accountId,cached,days);
   }
 
   let url: string;
@@ -206,14 +205,14 @@ export async function fetchRecentMatches(
     if (!Array.isArray(data)) throw new Error("Invalid recent matches response");
     getApmStore().saveResults(accountId, data);
   } catch (error) {
-    if (cached) return cached;
-    const local = savedRecentMatches(accountId);
+    if (cached) return preferSavedRecentKda(accountId,cached,days);
+    const local = savedRecentMatches(accountId,days);
     if (local.length) return local;
     throw error;
   }
   
   setCache(cacheKey, data, CACHE_TTL.MATCHES);
-  return data;
+  return preferSavedRecentKda(accountId,data,days);
 }
 
 /**
@@ -349,13 +348,27 @@ export async function fetchMatchApi(matchId: number): Promise<MatchApi> {
   return data;
 }
 
-export function savedRecentMatches(accountId: number): RecentMatch[] {
-  const steamId = String(BigInt(accountId) + 76561197960265728n);
-  const heroIds = new Map(HERO_CATALOG.map(h=>[h.name.replace("npc_dota_hero_", ""),h.id]));
-  return getApmStore().allReplays().flatMap(m => {
-    const p=m.players.find(p=>p.steam_id===steamId);
-    if(!p || !m.start_time) return [];
-    const scoreboard=verifiedReplayScoreboard(p);
-    return [{match_id:m.match_id,player_slot:p.team==="radiant"?0:128,radiant_win:m.winner==="radiant",start_time:m.start_time,duration:Math.round(m.duration_min*60),hero_id:heroIds.get(p.hero)??0,kills:scoreboard?.kills??p.kills,deaths:scoreboard?.deaths??p.deaths,assists:scoreboard?.assists??p.assists}];
-  }).sort((a,b)=>b.start_time-a.start_time);
+/** Compact result projection only: never fall back to combat-log KDA or load replay JSONs. */
+export function savedRecentMatches(accountId: number, days?:number): RecentMatch[] {
+  const cutoff=days!==undefined&&days>1?Date.now()/1000-days*86400:0;
+  const matches= getApmStore().results(accountId)
+    .filter(m=>["replay-scoreboard","opendota"].includes(m.result_source)&&Number.isFinite(m.start_time)&&m.start_time>0&&m.start_time>=cutoff)
+    .map(m=>({...m,kda_source:m.result_source as "replay-scoreboard"|"opendota"}))
+    .sort((a,b)=>b.start_time-a.start_time||b.match_id-a.match_id);
+  return days!==undefined&&days>1?matches:matches.slice(0,20);
+}
+/** Re-evaluate DB priority on every cache hit: a replay may finish after the API was cached. */
+function preferSavedRecentKda(accountId:number,incoming:RecentMatch[],days?:number):RecentMatch[]{
+ const saved=new Map(savedRecentMatches(accountId,days).map(m=>[m.match_id,m]));
+ const merged:RecentMatch[]=incoming.map(m=>{
+  const local=saved.get(m.match_id);
+  if(local?.kda_source==="replay-scoreboard"&&local.hero_id===m.hero_id&&local.player_slot===m.player_slot)
+    return {...m,kills:local.kills,deaths:local.deaths,assists:local.assists,kda_source:"replay-scoreboard"};
+  return {...m,kda_source:"opendota"};
+ });
+ const ids=new Set(merged.map(m=>m.match_id));
+ const cutoff=days!==undefined&&days>1?Date.now()/1000-days*86400:incoming.length?Math.min(...incoming.map(m=>m.start_time)):-Infinity;
+ for(const local of saved.values())if(local.kda_source==="replay-scoreboard"&&!ids.has(local.match_id)&&local.start_time>=cutoff)merged.push(local);
+ merged.sort((a,b)=>b.start_time-a.start_time||b.match_id-a.match_id);
+ return days!==undefined&&days>1?merged:merged.slice(0,20);
 }

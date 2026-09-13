@@ -14,7 +14,7 @@ const filename = path.join(dir, "stats.sqlite");
 let store = new ApmStore(filename);
 const match = {
  match_id: 100, start_time: 1000, apm_version: APM_VERSION, apm_duration_seconds: 120,
- players: [{ steam_id: String(76561197960265728n + 1869377945n), name: "zladey", hero:"invoker", kills:1, deaths:2, assists:3, actions:371, actions_per_min:185 }],
+ players: [{ steam_id: String(76561197960265728n + 1869377945n), name: "zladey", hero:"invoker", kda_source:"opendota", kills:1, deaths:2, assists:3, actions:371, actions_per_min:185 }],
 } as ParsedMatch;
 try {
  store.save(match); store.save(match);
@@ -37,6 +37,9 @@ try {
  const updated = withAnalysisApm(old, match);
  assert.match(updated, /Invoker · 1\/2\/3 · APM 185 — нажимал кнопки/u);
  assert.equal(withAnalysisApm(updated, match), updated, "cached decoration is idempotent");
+ const scoreboard={...match,players:match.players.map(p=>({...p,team:"radiant" as const,replay_scoreboard:{version:"player-resource-v1" as const,source:"CDOTA_PlayerResource" as const,resource_slot:0,team_slot:0,hero_id:74,kills:9,deaths:4,assists:27,complete:true as const,end_state_observed:true as const}}))};
+ assert.match(withAnalysisApm(old,scoreboard),/9\/4\/27 · APM 185/,'formatter must not replace verified scoreboard with raw counts');
+ const untrusted={...match,players:match.players.map(p=>({...p,kda_source:undefined}))};const unknown=withAnalysisApm(old,untrusted);assert.match(unknown,/Invoker · — · APM 185/);assert.equal(withAnalysisApm(unknown,untrusted),unknown,'unknown-source decoration stays idempotent');
  const missing = {...match, players:match.players.map(p => ({...p, actions_per_min:undefined}))};
  const missingText = withAnalysisApm(old, missing);
  assert.equal(withAnalysisApm(missingText, missing), missingText, "unknown APM decoration is idempotent");

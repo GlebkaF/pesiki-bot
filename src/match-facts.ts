@@ -1,3 +1,4 @@
+import {finalPlayerKda} from "./replay-scoreboard.js";
 import { isOpenDotaLimited } from "./proxy.js";
 /**
  * Детерминированная редакторская фактура матча.
@@ -372,7 +373,7 @@ export function playerFacts(our: OurPlayer, team: ParsedPlayer[], history?: Play
     role: effectiveRole,
     unusualRole: Boolean(profile?.usualRoles?.length && !profile.usualRoles.includes(effectiveRole)),
     profileNotes: profile?.notes ?? [],
-    kda: `${p.kills}/${p.deaths}/${p.assists}`,
+    kda: finalPlayerKda(p)?.join("/")??"не подтверждено",
     kdaSource:p.kda_source,
     apm: p.actions_per_min,
     csAt10: p.cs_at_10,
@@ -548,7 +549,7 @@ export async function collectMatchFacts(a: MatchAnalysis): Promise<MatchFactPack
     enemyPlayers: enemies.map((enemy) => ({
       name: enemy.name,
       hero: enemy.hero,
-      kda: `${enemy.kills}/${enemy.deaths}/${enemy.assists}`,
+      kda: finalPlayerKda(enemy)?.join("/")??"не подтверждено",
       kdaSource:enemy.kda_source,
     })),
     awards: {

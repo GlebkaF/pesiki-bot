@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {buildMatchInsights} from './match-insights.js';
+import type {ParsedMatch,WardEvent} from './replay.js';
+const ward=(patch:Partial<WardEvent>={}):WardEvent=>({min:1,kind:'observer',event:'destroy',destroy_kind:'enemy_deward',attacker_team:'radiant',target_team:'dire',...patch});
+const m={match_id:99,duration_min:5,players:[{steam_id:'123',hero:'warlock',team:'radiant',combat_details:{version:'combat-log-v3',coverage:{ward_destroy_semantics:true},wards:[ward(),ward({destroy_kind:'allied_deny',target_team:'radiant'}),ward({target_team:'radiant'}),ward({min:-.5,event:'place',destroy_kind:undefined,x:12,y:34}),ward({min:-1}),ward({min:6})]}}],ward_events:[ward({attacker:'npc_dota_creep_badguys_melee',attacker_team:'dire',target_team:'radiant'})]} as unknown as ParsedMatch;
+let x=buildMatchInsights(m),events=x.players[0].vision.events!;
+assert.equal(events.length,4);
+assert.deepEqual(events.map(e=>e.destroyKind),['unknown','enemy_deward','allied_deny','unknown']);
+assert.equal(events[0].seconds,-30);assert.equal(x.players[0].vision.placements![0].seconds,-30);
+assert.equal(x.wardEvents!.length,1);assert.equal(x.wardEvents![0].attackerHero,null);
+assert.equal(x.wardEvents![0].destroyKind,'enemy_deward','creep can destroy enemy ward without a hero owner');
+assert.equal(x.players[0].vision.destroySemantics,true);
+m.players[0].combat_details!.coverage.ward_destroy_semantics=false;
+x=buildMatchInsights(m);assert.ok(x.players[0].vision.events!.every(e=>e.destroyKind==='unknown'),'old destroy counters are not verified dewards');
+assert.equal(x.players[0].vision.destroySemantics,false);
+console.log('Ward semantics tests passed: enemy/deny/unknown, prehorn placement, unowned events, legacy data.');

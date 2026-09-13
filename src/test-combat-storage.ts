@@ -88,5 +88,15 @@ try{
  assert.equal(store.replay(123)!.analytics_version,"combat-log-v3");assert.equal(store.replay(123)!.combat_timeline,undefined);
  store.close();store=new ApmStore(file);
  assert.deepEqual(store.replay(125),stable,"v7 timeline and roster mapping survive restart");
+ const ward={min:1,kind:"observer",event:"destroy",destroy_kind:"enemy_deward",attacker:"npc_dota_creep_badguys_melee",attacker_team:"dire",target_team:"radiant"} as const;
+ const v9={...stable,parser_version:"pesiki-replay-v9",ward_events:[ward],players:stable.players.map(p=>({...p,wards_killed:2,combat_details:{...p.combat_details!,coverage:{...p.combat_details!.coverage,ward_destroy_semantics:true}}}))};
+ store.mergeReplayAnalytics(v9);
+ const wardsSaved=store.replay(125)!;
+ assert.deepEqual(wardsSaved.ward_events,[ward]);assert.equal(wardsSaved.players[0].wards_killed,2);
+ assert.deepEqual(wardsSaved.combat_timeline,stable.combat_timeline);assert.deepEqual(store.history(account),priorApm);
+ assert.equal(store.saveReplay({...stable,parser_version:"pesiki-replay-v8"}),false,"v8 cannot erase ward semantics");
+ store.saveReplay({...wardsSaved,ward_events:undefined});
+ assert.deepEqual(store.replay(125)!.ward_events,[ward],"thin same-version enrichment retains unattributed ward events");
+ store.close();store=new ApmStore(file);assert.deepEqual(store.replay(125)!.ward_events,[ward],"ward observations persist across restart");
  console.log("Combat storage tests passed: atomic merge, official KDA/APM preservation, downgrade protection, cache and restart");
 }finally{store.close();rmSync(dir,{recursive:true,force:true});}

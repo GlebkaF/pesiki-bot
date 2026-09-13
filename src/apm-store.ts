@@ -81,7 +81,7 @@ export class ApmStore {
     if (existing && (analyticsRank(existing.analytics_version)>analyticsRank(match.analytics_version) || parserRank(existing.parser_version)>parserRank(match.parser_version))) return false;
     const combat_timeline=match.combat_timeline ? projectTimeline(match.combat_timeline,match.players,match.players) :
       existing?.combat_timeline ? projectTimeline(existing.combat_timeline,existing.players,match.players) : undefined;
-    const stored = {...match, combat_timeline, analytics_version:match.analytics_version??existing?.analytics_version, start_time: match.start_time ?? existing?.start_time, players: match.players.map(p => {
+    const stored = {...match, combat_timeline, ward_events:match.ward_events??existing?.ward_events, analytics_version:match.analytics_version??existing?.analytics_version, start_time: match.start_time ?? existing?.start_time, players: match.players.map(p => {
       const old = existing?.players.find(x => x.steam_id === p.steam_id && x.hero===p.hero && x.team===p.team);
       const counts = validActionCounts(p.action_counts, p.actions ?? -1) ? p.action_counts :
         old?.actions === p.actions && validActionCounts(old?.action_counts,p.actions ?? -1) ? old!.action_counts : undefined;
@@ -176,8 +176,9 @@ export class ApmStore {
       this.mergeReplayActions(parsed);
       const latest=this.replay(parsed.match_id)!;
       this.saveReplay({...latest,analytics_version:parsed.analytics_version,parser_version:parsed.parser_version,
+        ward_events:parsed.ward_events??latest.ward_events,
         combat_timeline:parsed.combat_timeline?projectTimeline(parsed.combat_timeline,parsed.players,latest.players):latest.combat_timeline,
-        players:latest.players.map(p=>({...p,combat_details:parsed.players.find(q=>q.steam_id===p.steam_id&&q.hero===p.hero&&q.team===p.team)!.combat_details,replay_scoreboard:parsed.players.find(q=>q.steam_id===p.steam_id&&q.hero===p.hero&&q.team===p.team)!.replay_scoreboard??p.replay_scoreboard}))});
+        players:latest.players.map(p=>{const next=parsed.players.find(q=>q.steam_id===p.steam_id&&q.hero===p.hero&&q.team===p.team)!;return {...p,combat_details:next.combat_details,wards_killed:next.combat_details?.coverage?.ward_destroy_semantics===true?next.wards_killed:p.wards_killed,replay_scoreboard:next.replay_scoreboard??p.replay_scoreboard};})});
     }).immediate();
   }
   economyHistory(accountId:number): {matchId:number;start:number|null;hero:string;mode:string;duration:number;items:string;networth10:number|null;networth20:number|null}[] {
@@ -214,6 +215,10 @@ export class ApmStore {
           const incoming=Object.fromEntries(Object.entries(m).filter(([,value])=>value!==undefined&&value!==null));
           next={...old,...incoming,result_source:source} as SavedResult;
           if(source==="replay-scoreboard"&&m.start_time===0&&old&&old.start_time>0)next.start_time=old.start_time;
+          if(source==="replay-scoreboard"&&old?.result_source==="replay-scoreboard"&&old.scoreboard_provenance&&next.scoreboard_provenance&&
+            (["match_id","hero_id","player_slot","kills","deaths","assists"] as const).every(key=>old[key]===next[key])&&
+            (["version","resource_slot","team_slot"] as const).every(key=>old.scoreboard_provenance![key]===next.scoreboard_provenance![key]))
+            next.scoreboard_provenance=old.scoreboard_provenance; // Keep the original proof; unrelated parser upgrades do not rewrite its origin.
         }
         insert.run(m.match_id,accountId,JSON.stringify(next));
       }
@@ -263,7 +268,7 @@ export class ApmStore {
           return !p.account_id||p.account_id===4294967295||player.steam_id==="0"||String(BigInt(p.account_id)+76561197960265728n)===player.steam_id;
         });
         if(matches.length!==1)return player;
-        const p=matches[0],next={...player,kills:p.kills,deaths:p.deaths,assists:p.assists};
+        const p=matches[0],next={...player,kills:p.kills,deaths:p.deaths,assists:p.assists,kda_source:'opendota' as const};
         if(numeric(p.last_hits))next.last_hits=p.last_hits;if(numeric(p.denies))next.denies=p.denies;
         if(numeric(p.gold_per_min))next.gpm=p.gold_per_min;if(numeric(p.xp_per_min))next.xpm=p.xp_per_min;
         if(numeric(p.hero_damage))next.hero_damage=p.hero_damage;

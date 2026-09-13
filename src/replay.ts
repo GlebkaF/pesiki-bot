@@ -27,17 +27,25 @@ const PARSED_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const SALT_POLL_ATTEMPTS = 12;
 const SALT_POLL_INTERVAL_MS = 10_000;
 
+export interface WardEvent {
+ min:number; kind:"observer"|"sentry"|"other"; event:"purchase"|"destroy"|"place";
+ x?:number; y?:number; coordinates_source?:"ward_entity";
+ destroy_kind?:"enemy_deward"|"allied_deny"|"unknown";
+ attacker?:string; attacker_hero?:string; attacker_team?:"radiant"|"dire";
+ target_team?:"radiant"|"dire"; target_owner_hero?:string;
+ source_controlled?:boolean; source_illusion?:boolean;
+}
 /** Explicit combat-log observations. Optional on older retained parses. */
 export interface CombatDetails {
   version: "combat-log-v1" | "combat-log-v2" | "combat-log-v3";
-  coverage: { ultimate_classification:boolean; death_positions:boolean; xp:boolean; ward_placements:boolean; healing_target_identity?:boolean };
+  coverage: { ultimate_classification:boolean; death_positions:boolean; xp:boolean; ward_placements:boolean; healing_target_identity?:boolean; ward_destroy_semantics?:boolean };
   healing: { self:number; other_heroes:number; units:number; by_target:Record<string,number>; by_ability?:Record<string,number> };
   /** Real hero targets, excluding attacker/target illusions. Raw damage type codes. */
   damage: { by_ability:Record<string,number>; by_target:Record<string,number>; by_type:Record<string,number> };
   casts: { min:number; ability:string; target?:string; ultimate?:boolean; item?:boolean }[];
   deaths: { min:number; killer:string; x?:number; y?:number; coordinates_source?:"hero_entity"; incoming?:{window_seconds:number;total:number;by_attacker:Record<string,number>;by_ability:Record<string,number>;complete:boolean} }[];
   /** Purchase is not placement. Destroy coordinates only when explicitly present. */
-  wards: { min:number; kind:"observer"|"sentry"|"other"; event:"purchase"|"destroy"|"place"; x?:number; y?:number; coordinates_source?:"ward_entity" }[];
+  wards: WardEvent[];
   buybacks: { min:number; x?:number; y?:number }[];
   gold: { min:number; value:number; reason?:number }[];
   /** Cumulative sampled values; index 0 is minute 1. XP unavailable when coverage.xp=false. */
@@ -128,6 +136,8 @@ export interface CombatTimeline {
 }
 
 export interface ParsedMatch {
+  /** Ward destructions without an explicitly identified hero owner; never duplicated in player wards. */
+  ward_events?: WardEvent[];
   combat_timeline?:CombatTimeline;
   analytics_version?: "combat-log-v1" | "combat-log-v2" | "combat-log-v3";
   parser_version?: string;

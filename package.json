@@ -21,7 +21,9 @@
     "test:visual-web": "tsx src/test-game-assets.ts && tsx src/test-player-avatars.ts && tsx src/test-home-web.ts && tsx src/test-player-avatar-web.ts && tsx src/test-http-response.ts && tsx src/test-match-roster.ts && tsx src/test-match-vision.ts && tsx src/test-team-damage-matrix.ts && tsx src/test-match-map.ts",
     "sync:avatars": "tsx src/sync-player-avatars.ts",
     "test:replay-scoreboard": "tsx src/test-replay-scoreboard.ts",
-    "test:comparison": "tsx src/test-match-comparison.ts"
+    "test:comparison": "tsx src/test-match-comparison.ts",
+    "test:ward-semantics": "tsx src/test-ward-semantics.ts",
+    "test:recent-scoreboard": "tsx src/test-recent-scoreboard.ts"
   },
   "keywords": [
     "dota2",

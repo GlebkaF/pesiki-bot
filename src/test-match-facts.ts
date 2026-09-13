@@ -50,7 +50,7 @@ const {compactHealingFacts,playerFacts,renderFactPacket,MATCH_FACT_VERSION}=awai
 const {PLAYERS}=await import("./config.js");
 const config=PLAYERS.find(p=>p.steamId===94014640)!;
 const {MAIN_VOICE_PROMPT}=await import("./analyze-main-voice.js");
-const caster={steam_id:"1",hero:"warlock",team:"radiant",healing:22000,kills:2,deaths:1,assists:14,actions_per_min:320,lane_role:"support",cs_at_10:4,death_times_min:[8],combat_details:{version:"combat-log-v2",coverage:{healing_target_identity:true},healing:{self:19000,other_heroes:2900,units:100,by_target:{warlock:19000,lina:2000,pudge:900,npc_dota_creep:100}},casts:Array.from({length:3000},()=>({min:1,ability:"RAW_CAST_SENTINEL"})),gold:Array.from({length:3000},()=>({min:1,value:50,reason:0}))}} as unknown as import("./replay.js").ParsedPlayer;
+const caster={steam_id:"1",hero:"warlock",kda_source:"opendota",team:"radiant",healing:22000,kills:2,deaths:1,assists:14,actions_per_min:320,lane_role:"support",cs_at_10:4,death_times_min:[8],combat_details:{version:"combat-log-v2",coverage:{healing_target_identity:true},healing:{self:19000,other_heroes:2900,units:100,by_target:{warlock:19000,lina:2000,pudge:900,npc_dota_creep:100}},casts:Array.from({length:3000},()=>({min:1,ability:"RAW_CAST_SENTINEL"})),gold:Array.from({length:3000},()=>({min:1,value:50,reason:0}))}} as unknown as import("./replay.js").ParsedPlayer;
 const ally={steam_id:"2",hero:"npc_dota_hero_lina",team:"radiant"} as import("./replay.js").ParsedPlayer;
 const enemy={steam_id:"3",hero:"pudge",team:"dire"} as import("./replay.js").ParsedPlayer;
 assert.deepEqual(compactHealingFacts(caster,[caster,ally,enemy]),{healing_self:19000,healing_allies:2000},"self, enemy and creep healing excluded from allied total");
@@ -58,7 +58,7 @@ assert.deepEqual(compactHealingFacts({...caster,combat_details:undefined},[caste
 const zero={...caster,combat_details:{...caster.combat_details!,healing:{...caster.combat_details!.healing,self:0,by_target:{warlock:0}}}};
 assert.deepEqual(compactHealingFacts(zero,[zero,ally]),{healing_self:0,healing_allies:0},"measured zero remains explicit");
 const facts=playerFacts({parsed:caster,config},[caster,ally]);
-assert.equal(facts.kda,"2/1/14");assert.equal(facts.hero,"warlock");assert.equal(facts.apm,320);
+assert.equal(facts.kda,"2/1/14");assert.equal(playerFacts({parsed:{...caster,kda_source:undefined},config},[caster,ally]).kda,"не подтверждено","raw combat counters never become final KDA in LLM facts");assert.equal(facts.hero,"warlock");assert.equal(facts.apm,320);
 const packet={version:MATCH_FACT_VERSION,match:{id:123,durationMin:20,result:"win",ourSide:"radiant",shape:"win",storySignals:[]},economy:{leadChanges:0},lanes:[],keyMoments:[],objectives:{roshanAt:[],finalBuildings:[]},ourPlayers:[{...facts,combat_details:caster.combat_details}],enemyPlayers:[],awards:{},history:{available:false,previousStackMatches:[],stackEnteringStreak:"",recentStackRecord:""},parsed:caster} as unknown as import("./match-facts.js").MatchFactPacket;
 const compact=renderFactPacket(packet);
 assert.ok(compact.includes('"healing_self": 19000'));

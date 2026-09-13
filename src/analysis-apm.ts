@@ -1,3 +1,4 @@
+import {finalPlayerKda} from "./replay-scoreboard.js";
 import type { ParsedMatch } from "./replay.js";
 import { PLAYERS } from "./config.js";
 
@@ -13,8 +14,8 @@ export function withAnalysisApm(text: string, parsed: ParsedMatch): string {
   const lines = ours.map(({ name, player: p }) => {
     const old = previous.find(line => line.startsWith(`${name} ·`));
     const hero = old?.split(" · ")[1] || p.hero.replaceAll("_", " ");
-    const comment = old?.match(/\d+\/\d+\/\d+(?: · APM (?:\d+|—))?( — .*)?$/u)?.[1] ?? "";
-    return `${name} · ${hero} · ${p.kills}/${p.deaths}/${p.assists} · APM ${p.actions_per_min ?? "—"}${comment}`;
+    const comment = old?.match(/(?:\d+\/\d+\/\d+|—)(?: · APM (?:\d+|—))?( — .*)?$/u)?.[1] ?? "";
+    return `${name} · ${hero} · ${finalPlayerKda(p)?.join("/")??"—"} · APM ${p.actions_per_min ?? "—"}${comment}`;
   });
   return `${split[0].trimEnd()}\n\n👤 НАШИ\n${lines.join("\n")}`;
 }

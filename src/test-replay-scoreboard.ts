@@ -43,6 +43,12 @@ try{
  const html=renderPlayer(undatedProfile,[undatedProfile]);assert.ok(html.includes('Больше всего ассистов'),'verified replay KDA retains record cards');assert.ok(html.includes('таблом реплея или OpenDota'));
  store.saveResults(account,[{...fullOfficial,match_id:1002,start_time:1700000050}]);store.save({...m,match_id:1002,start_time:undefined});assert.equal(store.results(account).find(x=>x.match_id===1002)!.start_time,1700000050,'undated parse preserves already known official start');
  store.saveResults(account,[{...fullOfficial,match_id:1003,start_time:0}]);assert.ok(!store.results(account).some(x=>x.match_id===1003),'API/feed zero-date input remains rejected');
+ const beforeWardUpgrade=store.results(account).find(x=>x.match_id===1000)!;
+ store.mergeReplayAnalytics({...next,parser_version:'pesiki-replay-v9'});
+ assert.deepEqual(store.results(account).find(x=>x.match_id===1000),beforeWardUpgrade,'ward-only parser upgrade preserves entire original result/provenance');
+ const changedScore={...next,parser_version:'pesiki-replay-v10',players:next.players.map(p=>({...p,replay_scoreboard:{...p.replay_scoreboard!,assists:28}}))};
+ store.mergeReplayAnalytics(changedScore);const changedResult=store.results(account).find(x=>x.match_id===1000)!;
+ assert.equal(changedResult.assists,28);assert.equal(changedResult.scoreboard_provenance?.parser_version,'pesiki-replay-v10','changed KDA records new proof instead of retaining stale provenance');
  const insight=buildMatchInsights(m).players[0];const official=resolveOfficialRosterPlayer(m,insight,undefined,[{account_id:account,hero_id:37,player_slot:2,kills:888,deaths:888,assists:888}]);assert.equal(official?.kills,0);assert.equal((official as any).kda_source,'replay-scoreboard');
 }finally{store.close()}
 console.log('Replay scoreboard tests passed: strict validation, raw preservation, provenance precedence, profile and roster');

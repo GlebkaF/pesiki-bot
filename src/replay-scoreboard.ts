@@ -13,3 +13,8 @@ export function verifiedReplayScoreboard(p:ParsedPlayer):ReplayScoreboard|undefi
 export function withReplayScoreboards(m:ParsedMatch):ParsedMatch {
  return {...m,players:m.players.map(p=>{const s=verifiedReplayScoreboard(p);return s?{...p,kills:s.kills,deaths:s.deaths,assists:s.assists,kda_source:'replay-scoreboard' as const}:p;})};
 }
+/** Final KDA requires an explicit trusted source; a combat recount is not a fallback. */
+export function finalPlayerKda(p:ParsedPlayer):[number,number,number]|undefined {
+ const s=verifiedReplayScoreboard(p);if(s)return [s.kills,s.deaths,s.assists];
+ if(p.kda_source==='opendota'&&[p.kills,p.deaths,p.assists].every(v=>Number.isSafeInteger(v)&&v>=0))return [p.kills,p.deaths,p.assists];
+}
