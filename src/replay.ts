@@ -194,7 +194,8 @@ async function openDotaReplayRequest(url: string, init?: RequestInit): Promise<R
 async function readReplayState(matchId: number): Promise<ReplayState> {
   const res = await openDotaReplayRequest(`${OPENDOTA_API_BASE}/matches/${matchId}`);
   if (!res.ok) throw new Error(`OpenDota вернула ${res.status} для матча ${matchId}`);
-  const data = (await res.json()) as { cluster?: number; replay_salt?: number; start_time?: number };
+  const data = (await res.json()) as import("./opendota.js").MatchApi;
+  getApmStore().saveMatchApi(data);
   if (!data.cluster || !data.replay_salt) return { location: null, startTime: data.start_time };
   return {
     location: { cluster: data.cluster, salt: data.replay_salt, startTime: data.start_time },

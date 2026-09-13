@@ -160,10 +160,11 @@ footer { color:var(--muted); font-size:12px; text-align:center; padding-top:8px;
 }
 `;
 
-export function layout(title: string, body: string, script = "", extraCss = ""): string {
+export function layout(title: string, body: string, script = "", extraCss = "", preview?: {description:string;image?:string}): string {
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title>
+${preview?`<meta name="description" content="${esc(preview.description)}"><meta property="og:type" content="website"><meta property="og:site_name" content="Пёсики"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(preview.description)}">${preview.image?`<meta property="og:image" content="${esc(preview.image)}">`:""}`:""}
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐕</text></svg>">
 <style>${CSS}
 .site-nav{display:flex;gap:22px;align-items:center;padding-bottom:18px;border-bottom:1px solid var(--line);font-size:13px}.site-nav a{text-decoration:none}.site-nav .brand{font-weight:800;letter-spacing:.13em;margin-right:auto}

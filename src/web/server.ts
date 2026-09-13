@@ -1,4 +1,5 @@
 import { loadProfiles, periodOf } from "../player-profile.js";
+import { buildEconomy } from "../profile-economy.js";
 import { renderPlayers, renderPlayer } from "./player-render.js";
 import { getApmStore } from "../apm-store.js";
 /**
@@ -86,7 +87,9 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     const profile = profiles.find(x=>x.account===Number(p.split("/")[2]));
     if (!profile) return send(res,404,layout("Игрок не найден",'<h1>Игрок не найден</h1><a href="/players">Все игроки стака</a>'));
     const page = Number(url.searchParams.get("page")) || 1;
-    return send(res,200,renderPlayer(profile,profiles,Number.isSafeInteger(page)?page:1,Number(url.searchParams.get("match"))||undefined));
+    const economyMatch=profile.matches.find(m=>m.id===Number(url.searchParams.get("economy")))??profile.measured[0];
+    const economy=economyMatch?buildEconomy(getApmStore(),profile.account,economyMatch.id):null;
+    return send(res,200,renderPlayer(profile,profiles,Number.isSafeInteger(page)?page:1,Number(url.searchParams.get("match"))||undefined,url.searchParams.get("hero")||undefined,economy));
   }
   if (p === "/" && req.method === "GET") {
     const { matches, updatedAt } = await getFeed();

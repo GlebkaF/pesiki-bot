@@ -1,10 +1,12 @@
+import { assertReplayIdentity } from "./replay-identity.js";
+import { profileInsights, conservativeWinRate } from "./profile-insights.js";
 import Database from "better-sqlite3";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { ApmStore, APM_VERSION } from "./apm-store.js";
-import { buildProfile, importFeed } from "./player-profile.js";
+import { buildProfile, importFeed, type ProfileMatch } from "./player-profile.js";
 import { groupActions, validActionCounts } from "./action-counts.js";
 import { renderPlayer, renderPlayers } from "./web/player-render.js";
 import { PLAYERS } from "./config.js";
@@ -43,6 +45,46 @@ try {
   assert.equal(p.median,100);assert.equal(p.groups.reduce((s,g)=>s+g.count,0),200);
   assert.equal(p.groups.at(-1)!.count,1,"unknown commands stay counted");
   assert.deepEqual(p.partners.map(p=>p.id),[partner],"opponents in our tracked list are not teammates");
+  assert.deepEqual(p.matches[0].enemyHeroes,["Pudge"]);
+  assert.deepEqual(p.matches[0].allyHeroes,["Invoker"],"own hero cannot become ally matchup");
+  const insight=profileInsights(p.matches);
+  assert.equal(insight.enemies[0].games,4);
+  assert.equal(insight.comparisonReady,false);
+  assert.ok(conservativeWinRate(70,100)>conservativeWinRate(2,2),"two wins must not outrank established success");
+  const twenty:ProfileMatch[]=Array.from({length:20},(_,i)=>({...p.matches[0],id:1000+i,start:start-i*100,win:i<10,kda:[2,1,3] as [number,number,number],enemyHeroes:["Pudge","Pudge"]}));
+  const trend=profileInsights([...twenty].reverse());
+  assert.equal(trend.comparisonReady,true);assert.equal(trend.recent.winRate,1);assert.equal(trend.previous.winRate,0);
+  assert.equal(trend.recent.kda,5);assert.equal(trend.enemies[0].games,20,"hero counted at most once per match");
+  twenty[0].win=null;
+  assert.equal(profileInsights(twenty).recent.known,9,"missing outcome is not a loss");
+  const partial=twenty.map((m,i)=>({...m,win:i<10?null:m.win,kda:i<10?undefined:m.kda,apm:i<10?undefined:m.apm}));
+  const partialTrend=profileInsights(partial);
+  assert.equal(partialTrend.comparisonReady,true,"date coverage does not imply metric coverage");
+  assert.equal(partialTrend.recent.winRate,null,"unknown outcomes must not turn into zero percent");
+  assert.equal(partialTrend.recent.kda,null);assert.equal(partialTrend.recent.apm,null);
+  assert.equal(partialTrend.previous.kdaGames,10);assert.equal(partialTrend.previous.apmGames,10);
+  const noDeaths=profileInsights([{...twenty[0],kda:[2,0,3]},{...twenty[1],kda:[1,0,4]}]);
+  assert.equal(noDeaths.recent.kda,10,"pooled KDA divides total kills + assists by max(1, total deaths)");
+  const invalidDates=[0,NaN,Infinity].map((date,i)=>({...twenty[0],id:2000+i,start:date}));
+  assert.equal(profileInsights([...twenty.slice(0,19),...invalidDates]).comparisonReady,false,"invalid dates cannot complete a recent-ten comparison");
+  assert.equal(conservativeWinRate(0,0),0);assert.equal(conservativeWinRate(0,10),0);
+  assert.ok(Math.abs(conservativeWinRate(50,100)-0.40383)<0.0001,"Wilson lower bound reference value");
+  for(const [wins,total] of [[-1,10],[11,10],[1,NaN],[1,0],[0.5,1]]) assert.equal(conservativeWinRate(wins,total),0,"invalid counts cannot create a ranking");
+  const unknownRoster={match_id:500,start_time:0,duration_min:2,winner:"unknown",players:[
+    {steam_id:steam(id),team:"unknown",hero:"crystal_maiden"},
+    {steam_id:steam(partner),team:"unknown",hero:"invoker"},
+    {steam_id:steam(enemy),team:"dire",hero:"pudge"}]};
+  const uncertain=buildProfile(store,id,"all",now,[unknownRoster]);
+  const uncertainMatch=uncertain.matches.find(m=>m.id===500)!;
+  assert.equal(uncertainMatch.win,null,"unknown winner cannot become a loss");
+  assert.equal(uncertainMatch.start,null,"zero timestamp is unavailable, not January 1970");
+  assert.deepEqual(uncertainMatch.teammates,[],"unknown sides cannot imply a partnership");
+  assert.equal(uncertainMatch.allyHeroes,undefined);assert.equal(uncertainMatch.enemyHeroes,undefined);
+  assert.equal(uncertain.teammateCoverage,0,"unclassified roster is not side coverage");
+  const validSideUnknownWinner=buildProfile(store,id,"all",now,[{...unknownRoster,players:unknownRoster.players.map((p,i)=>({...p,team:i<2?"radiant":"unknown"}))}]);
+  const incomplete=validSideUnknownWinner.matches.find(m=>m.id===500)!;
+  assert.equal(incomplete.win,null);assert.deepEqual(incomplete.allyHeroes,["Invoker"]);
+  assert.deepEqual(incomplete.enemyHeroes,[],"unclassified players are not opponents");
   assert.equal(p.matches.filter(m=>m.kda).length,0,"raw combat log kills must not become official KDA");
   assert.equal(buildProfile(store,id,"7",now).matches.length,2,"old/undated matches excluded from rolling periods");
   const official={match_id:123,start_time:start,duration:120,hero_id:5,kills:1,deaths:4,assists:20,player_slot:0,radiant_win:true};
@@ -83,5 +125,11 @@ try {
   assert.throws(()=>mergeStore.mergeReplayActions({...single,players:[{...single.players[0],actions:300,actions_per_min:150,action_counts:{x:300}}]}),/APM changed/);
   assert.equal(mergeStore.history(id)[0].actions,200,"rejected backfill cannot partially mutate totals");
   mergeStore.close();
+  const anonymousHeader={...single,match_id:0,players:[{...single.players[0]}]};
+  const evidence={match_id:123,players:[{account_id:id,hero_id:5,player_slot:0}]} as any;
+  assertReplayIdentity(anonymousHeader,123,evidence);assert.equal(anonymousHeader.match_id,123);
+  assert.throws(()=>assertReplayIdentity({...anonymousHeader,match_id:999},123,evidence),/mismatch/);
+  assert.throws(()=>assertReplayIdentity({...anonymousHeader,match_id:0},123,{...evidence,players:[{...evidence.players[0],account_id:999}]}),/account mismatch/);
+  assert.throws(()=>assertReplayIdentity({...anonymousHeader,match_id:0},123),/no independent roster evidence/);
   console.log("Player profile tests passed: persistence, sources, coverage, periods, teams, rendering, privacy.");
 } finally {store.close();rmSync(dir,{recursive:true,force:true});}

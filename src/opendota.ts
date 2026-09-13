@@ -338,6 +338,7 @@ export async function fetchMatchApi(matchId: number): Promise<MatchApi> {
     `match ${matchId}`,
   );
   const data = (await response.json()) as MatchApi;
+  getApmStore().saveMatchApi(data);
   setCache(cacheKey, data, CACHE_TTL.TOTALS);
   return data;
 }

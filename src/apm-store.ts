@@ -1,6 +1,6 @@
 /** Permanent APM history, independent of the replay JSON cache and its TTL. */
 import { validActionCounts } from "./action-counts.js";
-import type { RecentMatch } from "./opendota.js";
+import type { RecentMatch, MatchApi } from "./opendota.js";
 import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
@@ -36,6 +36,7 @@ export class ApmStore {
     CREATE TABLE IF NOT EXISTS parsed_replays (
       match_id INTEGER PRIMARY KEY, start_time INTEGER, parsed_at INTEGER NOT NULL, payload_json TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS match_api_snapshots (match_id INTEGER PRIMARY KEY, fetched_at INTEGER NOT NULL, payload_json TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS profile_rosters (match_id INTEGER PRIMARY KEY, payload_json TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS player_match_actions (match_id INTEGER, account_id INTEGER, version TEXT, counts_json TEXT NOT NULL, PRIMARY KEY(match_id,account_id,version));
     CREATE TABLE IF NOT EXISTS player_match_results (match_id INTEGER, account_id INTEGER, payload_json TEXT NOT NULL, PRIMARY KEY(match_id,account_id));`);
@@ -104,20 +105,25 @@ export class ApmStore {
   }
   /** Add offline parser detail without overwriting concurrent official-stat enrichment. */
   mergeReplayActions(parsed: ParsedMatch): void {
-    if (parsed.apm_version !== APM_VERSION || !Number.isFinite(parsed.apm_duration_seconds) || !parsed.apm_duration_seconds || parsed.apm_duration_seconds <= 0 || !parsed.players.every(p =>
+    if (!Number.isSafeInteger(parsed.match_id) || parsed.match_id<=0 || !Array.isArray(parsed.players) || !parsed.players.length || parsed.apm_version !== APM_VERSION || !Number.isFinite(parsed.apm_duration_seconds) || !parsed.apm_duration_seconds || parsed.apm_duration_seconds <= 0 || !parsed.players.every(p =>
       Number.isSafeInteger(p.actions) && p.actions_per_min === Math.floor(p.actions! * 60 / parsed.apm_duration_seconds!) && validActionCounts(p.action_counts,p.actions!))) throw Error("Invalid action breakdown");
     this.db.transaction(() => {
       const latest=this.replay(parsed.match_id);
       if (!latest) { this.save(parsed); return; }
       if (latest.players.length !== parsed.players.length) throw Error("Roster changed");
+      if (latest.apm_version === APM_VERSION && latest.apm_duration_seconds !== undefined && latest.apm_duration_seconds !== parsed.apm_duration_seconds)
+        throw Error("APM duration changed; manual inspection required");
+      const used=new Set<number>();
       const players=latest.players.map(p => {
-        const next=parsed.players.find(n=>n.steam_id===p.steam_id && n.hero===p.hero);
-        if (!next) throw Error("Roster changed");
+        const index=parsed.players.findIndex((n,i)=>!used.has(i) && n.steam_id===p.steam_id && n.hero===p.hero && n.team===p.team);
+        if (index<0) throw Error("Roster changed");
+        used.add(index);
+        const next=parsed.players[index];
         if (p.actions!==undefined && (p.actions!==next.actions || p.actions_per_min!==next.actions_per_min))
           throw Error("APM changed; manual inspection required");
         return {...p,actions:next.actions,actions_per_min:next.actions_per_min,action_counts:next.action_counts};
       });
-      this.save({...latest,players,apm_version:parsed.apm_version,apm_duration_seconds:parsed.apm_duration_seconds});
+      this.save({...latest,players,start_time:latest.start_time ?? parsed.start_time,apm_version:parsed.apm_version,apm_duration_seconds:parsed.apm_duration_seconds});
     }).immediate();
   }
   saveResults(accountId: number, matches: RecentMatch[], source: "opendota" | "feed" = "opendota"): void {
@@ -134,6 +140,19 @@ export class ApmStore {
   }
   results(accountId: number): SavedResult[] {
     return (this.db.prepare("SELECT payload_json FROM player_match_results WHERE account_id=?").all(accountId) as {payload_json:string}[]).map(r => JSON.parse(r.payload_json));
+  }
+  saveMatchApi(data: MatchApi): void {
+    if (!Number.isSafeInteger(data.match_id) || data.match_id<=0 || !Array.isArray(data.players) || !data.players.length) return;
+    this.db.prepare(`INSERT INTO match_api_snapshots VALUES(?,?,?) ON CONFLICT(match_id) DO UPDATE SET fetched_at=excluded.fetched_at,payload_json=excluded.payload_json`)
+      .run(data.match_id,Date.now(),JSON.stringify(data));
+    if (Number.isFinite(data.start_time) && data.start_time>0) this.db.transaction(()=>{
+      const old=this.replay(data.match_id);
+      if(old && !old.start_time) this.save({...old,start_time:data.start_time});
+    }).immediate();
+  }
+  matchApi(id:number): MatchApi | undefined {
+    const row=this.db.prepare("SELECT payload_json FROM match_api_snapshots WHERE match_id=?").get(id) as {payload_json:string}|undefined;
+    return row?JSON.parse(row.payload_json):undefined;
   }
   profileRosters(): ProfileRoster[] {
     return (this.db.prepare("SELECT payload_json FROM profile_rosters").all() as {payload_json:string}[]).map(r=>JSON.parse(r.payload_json));

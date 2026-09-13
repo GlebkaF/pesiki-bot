@@ -16,7 +16,7 @@
     "web": "tsx src/web/standalone.ts",
     "test:apm": "tsx src/test-apm.ts",
     "test:replay-storage": "tsx src/test-replay-storage.ts",
-    "test:profiles": "tsx src/test-player-profile.ts && tsx src/test-profile-web.ts"
+    "test:profiles": "tsx src/test-player-profile.ts && tsx src/test-profile-economy.ts && tsx src/test-retro-integrity.ts && tsx src/test-profile-web.ts"
   },
   "keywords": [
     "dota2",

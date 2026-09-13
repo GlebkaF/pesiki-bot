@@ -10,7 +10,7 @@ export const periodOf = (s: string | null): Period => s === "7" || s === "30" ? 
 export const heroName = (name: string) => HERO_CATALOG.find(h => h.name.replace(/_/g, "") === (name.startsWith("npc_dota_hero_") ? name : "npc_dota_hero_"+name).replace(/_/g, ""))?.localized_name ?? name;
 export interface ProfileMatch {
   id:number; start:number|null; duration:number; hero:string; win:boolean|null;
-  kda?:[number,number,number]; kdaSource?:string; apm?:ApmRecord; teammates:number[];
+  kda?:[number,number,number]; kdaSource?:string; apm?:ApmRecord; teammates:number[]; allyHeroes?:string[]; enemyHeroes?:string[];
 }
 export function importFeed(store: ApmStore, matches: FeedMatch[]) {
   for (const player of PLAYERS) {
@@ -23,31 +23,34 @@ export function importFeed(store: ApmStore, matches: FeedMatch[]) {
 }
 export function buildProfile(store:ApmStore, account:number, period:Period, now=Date.now(), replays=store.profileRosters()) {
   const rows = new Map<number, ProfileMatch>();
+  const validDate=(value:number|null|undefined):number|null=>typeof value === "number" && Number.isFinite(value) && value>0 ? value : null;
+  const isSide=(value:string|undefined)=>value === "radiant" || value === "dire";
   const steam = String(BigInt(account)+76561197960265728n);
   const ours = new Map(PLAYERS.map(p => [String(BigInt(p.steamId)+76561197960265728n),p.steamId]));
   for (const m of replays) {
     const p = m.players.find(p => p.steam_id === steam);
     if (!p) continue;
-    rows.set(m.match_id, {id:m.match_id,start:m.start_time ?? null,duration:m.duration_min*60,hero:heroName(p.hero),
-      win:p.team && m.winner ? p.team === m.winner : null,
-      teammates:m.players.filter(x=>x.team===p.team&&x.steam_id!==steam&&ours.has(x.steam_id)).map(x=>ours.get(x.steam_id)!)});
+    rows.set(m.match_id, {id:m.match_id,start:validDate(m.start_time),duration:m.duration_min*60,hero:heroName(p.hero),
+      win:isSide(p.team) && isSide(m.winner) ? p.team === m.winner : null,
+      allyHeroes:isSide(p.team)?m.players.filter(x=>x.team===p.team&&x.steam_id!==steam).map(x=>heroName(x.hero)):undefined,
+      enemyHeroes:isSide(p.team)?m.players.filter(x=>isSide(x.team)&&x.team!==p.team).map(x=>heroName(x.hero)):undefined,
+      teammates:isSide(p.team)?[...new Set(m.players.filter(x=>x.team===p.team&&x.steam_id!==steam&&ours.has(x.steam_id)).map(x=>ours.get(x.steam_id)!))]:[]});
   }
   const results = store.results(account);
   for (const m of results) {
     const old = rows.get(m.match_id);
     // Feed snapshots encode own result, not actual side. Use them only for outcome/KDA.
-    rows.set(m.match_id, {...old, id:m.match_id,start:m.start_time,duration:m.duration,
+    rows.set(m.match_id, {...old, id:m.match_id,start:validDate(m.start_time)??old?.start??null,duration:m.duration,
       hero:HERO_CATALOG.find(h=>h.id===m.hero_id)?.localized_name ?? old?.hero ?? "Неизвестный герой",
       win:(m.player_slot<128)===m.radiant_win,kda:[m.kills,m.deaths,m.assists],
       kdaSource:m.result_source === "opendota" ? "OpenDota" : "сохранённая сводка", teammates:old?.teammates ?? []});
   }
   for (const a of store.history(account)) {
     const old=rows.get(a.match_id);
-    rows.set(a.match_id,{...old,id:a.match_id,start:old?.start??a.start_time,duration:old?.duration??a.duration_seconds,
+    rows.set(a.match_id,{...old,id:a.match_id,start:old?.start??validDate(a.start_time),duration:old?.duration??a.duration_seconds,
       hero:old?.hero??heroName(a.hero),win:old?.win??null,teammates:old?.teammates??[],apm:a});
   }
   const cutoff=period==="all"?0:now/1000-Number(period)*86400;
-  const rosterIds=new Set(replays.map(r=>r.match_id));
   const matches=[...rows.values()].filter(m=>period==="all" || (m.start!==null && m.start>=cutoff && m.start<=now/1000))
     .sort((a,b)=>(b.start??0)-(a.start??0)||b.id-a.id);
   const measured=matches.filter(m=>m.apm!==undefined);
@@ -66,7 +69,7 @@ export function buildProfile(store:ApmStore, account:number, period:Period, now=
     return {id:p.steamId,name:p.dotaName,games:ms.length,wins:ms.filter(m=>m.win).length,known:ms.filter(m=>m.win!==null).length};
   }).filter(p=>p.games).sort((a,b)=>b.games-a.games||a.id-b.id);
   const hours=[0,0,0,0];
-  for (const m of matches) if(m.start) hours[Math.floor(new Date((m.start+3*3600)*1000).getUTCHours()/6)]++;
+  for (const m of matches) if(m.start!==null) hours[Math.floor(new Date((m.start+3*3600)*1000).getUTCHours()/6)]++;
   const values=measured.map(m=>m.apm!.apm).sort((a,b)=>a-b);
   const median=values.length ? Math.round((values[Math.floor((values.length-1)/2)]+values[Math.floor(values.length/2)])/2) : null;
   return {account,period,matches,known:known.length,wins,measured,detailed,raw,groups,total,heroes,partners,hours,median,
@@ -75,7 +78,7 @@ export function buildProfile(store:ApmStore, account:number, period:Period, now=
     peak:measured.reduce<ProfileMatch|undefined>((best,m)=>!best||m.apm!.apm>best.apm!.apm?m:best,undefined),
     longest:matches.reduce<ProfileMatch|undefined>((best,m)=>!best||m.duration>best.duration?m:best,undefined),
     dated:matches.filter(m=>m.start!==null).length,
-    teammateCoverage:matches.filter(m=>rosterIds.has(m.id)).length,
+    teammateCoverage:matches.filter(m=>m.allyHeroes!==undefined).length,
   };
 }
 export type PlayerProfile = ReturnType<typeof buildProfile>;
