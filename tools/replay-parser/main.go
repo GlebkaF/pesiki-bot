@@ -111,6 +111,7 @@ type Teamfight struct {
 }
 
 type Output struct {
+	WardLifetimes    *WardLifetimes  `json:"ward_lifetimes"`
 	WardEvents       []wardEvent     `json:"ward_events"`
 	CombatTimeline   *CombatTimeline `json:"combat_timeline,omitempty"`
 	AnalyticsVersion string          `json:"analytics_version,omitempty"`
@@ -159,7 +160,7 @@ func main() {
 		panic(err)
 	}
 
-	out := &Output{ParserVersion: "pesiki-replay-v9", AnalyticsVersion: analyticsVersion}
+	out := &Output{ParserVersion: "pesiki-replay-v10", AnalyticsVersion: analyticsVersion}
 	byHero := map[string]*Player{}
 	bySlot := map[int]*Player{}
 	var gameStart float64 = -1
@@ -170,6 +171,7 @@ func main() {
 	timeline := newCombatTimeline()
 	scoreboard := newReplayScoreboard(p)
 	wards := newWardCollector(p, func() bool { return gameEnded })
+	lifetimes := newWardLifetimeCollector(p)
 
 	p.Callbacks.OnCDemoFileInfo(func(m *dota.CDemoFileInfo) error {
 		gi := m.GetGameInfo().GetDota()
@@ -318,6 +320,7 @@ func main() {
 			}
 			if e.GetValue() == 6 && gameStart >= 0 && !gameEnded {
 				gameEnded, endTS = true, ts
+				lifetimes.end(ts)
 				finNW, finLost, finSupport = curNW, curLost, curSupport
 			}
 		}
@@ -352,6 +355,7 @@ func main() {
 
 		collectCombat(e, min, attacker, target, inflictor, byHero, bySlot)
 		wards.observeDeath(e, min, func(idx uint32) string { return name(int32(idx)) })
+		lifetimes.observeDeath(e, func(idx uint32) string { return name(int32(idx)) })
 		timeline.observe(e, ts-gameStart, func(idx uint32) string { return name(int32(idx)) })
 		switch typ {
 		case dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_DAMAGE:
@@ -579,6 +583,7 @@ func main() {
 	scoreboard.apply(out.Players, gameEnded)
 	out.CombatTimeline = timeline.finish(out.Players)
 	out.WardEvents = wards.apply(out.Players, gameStart, endTS)
+	out.WardLifetimes = lifetimes.finish(out.Players, gameStart)
 	assignRoles(out.Players)
 	computeMapStats(out.Players, track, out.Kills)
 	out.Teamfights = detectTeamfights(out.Kills, out.Players)

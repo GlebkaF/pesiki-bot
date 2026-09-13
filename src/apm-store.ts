@@ -1,3 +1,4 @@
+import {assertWardLifetimes} from './ward-lifetime-contract.js';
 /** Permanent APM history, independent of the replay JSON cache and its TTL. */
 import { verifiedReplayScoreboard } from "./replay-scoreboard.js";
 import { validActionCounts } from "./action-counts.js";
@@ -75,13 +76,14 @@ export class ApmStore {
   saveReplay(match: ParsedMatch): boolean {
     return this.db.transaction(()=>{
     if (!Number.isSafeInteger(match.match_id) || match.match_id <= 0 || !Array.isArray(match.players) || !match.players.length) return false;
+    if(match.ward_lifetimes!==undefined)assertWardLifetimes(match.ward_lifetimes);
     const existing = this.replay(match.match_id);
     // A legacy cache must not overwrite a newer, richer parse.
     if (existing?.apm_version && !match.apm_version) return false;
     if (existing && (analyticsRank(existing.analytics_version)>analyticsRank(match.analytics_version) || parserRank(existing.parser_version)>parserRank(match.parser_version))) return false;
     const combat_timeline=match.combat_timeline ? projectTimeline(match.combat_timeline,match.players,match.players) :
       existing?.combat_timeline ? projectTimeline(existing.combat_timeline,existing.players,match.players) : undefined;
-    const stored = {...match, combat_timeline, ward_events:match.ward_events??existing?.ward_events, analytics_version:match.analytics_version??existing?.analytics_version, start_time: match.start_time ?? existing?.start_time, players: match.players.map(p => {
+    const stored = {...match, combat_timeline, ward_lifetimes:match.ward_lifetimes??existing?.ward_lifetimes, ward_events:match.ward_events??existing?.ward_events, analytics_version:match.analytics_version??existing?.analytics_version, start_time: match.start_time ?? existing?.start_time, players: match.players.map(p => {
       const old = existing?.players.find(x => x.steam_id === p.steam_id && x.hero===p.hero && x.team===p.team);
       const counts = validActionCounts(p.action_counts, p.actions ?? -1) ? p.action_counts :
         old?.actions === p.actions && validActionCounts(old?.action_counts,p.actions ?? -1) ? old!.action_counts : undefined;
@@ -177,6 +179,7 @@ export class ApmStore {
       const latest=this.replay(parsed.match_id)!;
       this.saveReplay({...latest,analytics_version:parsed.analytics_version,parser_version:parsed.parser_version,
         ward_events:parsed.ward_events??latest.ward_events,
+        ward_lifetimes:parsed.ward_lifetimes??latest.ward_lifetimes,
         combat_timeline:parsed.combat_timeline?projectTimeline(parsed.combat_timeline,parsed.players,latest.players):latest.combat_timeline,
         players:latest.players.map(p=>{const next=parsed.players.find(q=>q.steam_id===p.steam_id&&q.hero===p.hero&&q.team===p.team)!;return {...p,combat_details:next.combat_details,wards_killed:next.combat_details?.coverage?.ward_destroy_semantics===true?next.wards_killed:p.wards_killed,replay_scoreboard:next.replay_scoreboard??p.replay_scoreboard};})});
     }).immediate();

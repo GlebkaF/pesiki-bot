@@ -35,6 +35,23 @@ export interface WardEvent {
  target_team?:"radiant"|"dire"; target_owner_hero?:string;
  source_controlled?:boolean; source_illusion?:boolean;
 }
+export interface WardLifetime {
+ id:string; entity_index:number; entity_serial:number; kind:"observer"|"sentry";
+ team:"radiant"|"dire"|null; owner_hero:string|null; owner_steam_id:string|null;
+ placed_seconds:number|null; first_observed_seconds:number; last_observed_seconds:number;
+ death_observed_seconds:number|null; death_observation_window_seconds:{from:number;to:number}|null;
+ deleted_observed_seconds:number|null; left_observed_seconds:number|null; alive_at_end:boolean|null;
+ position:{x:number;y:number;source:"ward_entity"}|null; position_moved:boolean; observation_complete:boolean;
+ killer:{attacker:string;attacker_hero:string|null;attacker_team:"radiant"|"dire"|null;combat_seconds:number;
+ source:"unique-last-damage-match";source_controlled:boolean;source_illusion:boolean}|null;
+}
+export interface WardLifetimes {
+ version:"ward-lifetimes-v1";entries:WardLifetime[];
+ coverage:{entities_seen:number;entities_stored:number;owner_resolved:number;creation_time_known:number;
+ death_observed:number;killer_matched:number;ambiguous_killer_matches:number;position_observed:number;moved_entities:number;
+ game_end_observed:boolean;tick_interval_seconds:number|null;max_death_observation_window_seconds:number|null;
+ truncated:boolean;dropped_entities:number;dropped_killer_events:number;clock_source:"gamerules";clock_samples_dropped:number;clock_complete:boolean};
+}
 /** Explicit combat-log observations. Optional on older retained parses. */
 export interface CombatDetails {
   version: "combat-log-v1" | "combat-log-v2" | "combat-log-v3";
@@ -136,6 +153,7 @@ export interface CombatTimeline {
 }
 
 export interface ParsedMatch {
+  ward_lifetimes?:WardLifetimes;
   /** Ward destructions without an explicitly identified hero owner; never duplicated in player wards. */
   ward_events?: WardEvent[];
   combat_timeline?:CombatTimeline;

@@ -1,12 +1,15 @@
 import {abilityIsUltimate} from "./ability-labels.js";
 import type { ParsedMatch, ParsedPlayer, WardEvent } from "./replay.js";
 import { heroName } from "./player-profile.js";
+import {buildWardLifetimes,type WardLifetimeModel} from './ward-lifetimes.js';
+import {enrichWardMapCoordinates} from './ward-map-link.js';
 export type InsightFeature = "damage"|"damageBreakdown"|"healing"|"healingBreakdown"|"control"|"networth"|"gold"|"xp"|"lastHits"|"wards"|"wardMap"|"deaths"|"deathMap"|"ultimates"|"buybacks"|"buybackLog";
 export interface FeatureCoverage { available:number; total:number; reason:string }
 export interface MinutePoint { minute:number; value:number }
 export interface BreakdownEntry { key:string; value:number }
 export interface LocatedEvent { seconds:number; x:number|null; y:number|null; coordinatesSource?:string }
 export interface WardInsight extends LocatedEvent {
+ preciseSeconds?:number;
  kind:string; event:string; destroyKind:"enemy_deward"|"allied_deny"|"unknown";
  attacker:string|null; attackerHero:string|null; attackerTeam:"radiant"|"dire"|null;
  targetTeam:"radiant"|"dire"|null; targetOwnerHero:string|null; sourceControlled:boolean; sourceIllusion:boolean;
@@ -30,6 +33,7 @@ export interface MatchPlayerInsights {
 export interface MatchInsights {
   matchId:number; durationSeconds:number; players:MatchPlayerInsights[];
   wardEvents?:WardInsight[];
+  wardLifetimes?:WardLifetimeModel|null;
   coverage:Record<InsightFeature,FeatureCoverage>;
   kills:{seconds:number;killer:string;victim:string;assists:number|null}[];
   buildings:{seconds:number;name:string;team:string}[];
@@ -50,7 +54,7 @@ function wardInsight(e:WardEvent,duration:number,semantics:boolean):WardInsight|
  const side=(s:unknown):"radiant"|"dire"|null=>s==='radiant'||s==='dire'?s:null;
  const attackerTeam=side(e.attacker_team),targetTeam=side(e.target_team),positioned=Number.isFinite(e.x)&&Number.isFinite(e.y);
  const destroyKind=semantics&&attackerTeam&&targetTeam&&e.event==='destroy'&&((e.destroy_kind==='enemy_deward'&&attackerTeam!==targetTeam)||(e.destroy_kind==='allied_deny'&&attackerTeam===targetTeam))?e.destroy_kind!:'unknown';
- return {seconds:Math.round(e.min*60),x:positioned?e.x!:null,y:positioned?e.y!:null,coordinatesSource:e.coordinates_source,
+ return {seconds:Math.round(e.min*60),preciseSeconds:e.min*60,x:positioned?e.x!:null,y:positioned?e.y!:null,coordinatesSource:e.coordinates_source,
  kind:['observer','sentry'].includes(e.kind)?e.kind:'other',event:e.event,destroyKind,
  attacker:typeof e.attacker==='string'?e.attacker:null,attackerHero:typeof e.attacker_hero==='string'?e.attacker_hero:null,attackerTeam,targetTeam,
  targetOwnerHero:typeof e.target_owner_hero==='string'?e.target_owner_hero:null,sourceControlled:e.source_controlled===true,sourceIllusion:e.source_illusion===true};
@@ -102,8 +106,15 @@ export function buildMatchInsights(match:ParsedMatch):MatchInsights {
     buybackLog:{read:p=>p.buybacks.events,reason:"Время выкупов доступно для нового разбора."},
   };
   const coverage=Object.fromEntries(Object.entries(selectors).map(([key,{read,reason}])=>[key,{available:players.filter(p=>read(p)!==null&&read(p)!==undefined).length,total:players.length,reason}])) as MatchInsights["coverage"];
+  const wardLifetimes=buildWardLifetimes(match);
+  const unownedWards=(match.ward_events??[]).flatMap(e=>{const row=wardInsight(e,durationSeconds,true);return row?[row]:[];});
+  const ownedWards=players.flatMap(p=>p.vision.events??[]);
+  const mappedWards=enrichWardMapCoordinates([...ownedWards,...unownedWards],wardLifetimes);
+  let wardOffset=0;
+  for(const p of players)if(p.vision.events!==null){const size=p.vision.events.length;p.vision.events=mappedWards.slice(wardOffset,wardOffset+size);wardOffset+=size;}
   return {matchId:match.match_id,durationSeconds,players,coverage,
-    wardEvents:(match.ward_events??[]).flatMap(e=>{const row=wardInsight(e,durationSeconds,true);return row?[row]:[];}),
+    wardLifetimes,
+    wardEvents:mappedWards.slice(ownedWards.length),
     kills:(match.kills??[]).flatMap(k=>{const seconds=time(k.min,durationSeconds);return seconds===null?[]:[{seconds,killer:heroName(k.killer),victim:heroName(k.victim),assists:nonnegative(k.assists)}];}),
     buildings:(match.buildings??[]).flatMap(b=>{const seconds=time(b.min,durationSeconds);return seconds===null?[]:[{seconds,name:b.name,team:b.killed_by_team}];}),
     roshans:(match.roshan_kills_min??[]).flatMap(t=>{const seconds=time(t,durationSeconds);return seconds===null?[]:[{seconds}];}),

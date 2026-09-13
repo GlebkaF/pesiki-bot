@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {enrichWardMapCoordinates} from './ward-map-link.js';
+import type {WardInsight} from './match-insights.js';
+import type {WardLifetimeModel} from './ward-lifetimes.js';
+const event:WardInsight&{preciseSeconds?:number}={seconds:60,preciseSeconds:60.03,x:null,y:null,event:'destroy',kind:'observer',destroyKind:'enemy_deward',attacker:null,attackerHero:'npc_dota_hero_crystal_maiden',attackerTeam:'radiant',targetTeam:'dire',targetOwnerHero:'npc_dota_hero_queenofpain',sourceControlled:false,sourceIllusion:false};
+const life={id:'1:2',kind:'observer',team:'dire',ownerHero:'queen_of_pain',position:{x:123,y:456},positionMoved:false,killer:{source:'unique-last-damage-match',hero:'crystal_maiden',team:'radiant',seconds:60}} as WardLifetimeModel['entries'][number];
+const model=(entries=[life])=>({entries} as WardLifetimeModel);
+const original=structuredClone(event);
+assert.deepEqual(enrichWardMapCoordinates([event],model())[0],{...event,x:123,y:456,coordinatesSource:'ward_lifetime'});assert.deepEqual(event,original);
+for(const patch of [{event:'place'},{preciseSeconds:undefined},{preciseSeconds:60.032},{attackerHero:null},{targetOwnerHero:null},{attackerTeam:'dire'},{targetTeam:'radiant'},{kind:'sentry'}])assert.equal(enrichWardMapCoordinates([{...event,...patch} as typeof event],model())[0].x,null);
+assert.equal(enrichWardMapCoordinates([event,event],model()).filter(e=>e.x!==null).length,0);
+assert.equal(enrichWardMapCoordinates([event],model([life,{...life,id:'2:3'}]))[0].x,null);
+assert.equal(enrichWardMapCoordinates([event],model([{...life,positionMoved:true}]))[0].x,null);
+assert.equal(enrichWardMapCoordinates([event],model([{...life,position:null}]))[0].x,null);
+const explicit={...event,x:9,y:8,coordinatesSource:'ward_entity'};assert.equal(enrichWardMapCoordinates([explicit],model())[0],explicit);
+assert.equal(enrichWardMapCoordinates([event,explicit],model())[0].x,null,'explicit event still participates in uniqueness');
+assert.equal(enrichWardMapCoordinates([event],null)[0],event);
+console.log('ward map identity linking tests passed');
