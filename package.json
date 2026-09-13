@@ -17,7 +17,7 @@
     "test:apm": "tsx src/test-apm.ts",
     "test:replay-storage": "tsx src/test-replay-storage.ts",
     "test:profiles": "tsx src/test-player-profile.ts && tsx src/test-profile-economy.ts && tsx src/test-retro-integrity.ts && tsx src/test-profile-web.ts",
-    "test:insights": "tsx src/test-match-insights.ts && tsx src/test-player-progress.ts && tsx src/test-combat-storage.ts && tsx src/test-ability-labels.ts"
+    "test:insights": "tsx src/test-match-insights.ts && tsx src/test-player-progress.ts && tsx src/test-combat-storage.ts && tsx src/test-ability-labels.ts && tsx src/test-match-overview.ts && tsx src/test-match-overview-web.ts"
   },
   "keywords": [
     "dota2",

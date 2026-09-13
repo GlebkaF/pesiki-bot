@@ -3,7 +3,7 @@ const insightNode=document.getElementById('match-insights-data');
 if(insightNode){
  const data=JSON.parse(insightNode.textContent),selected=data.selected;
  const panels=[...document.querySelectorAll('.match-insights>.insight-panel,#analysis')];
- function showMatchSection(){let target;try{target=document.getElementById(decodeURIComponent(location.hash.slice(1)));}catch{}const active=target?.closest('.insight-panel')||panels[0];panels.forEach(panel=>panel.hidden=panel!==active);if(typeof updateJump==='function')updateJump();}
+ function showMatchSection(){let target;try{target=document.getElementById(decodeURIComponent(location.hash.slice(1)));}catch{}const active=target?.closest('.insight-panel')||panels[0];panels.forEach(panel=>panel.hidden=panel!==active);document.querySelector('.player-picker').hidden=!['combat','vision','deaths','builds','events'].includes(active.id);if(typeof updateJump==='function')updateJump();}
  addEventListener('hashchange',showMatchSection);showMatchSection();
  const escapeText=s=>String(s).replace(/[&<>\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));
  const fmt=n=>Math.round(n).toLocaleString('ru-RU'),clock=s=>Math.floor(s/60)+':'+String(Math.floor(s)%60).padStart(2,'0');

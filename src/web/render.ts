@@ -1,3 +1,5 @@
+import {OVERVIEW_CSS} from "./match-overview-style.js";
+import {OVERVIEW_SCRIPT} from "./match-overview-script.js";
 import {renderReplayInsights} from "./match-render.js";
 import {MATCH_SCRIPT} from "./match-script.js";
 import {MATCH_CSS} from "./match-style.js";
@@ -259,9 +261,9 @@ export function renderMatch(
   options?:{player?:string;official?:MatchApi},
 ): string {
   const parsed = savedParsed ?? stored?.parsed;
-  const head = feedMatch
+  const head = parsed ? `<p class="sub">${parsed.start_time?esc(dateLabel(parsed.start_time))+" · ":""}${dur(Math.round(parsed.duration_min*60))} · <strong class="${parsed.winner==='radiant'?'radiant':'dire'}">${parsed.winner==='radiant'?'Победа Radiant':parsed.winner==='dire'?'Победа Dire':'Исход неизвестен'}</strong></p>` : feedMatch
     ? `<p class="sub">${esc(dateLabel(feedMatch.startTime))} · <span class="mono">${dur(feedMatch.duration)}</span> · ${feedMatch.win ? '<span class="good">победа</span>' : '<span class="bad">поражение</span>'} · наши: ${esc(feedMatch.ours.map((o) => o.name).join(", "))}</p>`
-    : parsed?`<p class="sub">${parsed.start_time?esc(dateLabel(parsed.start_time))+" · ":""}${dur(Math.round(parsed.duration_min*60))} · ${parsed.winner==="radiant"?"Победа Radiant":parsed.winner==="dire"?"Победа Dire":"Исход неизвестен"}</p>`:`<p class="sub">Матча нет в ленте — можно разобрать по номеру</p>`;
+    : `<p class="sub">Матча нет в ленте — можно разобрать по номеру</p>`;
 
   const analysisBlock = stored
     ? `<div class="card"><h2>Разбор</h2><p class="dim">формат: ${esc(stored.format)} · ${esc(new Date(stored.createdAt).toLocaleString("ru-RU"))}</p>
@@ -282,7 +284,7 @@ export function renderMatch(
       <a class="btn ghost" href="https://www.opendota.com/matches/${matchId}" target="_blank" rel="noopener">OpenDota</a>
     </div>
     ${parsed ? renderReplayInsights(parsed,options?.player,options?.official) : ""}
-    <section id="analysis" class="insight-panel"><div class="section-head"><h2><a href="#analysis">Сводка бота</a></h2><button class="share-section" type="button" data-share-section="analysis" aria-label="Скопировать ссылку на сводку">↗</button></div>${analysisBlock}</section>
+    <section id="analysis" class="insight-panel"><div class="section-head"><h2><a href="#analysis">Комментарий бота о стаке</a></h2><button class="share-section" type="button" data-share-section="analysis" aria-label="Скопировать ссылку на сводку">↗</button></div>${analysisBlock}</section>
     ${
       api
         ? `<div class="card"><h2>Составы и итоги</h2>
@@ -378,5 +380,5 @@ if (btn) btn.addEventListener('click', async () => {
   }, 1500);
 });`;
 
-  return layout(`Матч ${matchId} · Песики`, body, script+(parsed?PROFILE_SCRIPT+MATCH_SCRIPT:""),PROFILE_CSS+MATCH_CSS);
+  return layout(`Матч ${matchId} · Песики`, body, script+(parsed?PROFILE_SCRIPT+MATCH_SCRIPT+OVERVIEW_SCRIPT:""),PROFILE_CSS+MATCH_CSS+OVERVIEW_CSS);
 }
