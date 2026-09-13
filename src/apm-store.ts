@@ -1,10 +1,11 @@
 /** Permanent APM history, independent of the replay JSON cache and its TTL. */
 import { validActionCounts } from "./action-counts.js";
-import type { RecentMatch, MatchApi } from "./opendota.js";
+import type { RecentMatch, MatchApi, MatchApiPlayer } from "./opendota.js";
 import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import type { ParsedMatch } from "./replay.js";
+import { HERO_CATALOG } from "./hero-catalog.js";
 
 export const APM_VERSION = "spectator-orders-v1";
 const analyticsRank=(v:unknown)=>v==="combat-log-v2"?2:v==="combat-log-v1"?1:0;
@@ -182,6 +183,52 @@ export class ApmStore {
   matchApi(id:number): MatchApi | undefined {
     const row=this.db.prepare("SELECT payload_json FROM match_api_snapshots WHERE match_id=?").get(id) as {payload_json:string}|undefined;
     return row?JSON.parse(row.payload_json):undefined;
+  }
+  /** Official rows only; a missing full snapshot never becomes a fabricated full match. */
+  officialPlayers(matchId:number):MatchApiPlayer[] {
+    if(!Number.isSafeInteger(matchId)||matchId<=0)return [];
+    const valid=(p:MatchApiPlayer)=>p&&typeof p==="object"&&(p.account_id==null||Number.isSafeInteger(p.account_id)&&p.account_id>=0&&p.account_id<=4294967295)&&[p.kills,p.deaths,p.assists,p.hero_id,p.player_slot].every(v=>Number.isSafeInteger(v)&&v>=0)&&p.hero_id>0&&((p.player_slot<=4)||(p.player_slot>=128&&p.player_slot<=132));
+    const api=this.matchApi(matchId),bySlot=new Map<number,MatchApiPlayer>();
+    for(const p of api?.match_id===matchId&&Array.isArray(api.players)?api.players:[])if(valid(p))bySlot.set(p.player_slot,{...p});
+    const rows=this.db.prepare("SELECT account_id,payload_json FROM player_match_results WHERE match_id=? ORDER BY account_id").all(matchId) as {account_id:number;payload_json:string}[];
+    for(const row of rows){
+      const p=JSON.parse(row.payload_json) as SavedResult;
+      if(p.result_source!=="opendota"||p.match_id!==matchId||!valid(p)||bySlot.has(p.player_slot))continue;
+      bySlot.set(p.player_slot,{...p,account_id:row.account_id});
+    }
+    return [...bySlot.values()].sort((a,b)=>a.player_slot-b.player_slot);
+  }
+  /** Apply saved official facts against the latest row under the same write lock. */
+  enrichReplayFromOfficial(matchId:number):ParsedMatch|undefined {
+    return this.db.transaction(()=>{
+      const current=this.replay(matchId);if(!current)return undefined;
+      const api=this.matchApi(matchId),official=this.officialPlayers(matchId);
+      const numeric=(v:unknown):v is number=>typeof v==="number"&&Number.isFinite(v)&&v>=0;
+      const normalize=(v:string)=>v.replace(/^npc_dota_hero_/,"").replace(/_/g,"");
+      const players=current.players.map(player=>{
+        const matches=official.filter(p=>{
+          const hero=HERO_CATALOG.find(h=>h.id===p.hero_id)?.name;
+          if(!hero||normalize(hero)!==normalize(player.hero)||(p.player_slot<128)!==(player.team==="radiant"))return false;
+          return !p.account_id||p.account_id===4294967295||player.steam_id==="0"||String(BigInt(p.account_id)+76561197960265728n)===player.steam_id;
+        });
+        if(matches.length!==1)return player;
+        const p=matches[0],next={...player,kills:p.kills,deaths:p.deaths,assists:p.assists};
+        if(numeric(p.last_hits))next.last_hits=p.last_hits;if(numeric(p.denies))next.denies=p.denies;
+        if(numeric(p.gold_per_min))next.gpm=p.gold_per_min;if(numeric(p.xp_per_min))next.xpm=p.xp_per_min;
+        if(numeric(p.hero_damage))next.hero_damage=p.hero_damage;
+        if(numeric(p.teamfight_participation))next.teamfight_participation=p.teamfight_participation;
+        if(numeric(p.stuns))next.stuns=p.stuns;if(numeric(p.pings))next.pings=p.pings;
+        if(p.item_uses&&typeof p.item_uses==="object"&&!Array.isArray(p.item_uses)&&Object.values(p.item_uses).every(numeric))next.item_uses={...p.item_uses};
+        return next;
+      });
+      const next={...current,players};
+      if(api?.match_id===matchId){
+        if(numeric(api.radiant_score)&&Number.isInteger(api.radiant_score))next.radiant_score=api.radiant_score;
+        if(numeric(api.dire_score)&&Number.isInteger(api.dire_score))next.dire_score=api.dire_score;
+        if(numeric(api.start_time)&&api.start_time>0)next.start_time=api.start_time;
+      }
+      this.saveReplay(next);return this.replay(matchId);
+    }).immediate();
   }
   profileRosters(): ProfileRoster[] {
     return (this.db.prepare("SELECT payload_json FROM profile_rosters").all() as {payload_json:string}[]).map(r=>JSON.parse(r.payload_json));

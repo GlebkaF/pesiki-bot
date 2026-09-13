@@ -1,3 +1,5 @@
+import {EPISODE_SCRIPT} from "./match-episode-script.js";
+import {EPISODE_CSS} from "./match-episode-style.js";
 import {OVERVIEW_CSS} from "./match-overview-style.js";
 import {OVERVIEW_SCRIPT} from "./match-overview-script.js";
 import {renderReplayInsights} from "./match-render.js";
@@ -9,7 +11,7 @@ import {PROFILE_SCRIPT} from "./profile-script.js";
 import type { FeedMatch } from "./feed.js";
 import type { Job, StoredAnalysis } from "./jobs.js";
 import type { ParsedMatch } from "../replay.js";
-import type { MatchApi } from "../opendota.js";
+import type { MatchApi, MatchApiPlayer } from "../opendota.js";
 
 
 export function esc(s: string): string {
@@ -258,7 +260,7 @@ export function renderMatch(
   job: Job | undefined,
   api?: ApiOverview | null,
   savedParsed?: ParsedMatch,
-  options?:{player?:string;official?:MatchApi},
+  options?:{player?:string;official?:MatchApi;officialPlayers?:MatchApiPlayer[];episode?:string},
 ): string {
   const parsed = savedParsed ?? stored?.parsed;
   const head = parsed ? `<p class="sub">${parsed.start_time?esc(dateLabel(parsed.start_time))+" · ":""}${dur(Math.round(parsed.duration_min*60))} · <strong class="${parsed.winner==='radiant'?'radiant':'dire'}">${parsed.winner==='radiant'?'Победа Radiant':parsed.winner==='dire'?'Победа Dire':'Исход неизвестен'}</strong></p>` : feedMatch
@@ -283,7 +285,7 @@ export function renderMatch(
       <div><h1>Матч <span class="mono">${matchId}</span></h1>${head}</div>
       <a class="btn ghost" href="https://www.opendota.com/matches/${matchId}" target="_blank" rel="noopener">OpenDota</a>
     </div>
-    ${parsed ? renderReplayInsights(parsed,options?.player,options?.official) : ""}
+    ${parsed ? renderReplayInsights(parsed,options?.player,options?.official,options?.officialPlayers,options?.episode) : ""}
     <section id="analysis" class="insight-panel"><div class="section-head"><h2><a href="#analysis">Комментарий бота о стаке</a></h2><button class="share-section" type="button" data-share-section="analysis" aria-label="Скопировать ссылку на сводку">↗</button></div>${analysisBlock}</section>
     ${
       api
@@ -380,5 +382,5 @@ if (btn) btn.addEventListener('click', async () => {
   }, 1500);
 });`;
 
-  return layout(`Матч ${matchId} · Песики`, body, script+(parsed?PROFILE_SCRIPT+MATCH_SCRIPT+OVERVIEW_SCRIPT:""),PROFILE_CSS+MATCH_CSS+OVERVIEW_CSS);
+  return layout(`Матч ${matchId} · Песики`, body, script+(parsed?PROFILE_SCRIPT+MATCH_SCRIPT+OVERVIEW_SCRIPT+EPISODE_SCRIPT:""),PROFILE_CSS+MATCH_CSS+OVERVIEW_CSS+EPISODE_CSS);
 }

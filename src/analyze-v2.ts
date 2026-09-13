@@ -10,10 +10,9 @@ import { withAnalysisApm } from "./analysis-apm.js";
  *  - MVP/LVP и перелом матча считаются кодом, а не на глаз языковой моделью;
  *  - основной голос получает компактный детерминированный пакет фактов.
  */
-import { getAppFetch } from "./proxy.js";
-import { fetchHeroes } from "./heroes.js";
+import {getApmStore} from "./apm-store.js";
 import { PLAYERS, PLAYER_IDS, type Player } from "./config.js";
-import { fetchPlayerProfile, fetchRecentMatches, savedRecentMatches } from "./opendota.js";
+import { fetchPlayerProfile, fetchRecentMatches, savedRecentMatches, fetchMatchApi } from "./opendota.js";
 import { fetchReplayForAnalysis, toSteam32, type ParsedMatch, type ParsedPlayer, type ParseProgress } from "./replay.js";
 import { escapeHtml } from "./telegram-html.js";
 import { generateMainVoiceAnalysis } from "./analyze-main-voice.js";
@@ -129,61 +128,14 @@ function buildLaneReport(parsed: ParsedMatch, ourTeam: "radiant" | "dire"): stri
  * а из реплея оставляем то, чего в API нет: линии, тимфайты, тайминги, кривые.
  */
 export async function mergeOfficialStats(parsed: ParsedMatch): Promise<ParsedMatch> {
+  const store=getApmStore();
+  if(!store.replay(parsed.match_id))store.save(parsed);
   try {
-    const fetchFn = await getAppFetch();
-    const res = await fetchFn(`https://api.opendota.com/api/matches/${parsed.match_id}`);
-    if (!res.ok) return parsed;
-    const api = (await res.json()) as {
-      start_time?: number;
-      radiant_score?: number;
-      dire_score?: number;
-      players?: {
-        hero_id: number;
-        kills: number;
-        deaths: number;
-        assists: number;
-        last_hits?: number;
-        denies?: number;
-        gold_per_min?: number;
-        xp_per_min?: number;
-        hero_damage?: number;
-        teamfight_participation?: number;
-        stuns?: number;
-        pings?: number;
-        item_uses?: Record<string, number>;
-      }[];
-    };
-    parsed.start_time = api.start_time;
-    parsed.radiant_score = api.radiant_score;
-    parsed.dire_score = api.dire_score;
-    if (!api.players?.length) return parsed;
-
-    const heroes = await fetchHeroes();
-    const nameById = new Map<number, string>();
-    for (const [id, h] of heroes) nameById.set(id, h.name.replace("npc_dota_hero_", ""));
-
-    for (const ap of api.players) {
-      const heroName = nameById.get(ap.hero_id);
-      const target = parsed.players.find((p) => p.hero === heroName);
-      if (!target) continue;
-      target.kills = ap.kills;
-      target.deaths = ap.deaths;
-      target.assists = ap.assists;
-      if (ap.last_hits !== undefined) target.last_hits = ap.last_hits;
-      if (ap.denies !== undefined) target.denies = ap.denies;
-      if (ap.gold_per_min) target.gpm = ap.gold_per_min;
-      if (ap.xp_per_min) target.xpm = ap.xp_per_min;
-      if (ap.hero_damage) target.hero_damage = ap.hero_damage;
-      // Эти метрики считает OpenDota, в реплее их нет — забираем из того же ответа.
-      if (ap.teamfight_participation !== undefined) target.teamfight_participation = ap.teamfight_participation;
-      if (ap.stuns !== undefined) target.stuns = ap.stuns;
-      if (ap.pings !== undefined) target.pings = ap.pings;
-      if (ap.item_uses) target.item_uses = ap.item_uses;
-    }
+    await fetchMatchApi(parsed.match_id);
   } catch {
-    // API недоступно — работаем на данных реплея, они самодостаточны
+    // Already saved official facts remain usable during outages; no fabricated totals.
   }
-  return parsed;
+  return store.enrichReplayFromOfficial(parsed.match_id)??parsed;
 }
 
 export function analyseParsedMatch(parsed: ParsedMatch): MatchAnalysis {

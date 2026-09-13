@@ -112,7 +112,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     const feedMatch: FeedMatch | undefined = matches.find((m) => m.matchId === matchId);
     const stored = await getStoredAnalysis(matchId);
     const parsed = getApmStore().replay(matchId) ?? stored?.parsed;
-    return send(res, 200, renderMatch(matchId, feedMatch, stored, getJob(matchId), parsed ? null : await matchOverview(matchId), parsed,{player:url.searchParams.get("player")||undefined,official:getApmStore().matchApi(matchId)}));
+    return send(res, 200, renderMatch(matchId, feedMatch, stored, getJob(matchId), parsed ? null : await matchOverview(matchId), parsed,{player:url.searchParams.get("player")||undefined,official:getApmStore().matchApi(matchId),officialPlayers:getApmStore().officialPlayers(matchId),episode:url.searchParams.get("episode")||undefined}));
   }
 
   const analyzeApi = p.match(/^\/api\/analyze\/(\d+)$/);

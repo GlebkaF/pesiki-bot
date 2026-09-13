@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import {ApmStore,APM_VERSION} from './apm-store.js';
+import type {ParsedMatch} from './replay.js';
+import type {MatchApi} from './opendota.js';
+const store=new ApmStore(':memory:'),account=94014640,steam=String(BigInt(account)+76561197960265728n);
+const p={steam_id:steam,hero:'crystal_maiden',team:'dire',tower_damage:1234,kills:999,deaths:999,assists:999,actions:200,actions_per_min:100,action_counts:{MOVE:200},combat_details:{version:'combat-log-v2',healing:{self:123,other_heroes:0,units:0,by_target:{crystal_maiden:123}}}};
+const match={match_id:111,parser_version:'pesiki-replay-v6',analytics_version:'combat-log-v2',apm_version:APM_VERSION,apm_duration_seconds:120,start_time:1700000000,duration_min:2,winner:'radiant',players:[p]} as unknown as ParsedMatch;
+const result={match_id:111,start_time:1700000000,duration:120,hero_id:5,kills:7,deaths:9,assists:17,radiant_win:true,player_slot:132};
+try{
+ store.save(match);const apm=store.history(account),detail=JSON.stringify(store.replay(111)!.players[0].combat_details);
+ store.saveResults(account,[result],'opendota');store.saveResults(account+1,[{...result,hero_id:14,player_slot:131,kills:999}],'feed');
+ assert.equal(store.matchApi(111),undefined,'partial official results never fabricate a full MatchApi');
+ assert.equal(store.officialPlayers(111).length,1,'feed snapshots cannot masquerade as official results');
+ assert.deepEqual(store.officialPlayers(111).map(p=>[p.kills,p.deaths,p.assists]),[[7,9,17]]);
+ let updated=store.enrichReplayFromOfficial(111)!;
+ assert.deepEqual([updated.players[0].kills,updated.players[0].deaths,updated.players[0].assists],[7,9,17]);
+ assert.equal(updated.radiant_score,undefined,'partial KDA cannot imply a team score');
+ assert.equal(updated.parser_version,'pesiki-replay-v6');assert.equal(JSON.stringify(updated.players[0].combat_details),detail);assert.deepEqual(store.history(account),apm);
+ store.save({...match,parser_version:'pesiki-replay-v3',analytics_version:undefined,players:match.players.map(p=>({...p,combat_details:undefined,actions:400,actions_per_min:200,action_counts:{MOVE:400}}))});
+ updated=store.enrichReplayFromOfficial(111)!;assert.equal(updated.players[0].kills,7);assert.deepEqual(store.history(account),apm);assert.equal(updated.parser_version,'pesiki-replay-v6');
+ const api={match_id:111,start_time:1700000000,duration:120,radiant_win:true,radiant_score:0,dire_score:2,players:[{account_id:account,hero_id:5,player_slot:132,kills:0,deaths:2,assists:0,hero_damage:0,tower_damage:999999,gold_per_min:0,xp_per_min:0}]} as MatchApi;
+ store.saveMatchApi(api);assert.equal(store.officialPlayers(111).length,1,'API and recent history deduplicate by real slot');
+ updated=store.enrichReplayFromOfficial(111)!;assert.equal(updated.radiant_score,0);assert.equal(updated.dire_score,2);assert.equal(updated.players[0].hero_damage,0);assert.equal(updated.players[0].kills,0,'official zero is not dropped by truthiness checks');
+ store.saveMatchApi({...api,players:[{...api.players[0],account_id:account+10,kills:77}]});
+ assert.equal(store.enrichReplayFromOfficial(111)!.players[0].kills,0,'known account mismatch cannot overwrite a hero just because hero and side match');
+ store.saveMatchApi({...api,players:[{...api.players[0],account_id:undefined,kills:5}]});
+ assert.equal(store.enrichReplayFromOfficial(111)!.players[0].kills,5,'private API profile can match an unambiguous hero and side');
+ store.saveMatchApi({...api,players:[{...api.players[0],account_id:null,kills:6}]} as unknown as MatchApi);
+ assert.equal(store.enrichReplayFromOfficial(111)!.players[0].kills,6,'null account is also a private profile');
+ assert.equal(store.replay(111)!.players[0].tower_damage,1234,'official tower damage does not replace consistent replay metric');
+ assert.deepEqual(store.history(account),apm);assert.equal(JSON.stringify(store.replay(111)!.players[0].combat_details),detail);
+ assert.deepEqual(store.officialPlayers(999),[]);assert.equal(store.enrichReplayFromOfficial(999),undefined);
+ console.log('Official player data tests passed: saved-source fallback, no fabricated score, private identity, zeroes, v6/APM preservation.');
+}finally{store.close();}

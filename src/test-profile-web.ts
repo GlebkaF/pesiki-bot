@@ -38,7 +38,7 @@ try {
   const matchResponse=await fetch("http://localhost:3018/match/123?player=76561198054280368");
   assert.equal(matchResponse.status,200);
   const matchHtml=await matchResponse.text();
-  for(const id of ["overview","timeline","teams","scoreboard","farm","combat","vision","deaths","builds","events","analysis"])assert.ok(matchHtml.includes(`id="${id}"`),id);
+  for(const id of ["overview","timeline","episodes","teams","scoreboard","farm","combat","vision","deaths","builds","events","analysis"])assert.ok(matchHtml.includes(`id="${id}"`),id);
   assert.ok(matchHtml.includes("Стоимость имущества"));
   assert.equal((await fetch("http://localhost:3018/player/999999")).status,404);
   assert.ok(!output.includes("UNEXPECTED_NETWORK_CALL"),output);

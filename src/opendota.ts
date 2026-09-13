@@ -309,6 +309,10 @@ export interface MatchApiPlayer {
   net_worth?: number;
   hero_damage?: number;
   tower_damage?: number;
+  teamfight_participation?: number;
+  stuns?: number;
+  pings?: number;
+  item_uses?: Record<string,number>;
   level?: number;
   item_0?: number; item_1?: number; item_2?: number;
   item_3?: number; item_4?: number; item_5?: number;
