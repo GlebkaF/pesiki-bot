@@ -39,3 +39,19 @@ func TestAPMRosterSpelling(t *testing.T) {
 		t.Fatal("class spelling must resolve to metadata roster")
 	}
 }
+
+func TestActionBreakdownFollowsRoster(t *testing.T) {
+	players := map[string]*Player{"npc_dota_hero_antimage": {Team: "dire"}, "npc_dota_hero_pudge": {Team: "radiant"}}
+	c := &apmCounter{seen: true, counts: map[string]int{"npc_dota_hero_anti_mage": 7}, orders: map[string]map[string]int{
+		"npc_dota_hero_anti_mage": {"DOTA_UNIT_ORDER_MOVE_TO_POSITION": 5, "DOTA_UNIT_ORDER_CAST_NO_TARGET": 2},
+	}}
+	out := &Output{}
+	c.apply(out, players, 60)
+	p := players["npc_dota_hero_antimage"]
+	if p.ActionCounts["DOTA_UNIT_ORDER_MOVE_TO_POSITION"] != 5 || p.ActionCounts["DOTA_UNIT_ORDER_CAST_NO_TARGET"] != 2 || *p.Actions != 7 || *p.APM != 7 {
+		t.Fatal("breakdown must preserve types and total across hero aliases")
+	}
+	if players["npc_dota_hero_pudge"].ActionCounts == nil || len(players["npc_dota_hero_pudge"].ActionCounts) != 0 {
+		t.Fatal("measured zero is an empty map; unavailable is nil")
+	}
+}

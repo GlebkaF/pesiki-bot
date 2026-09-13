@@ -59,13 +59,13 @@ const CSS = `
   :root:not([data-theme="light"]) {
     --ground:#0D1014; --surface:#161A20; --surface-2:#1C222A; --ink:#E6E9EE; --muted:#8A94A2;
     --line:#252B34; --accent:#E0A93F; --accent-soft:#C8922A;
-    --radiant:#6FA348; --dire:#CC5A50; --good:#5CB183; --bad:#CC5A50;
+    --radiant:#6FA348; --dire:#CC5A50; --good:#5CB183; --bad:#DC7066;
   }
 }
 :root[data-theme="dark"] {
   --ground:#0D1014; --surface:#161A20; --surface-2:#1C222A; --ink:#E6E9EE; --muted:#8A94A2;
   --line:#252B34; --accent:#E0A93F; --accent-soft:#C8922A;
-  --radiant:#6FA348; --dire:#CC5A50; --good:#5CB183; --bad:#CC5A50;
+  --radiant:#6FA348; --dire:#CC5A50; --good:#5CB183; --bad:#DC7066;
 }
 * { box-sizing:border-box; }
 body { margin:0; background:var(--ground); color:var(--ink);
@@ -160,12 +160,14 @@ footer { color:var(--muted); font-size:12px; text-align:center; padding-top:8px;
 }
 `;
 
-export function layout(title: string, body: string, script = ""): string {
+export function layout(title: string, body: string, script = "", extraCss = ""): string {
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐕</text></svg>">
-<style>${CSS}</style></head><body><div class="wrap">${body}</div>${script ? `<script>${script}</script>` : ""}</body></html>`;
+<style>${CSS}
+.site-nav{display:flex;gap:22px;align-items:center;padding-bottom:18px;border-bottom:1px solid var(--line);font-size:13px}.site-nav a{text-decoration:none}.site-nav .brand{font-weight:800;letter-spacing:.13em;margin-right:auto}
+${extraCss}</style></head><body><div class="wrap"><nav class="site-nav" aria-label="Навигация"><a class="brand" href="/">ПЁСИКИ</a><a href="/">Матчи</a><a href="/players">Игроки ↗</a></nav>${body}</div>${script ? `<script>${script}</script>` : ""}</body></html>`;
 }
 
 export function renderFeed(
@@ -228,7 +230,7 @@ export function renderFeed(
 function playerRow(p: ParsedPlayer, ourTeam: string): string {
   const isOur = OUR_IDS.has(toSteam32(p.steam_id));
   return `<tr class="${isOur ? "ours" : ""}">
-    <td><span class="dot ${p.team}"></span>${esc(p.hero)}<span class="pname">${esc(p.name)}</span>${isOur ? ' <span class="chip chip-deep">наш</span>' : ""}</td>
+    <td><span class="dot ${p.team}"></span>${esc(p.hero)}<span class="pname">${isOur ? `<a href="/player/${toSteam32(p.steam_id)}">${esc(PLAYERS.find(x=>x.steamId===toSteam32(p.steam_id))?.dotaName ?? p.name)}</a>` : esc(p.name)}</span>${isOur ? ' <span class="chip chip-deep">наш</span>' : ""}</td>
     <td class="mono">${esc(p.lane)}/${esc(p.lane_role.slice(0, 4))}</td>
     <td class="mono">${p.kills}/${p.deaths}/${p.assists}</td>
     <td class="mono">${p.actions_per_min ?? "—"}</td>

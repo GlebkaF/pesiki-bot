@@ -14,12 +14,13 @@ const apmVersion = "spectator-orders-v1"
 
 type apmCounter struct {
 	counts     map[string]int
+	orders     map[string]map[string]int
 	seen       bool
 	unresolved bool
 }
 
 func newAPMCounter(p *manta.Parser, active func() bool) *apmCounter {
-	c := &apmCounter{counts: map[string]int{}}
+	c := &apmCounter{counts: map[string]int{}, orders: map[string]map[string]int{}}
 	p.Callbacks.OnCDOTAUserMsg_SpectatorPlayerUnitOrders(func(m *dota.CDOTAUserMsg_SpectatorPlayerUnitOrders) error {
 		if !active() {
 			return nil
@@ -41,7 +42,12 @@ func newAPMCounter(p *manta.Parser, active func() bool) *apmCounter {
 			c.unresolved = true
 			return nil
 		}
-		c.counts["npc_dota_hero_"+classToHero(hero.GetClassName())]++
+		key := "npc_dota_hero_" + classToHero(hero.GetClassName())
+		c.counts[key]++
+		if c.orders[key] == nil {
+			c.orders[key] = map[string]int{}
+		}
+		c.orders[key][dota.DotaunitorderT(m.GetOrderType()).String()]++
 		return nil
 	})
 	return c
@@ -64,12 +70,21 @@ func (c *apmCounter) apply(out *Output, players map[string]*Player, duration flo
 		normalized[key] = player
 	}
 	counts := map[*Player]int{}
+	orders := map[*Player]map[string]int{}
 	for hero, count := range c.counts {
 		player := normalized[strings.ReplaceAll(hero, "_", "")]
 		if player == nil {
 			return
 		}
 		counts[player] += count
+		if c.orders != nil {
+			if orders[player] == nil {
+				orders[player] = map[string]int{}
+			}
+			for kind, n := range c.orders[hero] {
+				orders[player][kind] += n
+			}
+		}
 	}
 	out.APMVersion, out.APMDuration = apmVersion, duration
 	for _, player := range players {
@@ -79,5 +94,11 @@ func (c *apmCounter) apply(out *Output, players map[string]*Player, duration flo
 		actions := counts[player]
 		apm := int(math.Floor(float64(actions) * 60 / duration))
 		player.Actions, player.APM = &actions, &apm
+		if c.orders != nil {
+			player.ActionCounts = orders[player]
+			if player.ActionCounts == nil {
+				player.ActionCounts = map[string]int{}
+			}
+		}
 	}
 }

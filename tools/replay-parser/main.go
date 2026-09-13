@@ -28,15 +28,16 @@ type ItemBuy struct {
 }
 
 type Player struct {
-	Actions *int `json:"actions,omitempty"`
-	APM *int `json:"actions_per_min,omitempty"`
-	SteamID  uint64 `json:"steam_id,string"`
-	Name     string `json:"name"`
-	Hero     string `json:"hero"`
-	Team     string `json:"team"`
-	Slot     int    `json:"slot"`
-	Lane     string `json:"lane"`
-	LaneRole string `json:"lane_role"`
+	ActionCounts map[string]int `json:"action_counts"`
+	Actions      *int           `json:"actions,omitempty"`
+	APM          *int           `json:"actions_per_min,omitempty"`
+	SteamID      uint64         `json:"steam_id,string"`
+	Name         string         `json:"name"`
+	Hero         string         `json:"hero"`
+	Team         string         `json:"team"`
+	Slot         int            `json:"slot"`
+	Lane         string         `json:"lane"`
+	LaneRole     string         `json:"lane_role"`
 
 	Kills   int `json:"kills"`
 	Deaths  int `json:"deaths"`
@@ -62,14 +63,14 @@ type Player struct {
 	GoldLostToDeath int `json:"gold_lost_to_death"`
 	GoldOnSupport   int `json:"gold_spent_on_support"`
 
-	Level      int       `json:"level_final"`
-	Buybacks   int       `json:"buybacks"`
-	MaxStreak  int       `json:"max_killstreak"`
+	Level      int            `json:"level_final"`
+	Buybacks   int            `json:"buybacks"`
+	MaxStreak  int            `json:"max_killstreak"`
 	Multikills map[string]int `json:"multikills,omitempty"`
 
-	ObsPlaced    int `json:"obs_wards_placed"`
-	SenPlaced    int `json:"sentry_wards_placed"`
-	WardsKilled  int `json:"wards_killed"`
+	ObsPlaced   int `json:"obs_wards_placed"`
+	SenPlaced   int `json:"sentry_wards_placed"`
+	WardsKilled int `json:"wards_killed"`
 
 	EnemyHalfPct   float64 `json:"enemy_half_pct"`
 	AvgAllyDist    int     `json:"avg_ally_distance"`
@@ -108,20 +109,20 @@ type Teamfight struct {
 }
 
 type Output struct {
-	ParserVersion string `json:"parser_version"`
-	APMVersion string `json:"apm_version,omitempty"`
-	APMDuration float64 `json:"apm_duration_seconds,omitempty"`
-	MatchID    uint64      `json:"match_id"`
-	DurationM  float64     `json:"duration_min"`
-	Winner     string      `json:"winner"`
-	GameMode   string      `json:"game_mode"`
-	Players    []*Player   `json:"players"`
-	FirstBlood *Kill       `json:"first_blood"`
-	Kills      []Kill      `json:"kills"`
-	Teamfights []Teamfight `json:"teamfights"`
-	Buildings  []Building  `json:"buildings"`
-	Roshans    []float64   `json:"roshan_kills_min"`
-	ParseStats struct {
+	ParserVersion string      `json:"parser_version"`
+	APMVersion    string      `json:"apm_version,omitempty"`
+	APMDuration   float64     `json:"apm_duration_seconds,omitempty"`
+	MatchID       uint64      `json:"match_id"`
+	DurationM     float64     `json:"duration_min"`
+	Winner        string      `json:"winner"`
+	GameMode      string      `json:"game_mode"`
+	Players       []*Player   `json:"players"`
+	FirstBlood    *Kill       `json:"first_blood"`
+	Kills         []Kill      `json:"kills"`
+	Teamfights    []Teamfight `json:"teamfights"`
+	Buildings     []Building  `json:"buildings"`
+	Roshans       []float64   `json:"roshan_kills_min"`
+	ParseStats    struct {
 		CombatLogEntries int     `json:"combat_log_entries"`
 		ParseSeconds     float64 `json:"-"`
 	} `json:"parse_stats"`
@@ -153,7 +154,7 @@ func main() {
 		panic(err)
 	}
 
-	out := &Output{ParserVersion: "pesiki-replay-v2"}
+	out := &Output{ParserVersion: "pesiki-replay-v3"}
 	byHero := map[string]*Player{}
 	bySlot := map[int]*Player{}
 	var gameStart float64 = -1
@@ -436,17 +437,6 @@ func main() {
 			if pl := hero(target); pl != nil {
 				inc(&pl.Multikills, fmt.Sprintf("x%d", e.GetValue()))
 			}
-
-
-
-
-
-
-
-
-
-
-
 
 		case dota.DOTA_COMBATLOG_TYPES_DOTA_COMBATLOG_ABILITY:
 			if pl := hero(attacker); pl != nil && inflictor != "" && inflictor != "dota_unknown" {

@@ -28,6 +28,7 @@ const SALT_POLL_ATTEMPTS = 12;
 const SALT_POLL_INTERVAL_MS = 10_000;
 
 export interface ParsedPlayer {
+  action_counts?: Record<string, number>;
   actions?: number;
   actions_per_min?: number;
   steam_id: string;
@@ -242,7 +243,7 @@ async function fileExists(p: string): Promise<boolean> {
  * Valve отдаёт файл с расширением .bz2, но свежие реплеи внутри сжаты zstd,
  * а старые — настоящим bzip2. Формат определяем по сигнатуре.
  */
-async function decompress(archivePath: string, outPath: string): Promise<void> {
+export async function decompress(archivePath: string, outPath: string): Promise<void> {
   const head = (await readFile(archivePath)).subarray(0, 4);
   const isZstd = head[0] === 0x28 && head[1] === 0xb5 && head[2] === 0x2f && head[3] === 0xfd;
   const isBzip2 = head[0] === 0x42 && head[1] === 0x5a && head[2] === 0x68;

@@ -1,12 +1,20 @@
 /** Permanent APM history, independent of the replay JSON cache and its TTL. */
+import { validActionCounts } from "./action-counts.js";
+import type { RecentMatch } from "./opendota.js";
 import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import type { ParsedMatch } from "./replay.js";
 
 export const APM_VERSION = "spectator-orders-v1";
+export interface ProfileRoster {
+  match_id:number; start_time?:number; duration_min:number; winner:string;
+  players:{steam_id:string;hero:string;team:string}[];
+}
+export type SavedResult = RecentMatch & { result_source: "opendota" | "feed" };
 export interface ApmRecord {
   match_id: number; account_id: number; hero: string; start_time: number | null;
+  action_counts?: Record<string, number>;
   actions: number; duration_seconds: number; apm: number; version: string;
 }
 export class ApmStore {
@@ -27,18 +35,38 @@ export class ApmStore {
     CREATE INDEX IF NOT EXISTS apm_player_time ON player_match_apm(account_id, start_time);
     CREATE TABLE IF NOT EXISTS parsed_replays (
       match_id INTEGER PRIMARY KEY, start_time INTEGER, parsed_at INTEGER NOT NULL, payload_json TEXT NOT NULL
-    );`);
+    );
+    CREATE TABLE IF NOT EXISTS profile_rosters (match_id INTEGER PRIMARY KEY, payload_json TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS player_match_actions (match_id INTEGER, account_id INTEGER, version TEXT, counts_json TEXT NOT NULL, PRIMARY KEY(match_id,account_id,version));
+    CREATE TABLE IF NOT EXISTS player_match_results (match_id INTEGER, account_id INTEGER, payload_json TEXT NOT NULL, PRIMARY KEY(match_id,account_id));`);
+    // One-time compact projection of existing parses; opening a profile never loads combat logs.
+    this.db.exec(`INSERT OR IGNORE INTO profile_rosters(match_id,payload_json)
+      SELECT r.match_id, json_object('match_id',r.match_id,'start_time',r.start_time,
+        'duration_min',json_extract(r.payload_json,'$.duration_min'),'winner',json_extract(r.payload_json,'$.winner'),
+        'players',json_group_array(json_object('steam_id',json_extract(p.value,'$.steam_id'),
+          'hero',json_extract(p.value,'$.hero'),'team',json_extract(p.value,'$.team'))))
+      FROM parsed_replays r, json_each(r.payload_json,'$.players') p
+      WHERE NOT EXISTS (SELECT 1 FROM profile_rosters s WHERE s.match_id=r.match_id) GROUP BY r.match_id`);
   }
   saveReplay(match: ParsedMatch): void {
     if (!Number.isSafeInteger(match.match_id) || match.match_id <= 0 || !Array.isArray(match.players) || !match.players.length) return;
     const existing = this.replay(match.match_id);
     // A legacy cache must not overwrite a newer, richer parse.
     if (existing?.apm_version && !match.apm_version) return;
-    const stored = {...match, start_time: match.start_time ?? existing?.start_time};
+    const stored = {...match, start_time: match.start_time ?? existing?.start_time, players: match.players.map(p => {
+      const old = existing?.players.find(x => x.steam_id === p.steam_id);
+      const counts = validActionCounts(p.action_counts, p.actions ?? -1) ? p.action_counts :
+        old?.actions === p.actions && validActionCounts(old?.action_counts,p.actions ?? -1) ? old!.action_counts : undefined;
+      return {...p,action_counts:counts};
+    })};
     this.db.prepare(`INSERT INTO parsed_replays(match_id,start_time,parsed_at,payload_json) VALUES(?,?,?,?)
       ON CONFLICT(match_id) DO UPDATE SET start_time=excluded.start_time, parsed_at=excluded.parsed_at, payload_json=excluded.payload_json
       WHERE parsed_replays.payload_json != excluded.payload_json`)
       .run(match.match_id, stored.start_time ?? null, Date.now(), JSON.stringify(stored));
+    const roster:ProfileRoster={match_id:stored.match_id,start_time:stored.start_time,duration_min:stored.duration_min,winner:stored.winner,
+      players:stored.players.map(p=>({steam_id:p.steam_id,hero:p.hero,team:p.team}))};
+    this.db.prepare(`INSERT INTO profile_rosters VALUES(?,?) ON CONFLICT(match_id) DO UPDATE SET payload_json=excluded.payload_json
+      WHERE profile_rosters.payload_json != excluded.payload_json`).run(match.match_id,JSON.stringify(roster));
   }
   replay(matchId: number): ParsedMatch | undefined {
     const row = this.db.prepare("SELECT payload_json FROM parsed_replays WHERE match_id = ?").get(matchId) as {payload_json:string} | undefined;
@@ -69,15 +97,40 @@ export class ApmStore {
           start_time: match.start_time && match.start_time > 0 ? match.start_time : null,
           actions: p.actions, duration_seconds: duration, apm: p.actions_per_min,
           version: APM_VERSION, parsed_at: Date.now() });
+        if (validActionCounts(p.action_counts, p.actions!)) this.db.prepare(`INSERT INTO player_match_actions VALUES(?,?,?,?)
+          ON CONFLICT(match_id,account_id,version) DO UPDATE SET counts_json=excluded.counts_json`).run(match.match_id, account, APM_VERSION, JSON.stringify(p.action_counts));
       }
     })();
+  }
+  saveResults(accountId: number, matches: RecentMatch[], source: "opendota" | "feed" = "opendota"): void {
+    const insert = this.db.prepare(`INSERT INTO player_match_results VALUES(?,?,?) ON CONFLICT(match_id,account_id) DO UPDATE SET payload_json=excluded.payload_json
+      WHERE player_match_results.payload_json != excluded.payload_json AND (json_extract(excluded.payload_json, '$.result_source') = 'opendota' OR json_extract(player_match_results.payload_json, '$.result_source') != 'opendota')`);
+    this.db.transaction(() => {
+      for (const m of matches) {
+        if (!Number.isSafeInteger(m.match_id) || m.match_id <= 0 || !Number.isFinite(m.start_time) || m.start_time <= 0 ||
+            !Number.isFinite(m.duration) || m.duration <= 0 || typeof m.radiant_win !== "boolean" ||
+            ![m.kills,m.deaths,m.assists,m.hero_id,m.player_slot].every(n => Number.isSafeInteger(n) && n >= 0)) continue;
+        insert.run(m.match_id,accountId,JSON.stringify({...m,result_source:source}));
+      }
+    })();
+  }
+  results(accountId: number): SavedResult[] {
+    return (this.db.prepare("SELECT payload_json FROM player_match_results WHERE account_id=?").all(accountId) as {payload_json:string}[]).map(r => JSON.parse(r.payload_json));
+  }
+  profileRosters(): ProfileRoster[] {
+    return (this.db.prepare("SELECT payload_json FROM profile_rosters").all() as {payload_json:string}[]).map(r=>JSON.parse(r.payload_json));
   }
   allReplays(): ParsedMatch[] {
     return (this.db.prepare("SELECT payload_json FROM parsed_replays ORDER BY start_time DESC").all() as {payload_json:string}[]).map(r=>JSON.parse(r.payload_json));
   }
   history(accountId: number): ApmRecord[] {
-    return this.db.prepare("SELECT * FROM player_match_apm WHERE account_id = ? AND version = ? ORDER BY start_time DESC, match_id DESC")
-      .all(accountId, APM_VERSION) as ApmRecord[];
+    return (this.db.prepare(`SELECT a.*, c.counts_json FROM player_match_apm a LEFT JOIN player_match_actions c
+      ON a.match_id=c.match_id AND a.account_id=c.account_id AND a.version=c.version
+      WHERE a.account_id = ? AND a.version = ? ORDER BY a.start_time DESC, a.match_id DESC`)
+      .all(accountId, APM_VERSION) as (ApmRecord & {counts_json?:string})[]).map(({counts_json,...r}) => {
+        const counts = counts_json ? JSON.parse(counts_json) : undefined;
+        return {...r, action_counts:validActionCounts(counts,r.actions) ? counts : undefined};
+      });
   }
   hydrate(match: ParsedMatch): void {
     const rows = this.db.prepare("SELECT * FROM player_match_apm WHERE match_id = ? AND version = ?").all(match.match_id, APM_VERSION) as ApmRecord[];

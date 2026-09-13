@@ -1,3 +1,5 @@
+import { loadProfiles, periodOf } from "../player-profile.js";
+import { renderPlayers, renderPlayer } from "./player-render.js";
 import { getApmStore } from "../apm-store.js";
 /**
  * HTTP-витрина матчей стака. Работает рядом с ботом в том же процессе.
@@ -77,6 +79,15 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   const p = url.pathname;
 
+  if (req.method === "GET" && (p === "/players" || /^\/player\/\d+$/.test(p))) {
+    const period = periodOf(url.searchParams.get("period"));
+    const profiles = loadProfiles(period);
+    if (p === "/players") return send(res,200,renderPlayers(profiles,period));
+    const profile = profiles.find(x=>x.account===Number(p.split("/")[2]));
+    if (!profile) return send(res,404,layout("Игрок не найден",'<h1>Игрок не найден</h1><a href="/players">Все игроки стака</a>'));
+    const page = Number(url.searchParams.get("page")) || 1;
+    return send(res,200,renderPlayer(profile,profiles,Number.isSafeInteger(page)?page:1,Number(url.searchParams.get("match"))||undefined));
+  }
   if (p === "/" && req.method === "GET") {
     const { matches, updatedAt } = await getFeed();
     const player = url.searchParams.get("player") || undefined;
@@ -151,7 +162,7 @@ export function startWebServer(port = Number(process.env.WEB_PORT) || 3000): voi
     .finally(() => {
       server.listen(port, () => {
         console.log(`[WEB] витрина на http://localhost:${port}`);
-        startFeedSync();
+        if (process.env.FEED_SYNC_DISABLED !== "1") startFeedSync();
       });
     });
 }

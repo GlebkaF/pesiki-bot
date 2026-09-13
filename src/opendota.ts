@@ -202,6 +202,8 @@ export async function fetchRecentMatches(
   try {
     const response = await fetchWithRateLimit(url, `recent matches for ${accountId}`);
     data = await response.json();
+    if (!Array.isArray(data)) throw new Error("Invalid recent matches response");
+    getApmStore().saveResults(accountId, data);
   } catch (error) {
     if (cached) return cached;
     const local = savedRecentMatches(accountId);
