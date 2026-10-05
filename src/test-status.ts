@@ -25,7 +25,7 @@ const formatted = formatStackStatus(roster, summaries, new Map([[1, { heroId: 1,
 assert.match(formatted, /&lt;Dota &amp; player&gt;.*в матче · Anti-Mage · ур. 18 · ⏱ 30:42/);
 assert.match(formatted, /Player 2.*статус матча неизвестен/);
 assert.match(formatted, /Other &lt;game&gt;/);
-assert.match(formatted, /Player 4.*отошёл, игра не запущена/);
+assert.match(formatted, /🟢 Онлайн вне Dota: Player 3 \(Other &lt;game&gt;\), Player 4 \(отошёл\)/);
 assert.ok(!formatted.includes("Player 5"));
 assert.ok(!formatted.includes("Player 6"));
 assert.match(formatStackStatus(roster, new Map()), /никто из стака не виден онлайн/);

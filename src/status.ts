@@ -86,6 +86,7 @@ export function formatStackStatus(
   presence = new Map<number, RichPresence>(),
 ): string {
   const online: string[] = [];
+  const others: string[] = [];
   let inDota = false;
   let hasLive = false;
   for (const member of roster) {
@@ -111,14 +112,15 @@ export function formatStackStatus(
       if (finite(match.gameTime)) parts.push(`⏱ ${clock(match.gameTime)}`);
       online.push(`🎮 <b>${name}</b> — ${parts.join(" · ")}`);
     } else if (player.gameid) {
-      online.push(`🕹 <b>${name}</b> — ${escapeHtml((player.gameextrainfo || "другая игра").slice(0, 80))}`);
+      others.push(`${name} (${escapeHtml((player.gameextrainfo || "другая игра").slice(0, 80))})`);
     } else if (player.personastate > 0) {
       const state = ({ 2: "занят", 3: "отошёл", 4: "нет на месте" } as Record<number, string>)[player.personastate] ?? "онлайн";
-      online.push(`🟢 <b>${name}</b> — ${state}, игра не запущена`);
+      others.push(state === "онлайн" ? name : `${name} (${state})`);
     }
   }
   const lines = ["🐕 <b>Статус стака</b>", "", ...online];
-  if (!online.length) lines.push("Сейчас никто из стака не виден онлайн.");
+  if (!online.length) lines.push(others.length ? "Сейчас никто из стака не в Dota." : "Сейчас никто из стака не виден онлайн.");
+  if (others.length) lines.push("", `🟢 Онлайн вне Dota: ${others.join(", ")}`);
   const missingPresence = [...summaries].some(([id, player]) => isPlayingDota(player) && !presenceText(presence.get(id)));
   if (inDota && missingPresence) lines.push("", liveUnavailable
     ? "Данные матчей сейчас недоступны."
