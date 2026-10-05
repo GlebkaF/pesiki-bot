@@ -129,15 +129,8 @@ export function formatStackStatus(
   return lines.join("\n");
 }
 
-// Coalesce simultaneous chat requests and avoid hammering upstream services.
-let pending: Promise<string> | undefined;
-let cached: { text: string; until: number } | undefined;
-export async function getStackStatus(): Promise<string> {
-  if (!config.steamApiKey) return "Статус недоступен: не настроен Steam API key.";
-  if (cached && cached.until > Date.now()) return cached.text;
-  if (pending) return pending;
-  pending = (async () => {
-    const summaries = await getPlayerSummaries(PLAYERS.map(p => p.steamId), config.steamApiKey);
+/** Use the same Steam snapshot that detected the launch in LFG notifications. */
+export async function getStackStatusFromSummaries(summaries: Map<number, SteamPlayer>): Promise<string> {
     const dotaIds = new Set([...summaries].filter(([, player]) => isPlayingDota(player)).map(([id]) => id));
     let live = new Map<number, LiveStatus>();
     let presence = new Map<number, RichPresence>();
@@ -151,7 +144,19 @@ export async function getStackStatus(): Promise<string> {
         catch { unavailable = true; }
       }
     }
-    const text = formatStackStatus(PLAYERS, summaries, live, unavailable, presence);
+    return formatStackStatus(PLAYERS, summaries, live, unavailable, presence);
+}
+
+// Coalesce simultaneous chat requests and avoid hammering upstream services.
+let pending: Promise<string> | undefined;
+let cached: { text: string; until: number } | undefined;
+export async function getStackStatus(): Promise<string> {
+  if (!config.steamApiKey) return "Статус недоступен: не настроен Steam API key.";
+  if (cached && cached.until > Date.now()) return cached.text;
+  if (pending) return pending;
+  pending = (async () => {
+    const summaries = await getPlayerSummaries(PLAYERS.map(p => p.steamId), config.steamApiKey);
+    const text = await getStackStatusFromSummaries(summaries);
     cached = { text, until: Date.now() + 15_000 };
     return text;
   })();

@@ -4,7 +4,8 @@ import {
   isPlayingDota,
   type SteamPlayer,
 } from "./steam.js";
-import { config, PLAYER_IDS } from "./config.js";
+import { config, PLAYER_IDS, PLAYERS } from "./config.js";
+import { formatStackStatus, getStackStatusFromSummaries } from "./status.js";
 
 // Polling interval: check every 3 minutes
 const POLLING_INTERVAL_MS = 3 * 60 * 1000;
@@ -153,6 +154,11 @@ async function checkPlayersAndNotify(bot: Bot, chatId: string): Promise<void> {
       return;
     }
 
+    // Fetch match details only if a notification is due, once for this poll.
+    let statusPromise: Promise<string> | undefined;
+    const statusForNotification = () => statusPromise ??= getStackStatusFromSummaries(players)
+      .catch(() => formatStackStatus(PLAYERS, players, new Map(), true));
+
     for (const [playerId, player] of players) {
       const isInDota = isPlayingDota(player);
       const wasInDota = wasPlayingDota.get(playerId) ?? false;
@@ -167,7 +173,8 @@ async function checkPlayersAndNotify(bot: Bot, chatId: string): Promise<void> {
         if (!isOnCooldown(playerId)) {
           console.log(`[LFG] Sending notification for ${player.personaname}`);
           try {
-            await bot.api.sendMessage(chatId, formatLfgMessage(player), {
+            const status = await statusForNotification();
+            await bot.api.sendMessage(chatId, `${formatLfgMessage(player)}\n\n${status}`, {
               parse_mode: "HTML",
             });
             recordNotification(playerId);
