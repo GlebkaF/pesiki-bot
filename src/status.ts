@@ -3,6 +3,7 @@ import { HERO_CATALOG } from "./hero-catalog.js";
 import { getAppFetch, getDirectFetch } from "./proxy.js";
 import { getPlayerSummaries, isPlayingDota, type SteamPlayer } from "./steam.js";
 import { escapeHtml } from "./telegram-html.js";
+import { getSteamPresence, presenceText, type RichPresence } from "./steam-presence.js";
 
 interface LiveGame {
   server_steam_id?: string;
@@ -82,6 +83,7 @@ function clock(seconds: number): string {
 export function formatStackStatus(
   roster: readonly Player[], summaries: Map<number, SteamPlayer>, live = new Map<number, LiveStatus>(),
   liveUnavailable = false,
+  presence = new Map<number, RichPresence>(),
 ): string {
   const online: string[] = [];
   const offline: string[] = [];
@@ -94,6 +96,11 @@ export function formatStackStatus(
     if (!player) { unknown.push(name); continue; }
     if (isPlayingDota(player)) {
       inDota = true;
+      const text = presenceText(presence.get(member.steamId));
+      if (text) {
+        online.push(`🎮 <b>${name}</b> — ${escapeHtml(text)}`);
+        continue;
+      }
       const match = live.get(member.steamId);
       if (!match) {
         online.push(`🎮 <b>${name}</b> — Dota 2 запущена; статус матча неизвестен`);
@@ -118,7 +125,8 @@ export function formatStackStatus(
   if (!online.length) lines.push("Сейчас никто из стака не виден онлайн.");
   if (offline.length) lines.push("", `⚫ Не в сети / невидимка: ${offline.join(", ")}`);
   if (unknown.length) lines.push("", `❔ Нет данных: ${unknown.join(", ")}`);
-  if (inDota) lines.push("", liveUnavailable
+  const missingPresence = [...summaries].some(([id, player]) => isPlayingDota(player) && !presenceText(presence.get(id)));
+  if (inDota && missingPresence) lines.push("", liveUnavailable
     ? "Данные матчей сейчас недоступны."
     : "Герой, уровень и таймер — только если доступны. Публичный список охватывает не все матчи.");
   if (hasLive) lines.push("Таймер по последним live-данным, возможна задержка.");
@@ -136,12 +144,18 @@ export async function getStackStatus(): Promise<string> {
     const summaries = await getPlayerSummaries(PLAYERS.map(p => p.steamId), config.steamApiKey);
     const dotaIds = new Set([...summaries].filter(([, player]) => isPlayingDota(player)).map(([id]) => id));
     let live = new Map<number, LiveStatus>();
+    let presence = new Map<number, RichPresence>();
     let unavailable = false;
     if (dotaIds.size) {
-      try { live = await fetchLiveStatuses(dotaIds); }
-      catch { unavailable = true; }
+      try { presence = await getSteamPresence([...dotaIds]); }
+      catch { /* Missing/expired login must not hide Steam Web API statuses. */ }
+      const missing = new Set([...dotaIds].filter(id => !presenceText(presence.get(id))));
+      if (missing.size) {
+        try { live = await fetchLiveStatuses(missing); }
+        catch { unavailable = true; }
+      }
     }
-    const text = formatStackStatus(PLAYERS, summaries, live, unavailable);
+    const text = formatStackStatus(PLAYERS, summaries, live, unavailable, presence);
     cached = { text, until: Date.now() + 15_000 };
     return text;
   })();

@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { config, PLAYERS, type Player } from "./config.js";
 import { formatStackStatus, freshLiveGames, getStackStatus } from "./status.js";
 import { steam32ToSteam64, type SteamPlayer } from "./steam.js";
+import { presenceText, withTimeout } from "./steam-presence.js";
+import { decodePresence } from "./steam-presence-protocol.js";
+import { createRequire } from "node:module";
 
 const roster: Player[] = Array.from({ length: 6 }, (_, index) => ({ steamId: index + 1, dotaName: `Player ${index + 1}` }));
 function summary(id: number, fields: Partial<SteamPlayer> = {}): SteamPlayer {
@@ -32,6 +35,22 @@ for (const [gameTime, expected] of [[0, "0:00"], [-65, "−1:05"], [3661, "61:01
   assert.ok(!result.includes("ур."));
 }
 assert.match(formatStackStatus(roster, summaries, new Map(), true), /Данные матчей сейчас недоступны/);
+const presence = new Map([[1, { richPresence: {}, localizedString: "Играет за Axe (ур. 12) — 20:31 <test>" }]]);
+const richFormatted = formatStackStatus(roster, summaries, new Map([[1, { heroId: 1 }]]), false, presence);
+assert.match(richFormatted, /Играет за Axe \(ур. 12\) — 20:31 &lt;test&gt;/);
+assert.ok(!richFormatted.includes("Anti-Mage"), "direct presence takes precedence over public list");
+assert.equal(presenceText({ richPresence: { status: "В главном меню" }, localizedString: null }), "В главном меню");
+assert.equal(presenceText({ richPresence: { status: "#Unlocalized" }, localizedString: null }), undefined);
+assert.equal(presenceText(undefined), undefined);
+await assert.rejects(withTimeout(new Promise(() => {}), 5), /timeout/);
+assert.equal(await withTimeout(Promise.resolve(123), 5), 123);
+// Wire fixture: a field-3 KV status, which steam-user 5.3.0 previously discarded.
+const schema = createRequire(import.meta.url)("steam-user/protobufs/generated/_load.js");
+const wire = Buffer.from("0a1d0961000010010010011a120a067374617475731208496e2067616d6521", "hex");
+const decoded = schema.CMsgClientRichPresenceInfo.toObject(schema.CMsgClientRichPresenceInfo.decode(wire), { longs: String });
+const users = decodePresence(decoded);
+assert.equal(Object.values(users)[0].richPresence.status, "In game!");
+assert.deepEqual(Object.keys(decodePresence({ rich_presence: [{ steamid_user: "123", rich_presense: [] }] })), []);
 
 const now = Date.now();
 const fresh = { last_update_time: now / 1000, players: [{ account_id: 1 }] };
@@ -46,6 +65,9 @@ assert.throws(() => freshLiveGames({ error: "unavailable" }));
 const originalFetch = globalThis.fetch;
 const originalKey = config.steamApiKey;
 const originalNow = Date.now;
+const originalTokenFile = process.env.STEAM_REFRESH_TOKEN_FILE;
+// Never use a real account during mocked API tests.
+process.env.STEAM_REFRESH_TOKEN_FILE = "/nonexistent/pesiki-test-steam-token";
 let testNow = now;
 Date.now = () => testNow;
 config.steamApiKey = "test-key";
@@ -95,5 +117,7 @@ try {
   globalThis.fetch = originalFetch;
   config.steamApiKey = originalKey;
   Date.now = originalNow;
+  if (originalTokenFile === undefined) delete process.env.STEAM_REFRESH_TOKEN_FILE;
+  else process.env.STEAM_REFRESH_TOKEN_FILE = originalTokenFile;
 }
 console.log("Status tests passed");
