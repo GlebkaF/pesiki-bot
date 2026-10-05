@@ -1,6 +1,7 @@
 import SteamUser from "steam-user";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { randomInt } from "node:crypto";
 import { steam32ToSteam64 } from "./steam.js";
 import { requestCurrentPresence } from "./steam-presence-protocol.js";
 
@@ -44,7 +45,7 @@ async function connect(): Promise<SteamUser> {
         session.once("error", () => reject(new Error("Steam presence login failed")));
       });
       // Never call gamesPlayed or setPersona: this session only reads presence.
-      session.logOn({ refreshToken: token, logonID: 0x50455349, machineName: "Pesiki status" });
+      session.logOn({ refreshToken: token, logonID: randomInt(1, 0x7fffffff), machineName: "Pesiki status" });
       await withTimeout(ready, 15_000);
       console.log("[STEAM PRESENCE] Connected");
       return session;
