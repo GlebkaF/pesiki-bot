@@ -86,14 +86,12 @@ export function formatStackStatus(
   presence = new Map<number, RichPresence>(),
 ): string {
   const online: string[] = [];
-  const offline: string[] = [];
-  const unknown: string[] = [];
   let inDota = false;
   let hasLive = false;
   for (const member of roster) {
     const player = summaries.get(member.steamId);
     const name = escapeHtml((member.displayName || player?.personaname || member.dotaName).slice(0, 80));
-    if (!player) { unknown.push(name); continue; }
+    if (!player) continue;
     if (isPlayingDota(player)) {
       inDota = true;
       const text = presenceText(presence.get(member.steamId));
@@ -117,14 +115,10 @@ export function formatStackStatus(
     } else if (player.personastate > 0) {
       const state = ({ 2: "занят", 3: "отошёл", 4: "нет на месте" } as Record<number, string>)[player.personastate] ?? "онлайн";
       online.push(`🟢 <b>${name}</b> — ${state}, игра не запущена`);
-    } else {
-      offline.push(name);
     }
   }
   const lines = ["🐕 <b>Статус стака</b>", "", ...online];
   if (!online.length) lines.push("Сейчас никто из стака не виден онлайн.");
-  if (offline.length) lines.push("", `⚫ Не в сети / невидимка: ${offline.join(", ")}`);
-  if (unknown.length) lines.push("", `❔ Нет данных: ${unknown.join(", ")}`);
   const missingPresence = [...summaries].some(([id, player]) => isPlayingDota(player) && !presenceText(presence.get(id)));
   if (inDota && missingPresence) lines.push("", liveUnavailable
     ? "Данные матчей сейчас недоступны."

@@ -84,5 +84,5 @@ export function stopSteamPresence(): void {
 export function presenceText(entry: RichPresence | undefined): string | undefined {
   const text = entry?.localizedString?.trim() || entry?.richPresence.status?.trim();
   if (!text || text.startsWith("#")) return undefined;
-  return text.replace(/[\r\n\t]+/g, " ").slice(0, 160);
+  return text.replace(/\{([^{}]+)\}/g, "$1").replace(/[\r\n\t]+/g, " ").slice(0, 160);
 }

@@ -26,8 +26,8 @@ assert.match(formatted, /&lt;Dota &amp; player&gt;.*в матче · Anti-Mage �
 assert.match(formatted, /Player 2.*статус матча неизвестен/);
 assert.match(formatted, /Other &lt;game&gt;/);
 assert.match(formatted, /Player 4.*отошёл, игра не запущена/);
-assert.match(formatted, /Не в сети \/ невидимка: Player 5/);
-assert.match(formatted, /Нет данных: Player 6/);
+assert.ok(!formatted.includes("Player 5"));
+assert.ok(!formatted.includes("Player 6"));
 assert.match(formatStackStatus(roster, new Map()), /никто из стака не виден онлайн/);
 for (const [gameTime, expected] of [[0, "0:00"], [-65, "−1:05"], [3661, "61:01"]] as const) {
   const result = formatStackStatus(roster, summaries, new Map([[1, { gameTime }]]));
