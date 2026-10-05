@@ -118,7 +118,7 @@ export function formatStackStatus(
       others.push(state === "онлайн" ? name : `${name} (${state})`);
     }
   }
-  const lines = ["🐕 <b>Статус стака</b>", "", ...online];
+  const lines = [...online];
   if (!online.length) lines.push(others.length ? "Сейчас никто из стака не в Dota." : "Сейчас никто из стака не виден онлайн.");
   if (others.length) lines.push("", `🟢 Онлайн вне Dota: ${others.join(", ")}`);
   const missingPresence = [...summaries].some(([id, player]) => isPlayingDota(player) && !presenceText(presence.get(id)));
