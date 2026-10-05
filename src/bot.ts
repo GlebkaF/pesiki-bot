@@ -1,5 +1,6 @@
 import { Bot, type CommandContext, type Context } from "grammy";
 import { config } from "./config.js";
+import { getStackStatus } from "./status.js";
 import type { StatsPeriod } from "./stats.js";
 import { analyzeLastMatchCopium, analyzeMatchCopium } from "./analyze-copium.js";
 import { analyzeMatchV2, findLastPartyMatch } from "./analyze-v2.js";
@@ -278,6 +279,18 @@ export function setupCommands(
   fetchStatsHandler: (period: StatsPeriod) => Promise<string>,
   onCommandReceived?: () => void,
 ): void {
+  bot.command("status", async (ctx) => {
+    onCommandReceived?.();
+    let message: string;
+    try {
+      message = await getStackStatus();
+    } catch {
+      console.warn("[STATUS] Failed to fetch Steam statuses");
+      message = "❌ Не удалось получить статусы Steam. Попробуй чуть позже.";
+    }
+    await ctx.reply(message, { parse_mode: "HTML" });
+  });
+
   // Register /stats command (today's stats)
   bot.command("stats", (ctx) =>
     handleStatsCommand(ctx, "today", fetchStatsHandler, onCommandReceived),
@@ -300,6 +313,7 @@ export function setupCommands(
   // Set bot commands menu (optional; 404 can occur with invalid token or custom API)
   bot.api
     .setMyCommands([
+      { command: "status", description: "Кто онлайн и кто сейчас играет" },
       { command: "stats", description: "Get today's Dota 2 stats" },
       { command: "yesterday", description: "Get yesterday's Dota 2 stats" },
       { command: "analyze", description: "🐕 Разбор реплея от Песика" },

@@ -77,7 +77,7 @@ export async function getPlayerSummaries(
   let lastError: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const response = await fetchFn(url);
+      const response = await fetchFn(url, { signal: AbortSignal.timeout(8000) });
 
       // Retry on 502 (proxy/upstream) and 503
       if ((response.status === 502 || response.status === 503) && attempt < maxAttempts) {
