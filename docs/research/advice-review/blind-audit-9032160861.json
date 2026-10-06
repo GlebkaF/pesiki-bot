@@ -1,0 +1,594 @@
+{
+  "scope": "7 dependent windows from one Turbo match; historical engines, not current-version quality",
+  "limits": [
+    "Automated reviewer, not human expert",
+    "Conditional unions are not gold labels",
+    "Non-membership does not prove a bad choice; membership does not prove a good one",
+    "Service return does not prove browser delivery or player benefit",
+    "Recipe absence measures library coverage, not availability after eligibility gates"
+  ],
+  "summary": {
+    "decisions": 28,
+    "generated": 25,
+    "returnedByService": 12,
+    "generatedInConditionalUnion": 17,
+    "reviewerPrefersDeferringMajorChoice": 18,
+    "missingRecipeKeys": [
+      "assault",
+      "basher",
+      "blade_mail",
+      "heavens_halberd",
+      "manta",
+      "rod_of_atos",
+      "spirit_vessel",
+      "ultimate_scepter",
+      "witch_blade"
+    ]
+  },
+  "rows": [
+    {
+      "window": 1,
+      "gameTime": 18,
+      "hero": "Riki",
+      "engine": "bounded-selector-v1/decision-recipes-v1",
+      "generatedItem": "desolator",
+      "returnedByService": true,
+      "returnedState": "ready",
+      "conditionalReviewerAlternatives": [
+        "diffusal_blade",
+        "manta"
+      ],
+      "generatedInConditionalUnion": false,
+      "reviewerPrefersDeferringMajorChoice": true,
+      "absentFromCurrentRecipeLibrary": [
+        "manta"
+      ],
+      "reviewerRationale": "На этом отдельном снимке сначала важнее базовая мобильность/ресурсы; крупные вещи — только условный будущий маршрут, не приказ копить сейчас."
+    },
+    {
+      "window": 1,
+      "gameTime": 18,
+      "hero": "Legion Commander",
+      "engine": "bounded-selector-v1/decision-recipes-v1",
+      "generatedItem": "blink",
+      "returnedByService": true,
+      "returnedState": "ready",
+      "conditionalReviewerAlternatives": [
+        "blink",
+        "blade_mail"
+      ],
+      "generatedInConditionalUnion": true,
+      "reviewerPrefersDeferringMajorChoice": true,
+      "absentFromCurrentRecipeLibrary": [
+        "blade_mail"
+      ],
+      "reviewerRationale": "Мобильность входа и первый боевой предмет — разумные ветки; порядок пока не установлен, базовая линия важнее дорогостоящего фиксированного билда."
+    },
+    {
+      "window": 1,
+      "gameTime": 18,
+      "hero": "Disruptor",
+      "engine": "bounded-selector-v1/decision-recipes-v1",
+      "generatedItem": "force_staff",
+      "returnedByService": true,
+      "returnedState": "ready",
+      "conditionalReviewerAlternatives": [
+        "force_staff",
+        "glimmer_cape",
+        "blink"
+      ],
+      "generatedInConditionalUnion": true,
+      "reviewerPrefersDeferringMajorChoice": true,
+      "absentFromCurrentRecipeLibrary": [],
+      "reviewerRationale": "Разные бюджетные будущие utility ветки приемлемы, но на текущем уровне/экономике сначала мелкие рабочие покупки, а не единственный большой выбор."
+    },
+    {
+      "window": 1,
+      "gameTime": 18,
+      "hero": "Invoker",
+      "engine": "bounded-selector-v1/decision-recipes-v1",
+      "generatedItem": "aether_lens",
+      "returnedByService": true,
+      "returnedState": "ready",
+      "conditionalReviewerAlternatives": [
+        "witch_blade",
+        "orchid",
+        "spirit_vessel"
+      ],
+      "generatedInConditionalUnion": false,
+      "reviewerPrefersDeferringMajorChoice": true,
+      "absentFromCurrentRecipeLibrary": [
+        "spirit_vessel",
+        "witch_blade"
+      ],
+      "reviewerRationale": "Крупные маршруты условны: Witch Blade/Orchid либо активная ветка через Urn к Vessel. Сейчас вместо фиксации дорогой вещи разумнее уточнить намерение и рассмотреть недорогую Urn/базовые покупки. Urn указана отдельной бюджетной альтернативой; ни Vessel, ни другая ветка не обязательны по одной минуте Turbo."
+    },
+    {
+      "window": 2,
+      "gameTime": 116,
+      "hero": "Riki",
+      "engine": "bounded-selector-v1/decision-recipes-v1",
+      "generatedItem": null,
+      "returnedByService": false,
+      "returnedState": "unavailable",
+      "conditionalReviewerAlternatives": [
+        "diffusal_blade",
+        "manta"
+      ],
+      "generatedInConditionalUnion": null,
+      "reviewerPrefersDeferringMajorChoice": true,
+      "absentFromCurrentRecipeLibrary": [
+        "manta"
+      ],
+      "reviewerRationale": "На этом отдельном снимке сначала важнее базовая мобильность/ресурсы; крупные вещи — только условный будущий маршрут, не приказ копить сейчас."
+    },
+    {
+      "window": 2,
+      "gameTime": 116,
+      "hero": "Legion Commander",
+      "engine": "bounded-selector-v1/decision-recipes-v1",
+      "generatedItem": "blink",
+      "returnedByService": false,
+      "returnedState": "unavailable",
+      "conditionalReviewerAlternatives": [
+        "blink",
+        "blade_mail"
+      ],
+      "generatedInConditionalUnion": true,
+      "reviewerPrefersDeferringMajorChoice": true,
+      "absentFromCurrentRecipeLibrary": [
+        "blade_mail"
+      ],
+      "reviewerRationale": "Мобильность входа и первый боевой предмет — разумные ветки; порядок пока не установлен, базовая линия важнее дорогостоящего фиксированного билда."
+    },
+    {
+      "window": 2,
+      "gameTime": 116,
+      "hero": "Disruptor",
+      "engine": "bounded-selector-v1/decision-recipes-v1",
+      "generatedItem": "force_staff",
+      "returnedByService": false,
+      "returnedState": "unavailable",
+      "conditionalReviewerAlternatives": [
+        "force_staff",
+        "glimmer_cape",
+        "blink"
+      ],
+      "generatedInConditionalUnion": true,
+      "reviewerPrefersDeferringMajorChoice": true,
+      "absentFromCurrentRecipeLibrary": [],
+      "reviewerRationale": "Разные бюджетные будущие utility ветки приемлемы, но на текущем уровне/экономике сначала мелкие рабочие покупки, а не единственный большой выбор."
+    },
+    {
+      "window": 2,
+      "gameTime": 116,
+      "hero": "Invoker",
+      "engine": "bounded-selector-v1/decision-recipes-v1",
+      "generatedItem": "aether_lens",
+      "returnedByService": false,
+      "returnedState": "unavailable",
+      "conditionalReviewerAlternatives": [
+        "witch_blade",
+        "orchid",
+        "spirit_vessel"
+      ],
+      "generatedInConditionalUnion": false,
+      "reviewerPrefersDeferringMajorChoice": true,
+      "absentFromCurrentRecipeLibrary": [
+        "spirit_vessel",
+        "witch_blade"
+      ],
+      "reviewerRationale": "Крупные маршруты условны: Witch Blade/Orchid либо активная ветка через Urn к Vessel. Сейчас вместо фиксации дорогой вещи разумнее уточнить намерение и рассмотреть недорогую Urn/базовые покупки. Urn указана отдельной бюджетной альтернативой; ни Vessel, ни другая ветка не обязательны по одной минуте Turbo."
+    },
+    {
+      "window": 3,
+      "gameTime": 234,
+      "hero": "Riki",
+      "engine": "bounded-selector-v1/decision-recipes-v1",
+      "generatedItem": null,
+      "returnedByService": false,
+      "returnedState": "unavailable",
+      "conditionalReviewerAlternatives": [
+        "diffusal_blade",
+        "manta"
+      ],
+      "generatedInConditionalUnion": null,
+      "reviewerPrefersDeferringMajorChoice": true,
+      "absentFromCurrentRecipeLibrary": [
+        "manta"
+      ],
+      "reviewerRationale": "В видимых слотах нет ботинок; при неизвестном курьере сначала проверить базовую мобильность. Diffusal — условный первый боевой план, Manta — альтернативный более дорогой маршрут."
+    },
+    {
+      "window": 3,
+      "gameTime": 234,
+      "hero": "Legion Commander",
+      "engine": "bounded-selector-v1/decision-recipes-v1",
+      "generatedItem": "blink",
+      "returnedByService": false,
+      "returnedState": "unavailable",
+      "conditionalReviewerAlternatives": [
+        "blink",
+        "blade_mail",
+        "black_king_bar"
+      ],
+      "generatedInConditionalUnion": true,
+      "reviewerPrefersDeferringMajorChoice": false,
+      "absentFromCurrentRecipeLibrary": [
+        "blade_mail"
+      ],
+      "reviewerRationale": "На уровне 6 можно планировать первый инструмент реализации: Blink или Blade Mail. BKB — условный вариант при подтвержденной проблеме контроля, не универсальная первая покупка."
+    },
+    {
+      "window": 3,
+      "gameTime": 234,
+      "hero": "Disruptor",
+      "engine": "bounded-selector-v1/decision-recipes-v1",
+      "generatedItem": "guardian_greaves",
+      "returnedByService": false,
+      "returnedState": "unavailable",
+      "conditionalReviewerAlternatives": [
+        "force_staff",
+        "glimmer_cape",
+        "blink"
+      ],
+      "generatedInConditionalUnion": false,
+      "reviewerPrefersDeferringMajorChoice": true,
+      "absentFromCurrentRecipeLibrary": [],
+      "reviewerRationale": "Нераспознанный предмет и неполный инвентарь не позволяют точно посчитать следующую сборку; сначала уточнить текущий план, не выводить роль по net worth."
+    },
+    {
+      "window": 3,
+      "gameTime": 234,
+      "hero": "Invoker",
+      "engine": "bounded-selector-v1/decision-recipes-v1",
+      "generatedItem": null,
+      "returnedByService": false,
+      "returnedState": "unavailable",
+      "conditionalReviewerAlternatives": [
+        "witch_blade",
+        "orchid",
+        "spirit_vessel"
+      ],
+      "generatedInConditionalUnion": null,
+      "reviewerPrefersDeferringMajorChoice": true,
+      "absentFromCurrentRecipeLibrary": [
+        "spirit_vessel",
+        "witch_blade"
+      ],
+      "reviewerRationale": "Крупные маршруты условны: Witch Blade/Orchid либо активная ветка через Urn к Vessel. Сейчас вместо фиксации дорогой вещи разумнее уточнить намерение и рассмотреть недорогую Urn/базовые покупки. Urn указана отдельной бюджетной альтернативой; ни Vessel, ни другая ветка не обязательны по одной минуте Turbo."
+    },
+    {
+      "window": 4,
+      "gameTime": 354,
+      "hero": "Riki",
+      "engine": "bounded-selector-v1/decision-recipes-v1",
+      "generatedItem": "desolator",
+      "returnedByService": false,
+      "returnedState": "unavailable",
+      "conditionalReviewerAlternatives": [
+        "diffusal_blade",
+        "manta",
+        "black_king_bar"
+      ],
+      "generatedInConditionalUnion": false,
+      "reviewerPrefersDeferringMajorChoice": false,
+      "absentFromCurrentRecipeLibrary": [
+        "manta"
+      ],
+      "reviewerRationale": "Базовая мобильность готова. Diffusal — приемлемый первый боевой маршрут; Manta/BKB — альтернативы по задаче защиты/стиля. Не утверждаю, что один полностью закрывает все угрозы драфта."
+    },
+    {
+      "window": 4,
+      "gameTime": 354,
+      "hero": "Legion Commander",
+      "engine": "bounded-selector-v1/decision-recipes-v1",
+      "generatedItem": "blink",
+      "returnedByService": false,
+      "returnedState": "unavailable",
+      "conditionalReviewerAlternatives": [
+        "blink",
+        "blade_mail",
+        "black_king_bar"
+      ],
+      "generatedInConditionalUnion": true,
+      "reviewerPrefersDeferringMajorChoice": true,
+      "absentFromCurrentRecipeLibrary": [
+        "blade_mail"
+      ],
+      "reviewerRationale": "Сначала проверить скрытую для этого снимка собственную покупку: нельзя уверенно навязывать еще Blink/Blade Mail, не зная уже заказанного. Перечень — допустимые неповторные варианты после уточнения."
+    },
+    {
+      "window": 4,
+      "gameTime": 354,
+      "hero": "Disruptor",
+      "engine": "bounded-selector-v1/decision-recipes-v1",
+      "generatedItem": "glimmer_cape",
+      "returnedByService": false,
+      "returnedState": "unavailable",
+      "conditionalReviewerAlternatives": [
+        "force_staff",
+        "glimmer_cape",
+        "blink"
+      ],
+      "generatedInConditionalUnion": true,
+      "reviewerPrefersDeferringMajorChoice": false,
+      "absentFromCurrentRecipeLibrary": [],
+      "reviewerRationale": "Arcane Boots уже есть; можно выбрать один первый utility/positioning предмет. Blink не считать обязательным: его пользу определяет способ входа, а не просто наличие ультимейта."
+    },
+    {
+      "window": 4,
+      "gameTime": 354,
+      "hero": "Invoker",
+      "engine": "bounded-selector-v1/decision-recipes-v1",
+      "generatedItem": "black_king_bar",
+      "returnedByService": false,
+      "returnedState": "unavailable",
+      "conditionalReviewerAlternatives": [
+        "witch_blade",
+        "orchid",
+        "spirit_vessel"
+      ],
+      "generatedInConditionalUnion": false,
+      "reviewerPrefersDeferringMajorChoice": true,
+      "absentFromCurrentRecipeLibrary": [
+        "spirit_vessel",
+        "witch_blade"
+      ],
+      "reviewerRationale": "Возможны три разных маршрута; отсутствие роли/намерения не позволяет честно предпочесть один. Vessel — активная ветка при подходящей игре, не обязательный counter по одному драфту."
+    },
+    {
+      "window": 5,
+      "gameTime": 457,
+      "hero": "Riki",
+      "engine": "bounded-selector-v2/decision-recipes-v2",
+      "generatedItem": "diffusal_blade",
+      "returnedByService": false,
+      "returnedState": "unavailable",
+      "conditionalReviewerAlternatives": [
+        "diffusal_blade",
+        "manta",
+        "black_king_bar"
+      ],
+      "generatedInConditionalUnion": true,
+      "reviewerPrefersDeferringMajorChoice": true,
+      "absentFromCurrentRecipeLibrary": [
+        "manta"
+      ],
+      "reviewerRationale": "Нераспознанный предмет может менять admissible set/стоимость. Нельзя считать его компонентом Diffusal или любого другого предмета по будущим окнам; перечисление условно после проверки владения."
+    },
+    {
+      "window": 5,
+      "gameTime": 457,
+      "hero": "Legion Commander",
+      "engine": "bounded-selector-v2/decision-recipes-v2",
+      "generatedItem": "black_king_bar",
+      "returnedByService": false,
+      "returnedState": "unavailable",
+      "conditionalReviewerAlternatives": [
+        "black_king_bar",
+        "assault",
+        "heavens_halberd"
+      ],
+      "generatedInConditionalUnion": true,
+      "reviewerPrefersDeferringMajorChoice": false,
+      "absentFromCurrentRecipeLibrary": [
+        "assault",
+        "heavens_halberd"
+      ],
+      "reviewerRationale": "Blink+Blade Mail закрывают первый заход; следующий слот сравнивает защиту реализации с физическим/team вкладом. BKB условно впереди при проблеме контроля; остальные допустимы при иной подтвержденной задаче."
+    },
+    {
+      "window": 5,
+      "gameTime": 457,
+      "hero": "Disruptor",
+      "engine": "bounded-selector-v2/decision-recipes-v2",
+      "generatedItem": "force_staff",
+      "returnedByService": false,
+      "returnedState": "unavailable",
+      "conditionalReviewerAlternatives": [
+        "force_staff",
+        "glimmer_cape",
+        "blink"
+      ],
+      "generatedInConditionalUnion": true,
+      "reviewerPrefersDeferringMajorChoice": false,
+      "absentFromCurrentRecipeLibrary": [],
+      "reviewerRationale": "Есть ресурс на продвижение первого рабочего utility предмета, но неизвестный курьер запрещает точную команду что купить сейчас. Приемлемы разные варианты по цели."
+    },
+    {
+      "window": 5,
+      "gameTime": 457,
+      "hero": "Invoker",
+      "engine": "bounded-selector-v2/decision-recipes-v2",
+      "generatedItem": "force_staff",
+      "returnedByService": false,
+      "returnedState": "unavailable",
+      "conditionalReviewerAlternatives": [
+        "witch_blade",
+        "orchid",
+        "black_king_bar",
+        "spirit_vessel"
+      ],
+      "generatedInConditionalUnion": false,
+      "reviewerPrefersDeferringMajorChoice": true,
+      "absentFromCurrentRecipeLibrary": [
+        "spirit_vessel",
+        "witch_blade"
+      ],
+      "reviewerRationale": "Купленная мобильность сама не определяет offensive или spell сборку. Нужен следующий боевой инструмент, но без намерения нельзя автоматически выдавать defense или Vessel."
+    },
+    {
+      "window": 6,
+      "gameTime": 546,
+      "hero": "Riki",
+      "engine": "bounded-selector-v2/decision-recipes-v2",
+      "generatedItem": "black_king_bar",
+      "returnedByService": true,
+      "returnedState": "ready",
+      "conditionalReviewerAlternatives": [
+        "manta",
+        "black_king_bar",
+        "basher",
+        "monkey_king_bar"
+      ],
+      "generatedInConditionalUnion": true,
+      "reviewerPrefersDeferringMajorChoice": false,
+      "absentFromCurrentRecipeLibrary": [
+        "basher",
+        "manta"
+      ],
+      "reviewerRationale": "Первый боевой предмет готов. Допустимы defensive вариант либо развитие нападения. MKB включен условно для задачи надежности атак против соответствующей угрозы, без утверждения о текущих способностях/сборке PA."
+    },
+    {
+      "window": 6,
+      "gameTime": 546,
+      "hero": "Legion Commander",
+      "engine": "bounded-selector-v2/decision-recipes-v2",
+      "generatedItem": "black_king_bar",
+      "returnedByService": true,
+      "returnedState": "ready",
+      "conditionalReviewerAlternatives": [
+        "black_king_bar",
+        "assault",
+        "heavens_halberd"
+      ],
+      "generatedInConditionalUnion": true,
+      "reviewerPrefersDeferringMajorChoice": false,
+      "absentFromCurrentRecipeLibrary": [
+        "assault",
+        "heavens_halberd"
+      ],
+      "reviewerRationale": "Разумный следующий этап после Blink+Blade Mail, но нельзя вывести главную причину неудач из состава врага. BKB не защита от всех угроз; другие варианты имеют условную задачу."
+    },
+    {
+      "window": 6,
+      "gameTime": 546,
+      "hero": "Disruptor",
+      "engine": "bounded-selector-v2/decision-recipes-v2",
+      "generatedItem": "force_staff",
+      "returnedByService": true,
+      "returnedState": "ready",
+      "conditionalReviewerAlternatives": [
+        "force_staff",
+        "glimmer_cape",
+        "aether_lens",
+        "ultimate_scepter"
+      ],
+      "generatedInConditionalUnion": true,
+      "reviewerPrefersDeferringMajorChoice": false,
+      "absentFromCurrentRecipeLibrary": [
+        "ultimate_scepter"
+      ],
+      "reviewerRationale": "Можно дополнять вход более бюджетным utility/дистанцией. Scepter — условная дорогая альтернативная цель только после проверки актуального улучшения/плана, не automatic rush по названию героя."
+    },
+    {
+      "window": 6,
+      "gameTime": 546,
+      "hero": "Invoker",
+      "engine": "bounded-selector-v2/decision-recipes-v2",
+      "generatedItem": "black_king_bar",
+      "returnedByService": true,
+      "returnedState": "ready",
+      "conditionalReviewerAlternatives": [
+        "witch_blade",
+        "orchid",
+        "black_king_bar",
+        "spirit_vessel"
+      ],
+      "generatedInConditionalUnion": true,
+      "reviewerPrefersDeferringMajorChoice": true,
+      "absentFromCurrentRecipeLibrary": [
+        "spirit_vessel",
+        "witch_blade"
+      ],
+      "reviewerRationale": "Не вывожу неизвестный предмет из будущего окна. Нераспознанный ID плюс отсутствие намерения требуют уточнения перед выбором нового маршрута."
+    },
+    {
+      "window": 7,
+      "gameTime": 660,
+      "hero": "Riki",
+      "engine": "bounded-selector-v2/decision-recipes-v2",
+      "generatedItem": "black_king_bar",
+      "returnedByService": true,
+      "returnedState": "ready",
+      "conditionalReviewerAlternatives": [
+        "manta",
+        "black_king_bar",
+        "basher",
+        "monkey_king_bar"
+      ],
+      "generatedInConditionalUnion": true,
+      "reviewerPrefersDeferringMajorChoice": true,
+      "absentFromCurrentRecipeLibrary": [
+        "basher",
+        "manta"
+      ],
+      "reviewerRationale": "Две разные видимые ветки компонентов делают навязывание третьего плана плохим решением. Условный набор не оправдывает отказ от уже начатого без разговора; не достраиваю рецепт по памяти неизвестного патча."
+    },
+    {
+      "window": 7,
+      "gameTime": 660,
+      "hero": "Legion Commander",
+      "engine": "bounded-selector-v2/decision-recipes-v2",
+      "generatedItem": "black_king_bar",
+      "returnedByService": true,
+      "returnedState": "ready",
+      "conditionalReviewerAlternatives": [
+        "black_king_bar",
+        "assault",
+        "heavens_halberd"
+      ],
+      "generatedInConditionalUnion": true,
+      "reviewerPrefersDeferringMajorChoice": false,
+      "absentFromCurrentRecipeLibrary": [
+        "assault",
+        "heavens_halberd"
+      ],
+      "reviewerRationale": "Экономика позволяет существенно продвинуть новый инструмент. BKB для задачи реализации под контролем либо физический/team вариант; не советую копить на buyback без данных о нем."
+    },
+    {
+      "window": 7,
+      "gameTime": 660,
+      "hero": "Disruptor",
+      "engine": "bounded-selector-v2/decision-recipes-v2",
+      "generatedItem": "force_staff",
+      "returnedByService": true,
+      "returnedState": "ready",
+      "conditionalReviewerAlternatives": [
+        "force_staff",
+        "glimmer_cape",
+        "aether_lens",
+        "ultimate_scepter"
+      ],
+      "generatedInConditionalUnion": true,
+      "reviewerPrefersDeferringMajorChoice": false,
+      "absentFromCurrentRecipeLibrary": [
+        "ultimate_scepter"
+      ],
+      "reviewerRationale": "Дешевый полезный компонент к выбранной utility ветке может быть правильнее накопления на дорогой апгрейд; Scepter остается условным планом, а не командой немедленно копить."
+    },
+    {
+      "window": 7,
+      "gameTime": 660,
+      "hero": "Invoker",
+      "engine": "bounded-selector-v2/decision-recipes-v2",
+      "generatedItem": "force_staff",
+      "returnedByService": true,
+      "returnedState": "ready",
+      "conditionalReviewerAlternatives": [
+        "rod_of_atos",
+        "orchid",
+        "black_king_bar",
+        "witch_blade"
+      ],
+      "generatedInConditionalUnion": false,
+      "reviewerPrefersDeferringMajorChoice": true,
+      "absentFromCurrentRecipeLibrary": [
+        "rod_of_atos",
+        "witch_blade"
+      ],
+      "reviewerRationale": "Похоже на начатую сборку, но неизвестный патч/предмет не позволяет утверждать точный recipe. Atos условно приемлем как подтвержденный игроком маршрут контроля; остальные — альтернативы только после выяснения намерения, не приказ бросить сборку."
+    }
+  ]
+}

@@ -12,6 +12,16 @@
       "attributes": ""
     },
     {
+      "id": 3,
+      "key": "broadsword",
+      "name": "Broadsword",
+      "cost": 1000,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 15 Damage"
+    },
+    {
       "id": 4,
       "key": "chainmail",
       "name": "Chainmail",
@@ -52,6 +62,16 @@
       "attributes": "+ 24 Damage"
     },
     {
+      "id": 12,
+      "key": "ring_of_protection",
+      "name": "Ring of Protection",
+      "cost": 175,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 2 Armor"
+    },
+    {
       "id": 17,
       "key": "belt_of_strength",
       "name": "Belt of Strength",
@@ -62,6 +82,16 @@
       "attributes": "+ 6 Strength"
     },
     {
+      "id": 18,
+      "key": "boots_of_elves",
+      "name": "Band of Elvenskin",
+      "cost": 450,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 6 Agility"
+    },
+    {
       "id": 19,
       "key": "robe",
       "name": "Robe of the Magi",
@@ -70,6 +100,16 @@
       "description": "",
       "notes": "",
       "attributes": "+ 6 Intelligence"
+    },
+    {
+      "id": 20,
+      "key": "circlet",
+      "name": "Circlet",
+      "cost": 155,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 2 All Attributes"
     },
     {
       "id": 21,
@@ -112,16 +152,6 @@
       "attributes": "+ 20 Attack Speed"
     },
     {
-      "id": 485,
-      "key": "blitz_knuckles",
-      "name": "Blitz Knuckles",
-      "cost": 1000,
-      "components": [],
-      "description": "",
-      "notes": "",
-      "attributes": "+ 35 Attack Speed"
-    },
-    {
       "id": 27,
       "key": "ring_of_regen",
       "name": "Ring of Regen",
@@ -152,16 +182,6 @@
       "attributes": "+ 45 Movement Speed"
     },
     {
-      "id": 1848,
-      "key": "shawl",
-      "name": "Shawl",
-      "cost": 450,
-      "components": [],
-      "description": "",
-      "notes": "Stacks multiplicatively with other sources of magic resistance.",
-      "attributes": "+ 10% Magic Resistance"
-    },
-    {
       "id": 51,
       "key": "demon_edge",
       "name": "Demon Edge",
@@ -180,16 +200,6 @@
       "description": "",
       "notes": "",
       "attributes": "+ 1.75 Mana Regeneration"
-    },
-    {
-      "id": 1802,
-      "key": "tiara_of_selemene",
-      "name": "Tiara of Selemene",
-      "cost": 1700,
-      "components": [],
-      "description": "",
-      "notes": "",
-      "attributes": "+ 6 Mana Regeneration"
     },
     {
       "id": 58,
@@ -212,24 +222,14 @@
       "attributes": "+ 250 Mana"
     },
     {
-      "id": 593,
-      "key": "fluffy_hat",
-      "name": "Fluffy Hat",
-      "cost": 250,
+      "id": 61,
+      "key": "vitality_booster",
+      "name": "Vitality Booster",
+      "cost": 1000,
       "components": [],
       "description": "",
       "notes": "",
-      "attributes": "+ 125 Health"
-    },
-    {
-      "id": 1849,
-      "key": "wizard_hat",
-      "name": "Wizard Hat",
-      "cost": 250,
-      "components": [],
-      "description": "",
-      "notes": "",
-      "attributes": "+ 125 Mana"
+      "attributes": "+ 250 Health"
     },
     {
       "id": 67,
@@ -289,6 +289,21 @@
       "description": "Basilius Aura: Grants 1 mana regeneration to allies. Radius: 1200",
       "notes": "",
       "attributes": "+ 0.25 Mana Regeneration"
+    },
+    {
+      "id": 92,
+      "key": "urn_of_shadows",
+      "name": "Urn of Shadows",
+      "cost": 825,
+      "components": [
+        "sobi_mask",
+        "ring_of_protection",
+        "circlet",
+        ""
+      ],
+      "description": "Soul Release: Provides 30 health regeneration when cast on allies, and deals 25 damage per second when cast on enemies. Lasts 8 seconds. Gains charges every time an enemy hero dies within 1500 units.",
+      "notes": "Empty urns gain 2 charges. If the allied unit is attacked by an enemy hero or Roshan, the effect is lost. Does not trigger spell block or spell reflect.",
+      "attributes": "+ 1.0 Mana Regeneration; + 2 All Attributes; + 2 Armor"
     },
     {
       "id": 93,
@@ -359,29 +374,6 @@
       "attributes": "+ 35 Attack Speed; + 20 Damage; + 2.5 Mana Regeneration; + 12 Intelligence"
     },
     {
-      "id": 233,
-      "key": "recipe_aether_lens",
-      "name": "Aether Lens Recipe",
-      "cost": 775,
-      "components": [],
-      "description": "",
-      "notes": "",
-      "attributes": ""
-    },
-    {
-      "id": 232,
-      "key": "aether_lens",
-      "name": "Aether Lens",
-      "cost": 2275,
-      "components": [
-        "energy_booster",
-        "void_stone"
-      ],
-      "description": "",
-      "notes": "Cast Range bonuses from Aether Lens and Dagon do not stack.",
-      "attributes": "+ 300 Mana; + 2.5 Mana Regeneration; + 225 Cast Range"
-    },
-    {
       "id": 101,
       "key": "recipe_force_staff",
       "name": "Force Staff Recipe",
@@ -405,29 +397,6 @@
       "attributes": "+ 10 Intelligence; + 175 Health"
     },
     {
-      "id": 262,
-      "key": "recipe_hurricane_pike",
-      "name": "Hurricane Pike Recipe",
-      "cost": 350,
-      "components": [],
-      "description": "",
-      "notes": "",
-      "attributes": ""
-    },
-    {
-      "id": 263,
-      "key": "hurricane_pike",
-      "name": "Hurricane Pike",
-      "cost": 4550,
-      "components": [
-        "force_staff",
-        "dragon_lance"
-      ],
-      "description": "Hurricane Thrust: Pushes you and target enemy 425 units away from each other, and for 5 seconds, allows you to make 5 attacks against the target without range restrictions and with +100 attack speed. Can be cast on self or allies to push the target 600 units in the direction it is facing. Enemy Range: 425",
-      "notes": "Self-cast will use Hurricane Pike on yourself. Hurricane Pike doesn't interrupt the target's actions. Will not work on a unit inside Chronosphere, Duel, or Black Hole. Attack Range bonuses from Monkey King Bar and Dragon Lance and its upgrades do not stack.",
-      "attributes": "+ 15 Intelligence; + 200 Health; + 20 Agility; + 15 Strength; + 130 Attack Range (Ranged Only)"
-    },
-    {
       "id": 115,
       "key": "recipe_black_king_bar",
       "name": "Black King Bar Recipe",
@@ -449,6 +418,19 @@
       "description": "Avatar: Applies a basic dispel. Grants 60% magic resistance and immunity to reflected and pure damage. For the duration of the effect, any negative effect from enemy spells has no effect. Duration: 9s Dispel Type: Basic Dispel",
       "notes": "Purchasing another Black King Bar will not reset its immunity duration. Avatar duration is not affected by increases to buff duration.",
       "attributes": "+ 10 Strength; + 24 Damage"
+    },
+    {
+      "id": 127,
+      "key": "blade_mail",
+      "name": "Blade Mail",
+      "cost": 2400,
+      "components": [
+        "broadsword",
+        "splintmail"
+      ],
+      "description": "Damage Return: For 5.5 seconds, return all incoming damage, increasing the percentage by 85%.\nDamage Return: Everytime you are attacked, you return 10 damage plus 15% of the attack damage dealt to you.",
+      "notes": "Damage Return is calculated before any kind of reduction. Returned damage type is the same as it was received. Damage done by this item is considered reflected damage. Reflected damage does not provide any lifesteal and cannot be reflected.",
+      "attributes": "+ 15 Damage; + 7 Armor"
     },
     {
       "id": 134,
@@ -475,27 +457,17 @@
       "attributes": "+ 50 Damage; + 50 Attack Speed; + 50 Attack Range (Melee Only)"
     },
     {
-      "id": 234,
-      "key": "recipe_dragon_lance",
-      "name": "Dragon Lance Recipe",
-      "cost": 550,
-      "components": [],
-      "description": "",
-      "notes": "",
-      "attributes": ""
-    },
-    {
-      "id": 236,
-      "key": "dragon_lance",
-      "name": "Dragon Lance",
-      "cost": 2000,
+      "id": 147,
+      "key": "manta",
+      "name": "Manta Style",
+      "cost": 4650,
       "components": [
-        "blade_of_alacrity",
-        "belt_of_strength"
+        "yasha",
+        "diadem"
       ],
-      "description": "",
-      "notes": "Attack Range bonuses from Monkey King Bar and Dragon Lance and its upgrades do not stack.",
-      "attributes": "+ 15 Agility; + 10 Strength; + 130 Attack Range (Ranged Only)"
+      "description": "Mirror Image: Creates 2 images of your hero that last 18 seconds. Melee images deal 33% damage, while Ranged images deal 25%. Illusions take 300% damage. Dispel Type: Basic Dispel",
+      "notes": "Has a 0.1 second cast time during which you are invulnerable. Many effects are removed upon using Manta. Yasha based movement speed bonuses from multiple items do not stack.",
+      "attributes": "+ 10 Strength; + 26 Agility; + 10 Intelligence; + 15 Attack Speed; + 10% Movement Speed"
     },
     {
       "id": 166,
@@ -524,6 +496,19 @@
       "description": "Corruption: Your attacks reduce the target's armor by -6 for 7 seconds.\nSoul Stealer: Desolator gains +2 damage every time an enemy hero dies while affected by Corruption, to a maximum of 30.",
       "notes": "Armor reduction works on buildings.",
       "attributes": "+ 55 Damage"
+    },
+    {
+      "id": 170,
+      "key": "yasha",
+      "name": "Yasha",
+      "cost": 2100,
+      "components": [
+        "blade_of_alacrity",
+        "boots_of_elves"
+      ],
+      "description": "",
+      "notes": "Yasha-based movement speed bonuses from multiple items do not stack.",
+      "attributes": "+ 16 Agility; + 15 Attack Speed; + 10% Movement Speed"
     },
     {
       "id": 173,
@@ -573,14 +558,37 @@
       "attributes": "+ 45 Movement Speed; + 0.25 Mana Regeneration; + 125 Mana"
     },
     {
-      "id": 240,
-      "key": "blight_stone",
-      "name": "Orb of Blight",
-      "cost": 300,
+      "id": 181,
+      "key": "orb_of_venom",
+      "name": "Orb of Venom",
+      "cost": 350,
       "components": [],
-      "description": "Lesser Corruption: Your attacks reduce the target's armor by -2 for 3 seconds.",
-      "notes": "Does not stack with its upgrades, Desolator, or Stygian Desolator.",
+      "description": "Poison Attack: Poisons the target, dealing 12 magical damage per second. Lasts for 3 seconds.",
+      "notes": "Does not stack with its upgrades.",
       "attributes": ""
+    },
+    {
+      "id": 206,
+      "key": "rod_of_atos",
+      "name": "Rod of Atos",
+      "cost": 2250,
+      "components": [
+        "staff_of_wizardry",
+        "vitality_booster"
+      ],
+      "description": "Cripple: Roots the target for 2 seconds.",
+      "notes": "",
+      "attributes": "+ 12 Intelligence; + 275 Health"
+    },
+    {
+      "id": 215,
+      "key": "shadow_amulet",
+      "name": "Shadow Amulet",
+      "cost": 900,
+      "components": [],
+      "description": "Fade: Grants invisibility to you or a target allied hero for 3.5s. Movement speed during the invisibility is reduced by 35%.",
+      "notes": "Takes 1.25s of the 3.5s for the hero to fully fade into invisibility.",
+      "attributes": "FADE TIME: 1.25"
     },
     {
       "id": 230,
@@ -606,14 +614,60 @@
       "attributes": "+ 50 Movement Speed; + 5 Armor; + 150 Mana; + 1.0 Mana Regeneration"
     },
     {
-      "id": 215,
-      "key": "shadow_amulet",
-      "name": "Shadow Amulet",
-      "cost": 900,
+      "id": 232,
+      "key": "aether_lens",
+      "name": "Aether Lens",
+      "cost": 2275,
+      "components": [
+        "energy_booster",
+        "void_stone"
+      ],
+      "description": "",
+      "notes": "Cast Range bonuses from Aether Lens and Dagon do not stack.",
+      "attributes": "+ 300 Mana; + 2.5 Mana Regeneration; + 225 Cast Range"
+    },
+    {
+      "id": 233,
+      "key": "recipe_aether_lens",
+      "name": "Aether Lens Recipe",
+      "cost": 775,
       "components": [],
-      "description": "Fade: Grants invisibility to you or a target allied hero for 3.5s. Movement speed during the invisibility is reduced by 35%.",
-      "notes": "Takes 1.25s of the 3.5s for the hero to fully fade into invisibility.",
-      "attributes": "FADE TIME: 1.25"
+      "description": "",
+      "notes": "",
+      "attributes": ""
+    },
+    {
+      "id": 234,
+      "key": "recipe_dragon_lance",
+      "name": "Dragon Lance Recipe",
+      "cost": 550,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": ""
+    },
+    {
+      "id": 236,
+      "key": "dragon_lance",
+      "name": "Dragon Lance",
+      "cost": 2000,
+      "components": [
+        "blade_of_alacrity",
+        "belt_of_strength"
+      ],
+      "description": "",
+      "notes": "Attack Range bonuses from Monkey King Bar and Dragon Lance and its upgrades do not stack.",
+      "attributes": "+ 15 Agility; + 10 Strength; + 130 Attack Range (Ranged Only)"
+    },
+    {
+      "id": 240,
+      "key": "blight_stone",
+      "name": "Orb of Blight",
+      "cost": 300,
+      "components": [],
+      "description": "Lesser Corruption: Your attacks reduce the target's armor by -2 for 3 seconds.",
+      "notes": "Does not stack with its upgrades, Desolator, or Stygian Desolator.",
+      "attributes": ""
     },
     {
       "id": 253,
@@ -637,6 +691,126 @@
       "description": "Glimmer: After a 0.5 second delay, grants invisibility, 20 movement speed and a magic damage barrier that absorbs up to 375 damage to you or a target allied unit for 5 seconds. Can be cast while channeling.",
       "notes": "",
       "attributes": "+ 20% Magic Resistance"
+    },
+    {
+      "id": 262,
+      "key": "recipe_hurricane_pike",
+      "name": "Hurricane Pike Recipe",
+      "cost": 350,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": ""
+    },
+    {
+      "id": 263,
+      "key": "hurricane_pike",
+      "name": "Hurricane Pike",
+      "cost": 4550,
+      "components": [
+        "force_staff",
+        "dragon_lance"
+      ],
+      "description": "Hurricane Thrust: Pushes you and target enemy 425 units away from each other, and for 5 seconds, allows you to make 5 attacks against the target without range restrictions and with +100 attack speed. Can be cast on self or allies to push the target 600 units in the direction it is facing. Enemy Range: 425",
+      "notes": "Self-cast will use Hurricane Pike on yourself. Hurricane Pike doesn't interrupt the target's actions. Will not work on a unit inside Chronosphere, Duel, or Black Hole. Attack Range bonuses from Monkey King Bar and Dragon Lance and its upgrades do not stack.",
+      "attributes": "+ 15 Intelligence; + 200 Health; + 20 Agility; + 15 Strength; + 130 Attack Range (Ranged Only)"
+    },
+    {
+      "id": 267,
+      "key": "spirit_vessel",
+      "name": "Spirit Vessel",
+      "cost": 2725,
+      "components": [
+        "urn_of_shadows",
+        "diadem"
+      ],
+      "description": "Soul Release: When used against enemies, it reduces health by 4% of current health per second, and reduces Health Restoration by 70%. Deals 25 damage per second. When used on allies, it provides 40 health regeneration per second. Lasts 8 seconds. Gains charges every time an enemy hero dies within 1500 units or the user dies.",
+      "notes": "Empty vessels gain 2 charges. Only the closest Spirit Vessel to the dying hero will gain a charge. If the allied unit is attacked by an enemy hero or Roshan, the effect is lost. Does not trigger spell block or spell reflect.",
+      "attributes": "+ 1.75 Mana Regeneration; + 10 All Attributes; + 2 Armor"
+    },
+    {
+      "id": 485,
+      "key": "blitz_knuckles",
+      "name": "Blitz Knuckles",
+      "cost": 1000,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 35 Attack Speed"
+    },
+    {
+      "id": 534,
+      "key": "witch_blade",
+      "name": "Witch Blade",
+      "cost": 2775,
+      "components": [
+        "oblivion_staff",
+        "chainmail",
+        "orb_of_venom"
+      ],
+      "description": "Witch Blade: Causes your next attack to apply a poison for 4 seconds, slowing by 25% and dealing 0.75x your intelligence as damage every second. This attack has True Strike.",
+      "notes": "",
+      "attributes": "+ 40 Attack Speed; + 12 Intelligence; + 1.5 Mana Regeneration; + 5 Armor; + 300 Projectile Speed"
+    },
+    {
+      "id": 593,
+      "key": "fluffy_hat",
+      "name": "Fluffy Hat",
+      "cost": 250,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 125 Health"
+    },
+    {
+      "id": 1122,
+      "key": "diadem",
+      "name": "Diadem",
+      "cost": 1000,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 6 All Attributes"
+    },
+    {
+      "id": 1802,
+      "key": "tiara_of_selemene",
+      "name": "Tiara of Selemene",
+      "cost": 1700,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 6 Mana Regeneration"
+    },
+    {
+      "id": 1847,
+      "key": "splintmail",
+      "name": "Splintmail",
+      "cost": 950,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 7 Armor"
+    },
+    {
+      "id": 1848,
+      "key": "shawl",
+      "name": "Shawl",
+      "cost": 450,
+      "components": [],
+      "description": "",
+      "notes": "Stacks multiplicatively with other sources of magic resistance.",
+      "attributes": "+ 10% Magic Resistance"
+    },
+    {
+      "id": 1849,
+      "key": "wizard_hat",
+      "name": "Wizard Hat",
+      "cost": 250,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 125 Mana"
     }
   ]
 }

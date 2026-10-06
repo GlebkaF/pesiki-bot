@@ -15,7 +15,7 @@ const context=buildAdviceContext(match,knowledge,new Map([[35,{heroId:35,counts:
 const noPrior=buildAdviceContext(match,knowledge,new Map(),now);
 assert.ok(!playerOptions(noPrior,noPrior.players[0]).some(o=>o.id==='aether_lens-v1'),'range is not a generic spellcaster default');
 const options=playerOptions(context,context.players[0]);
-assert.equal(options.length,13,'all supported recipes with eligibility evidence survive candidate selection');
+assert.equal(options.length,18,'all supported recipes with eligibility evidence survive candidate selection');
 const choice={players:[{account:1,optionId:'guardian_greaves-v1',alternativeId:'desolator-v1',matchupIds:[]}]};
 const good=validateAdvice(choice,context);
 assert.ok(good.players[0].reason.includes('только владельцу'));
@@ -50,4 +50,16 @@ const invoker=natural.players.find((p:{hero:string})=>p.hero==='Invoker');
 const riki=natural.players.find((p:{hero:string})=>p.hero==='Riki');
 assert.ok(!playerOptions(natural,invoker).some(o=>o.id==='aether_lens-v1'),'real early Invoker case has no range-plan evidence');
 assert.ok(playerOptions(natural,riki).some(o=>o.id==='diffusal_blade-v1'),'real Riki case must retain the supported Diffusal candidate');
-console.log('Recipe boundary: 13 source-bound scenarios; free-text mutations, wrong actors/options, source drift, explicit abstention passed. Selection utility remains unevaluated.');
+console.log('Recipe boundary: 18 source-bound scenarios; free-text mutations, wrong actors/options, source drift, explicit abstention passed. Selection utility remains unevaluated.');
+
+for(const [hero,keys] of [['Riki',['manta']],['Legion Commander',['blade_mail']],['Invoker',['witch_blade','spirit_vessel','rod_of_atos']]] as const){
+ const player=natural.players.find((p:{hero:string})=>p.hero===hero);
+ for(const key of keys)assert.ok(playerOptions(natural,player).some(o=>o.id===key+'-v1'),`${hero} can compare ${key} in recorded input`);
+}
+for(const key of ['manta','blade_mail','witch_blade','spirit_vessel','rod_of_atos']){
+ const owned=structuredClone(match);owned.teams[0].players[0].items=[knowledge.items.find(i=>i.key===key)!.id];
+ const ctx=buildAdviceContext(owned,knowledge,new Map(),now);
+ assert.ok(!playerOptions(ctx,ctx.players[0]).some(o=>o.id===key+'-v1'),`owned ${key} must not be offered again`);
+ const changed={...context,players:context.players.map(p=>({...p,candidates:p.candidates.map(c=>c.key===key?{...c,description:'changed mechanics'}:c)}))};
+ assert.ok(!playerOptions(changed,changed.players[0]).some(o=>o.id===key+'-v1'));
+}

@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 import {KNOWLEDGE_REVISION,type AdviceItem} from './advice-sources.js';
 import type {AdviceContext,AdvicePlayerContext} from './advice-context.js';
 
-export const RECIPE_REVISION='decision-recipes-v2';
+export const RECIPE_REVISION='decision-recipes-v3';
 export interface AdviceRecipe {id:string;key:string;goal:string;reason:string;sourceHash:string;}
 // Source-bound general plans, not verified current-patch counter matchups.
 // Source changes disable the affected recipe until its claims are reviewed.
@@ -98,7 +98,42 @@ export const ADVICE_RECIPES:readonly AdviceRecipe[]=[
     "goal": "Удерживать цель для атак и выжигать ману",
     "reason": "Если план — держаться рядом с целью и атаковать, Diffusal даёт активное замедление и выжигание маны атаками. Это давление вместо защиты; иллюзии ману не выжигают. Возможность бить цель всё равно нужна.",
     "sourceHash": "5c733e650a61072687eb0eb5d83c7b3961631ca8d73437d6e8a43986dd79a9ca"
-  }
+  },
+  {
+  "id": "manta-v1",
+  "key": "manta",
+  "goal": "Получить базовое развеивание и иллюзии",
+  "reason": "Если нужен базовый диспел вместе с иллюзиями, Manta совмещает эти задачи. Это вариант для плана через атаки и иллюзии; по одному вражескому герою нельзя считать её ответом на любой контроль.",
+  "sourceHash": "3eea057d54fc371a358cd3af5396d7276fc6a6e03d94ad1cb2a0a3b573ade5ce"
+},
+  {
+  "id": "blade_mail-v1",
+  "key": "blade_mail",
+  "goal": "Возвращать урон во время размена",
+  "reason": "Если план предполагает принимать урон в размене, Blade Mail возвращает урон и усиливает возврат при активации. Это инструмент размена, а не защита, отменяющая входящий урон; доступ к цели всё ещё нужен.",
+  "sourceHash": "03aed24210c39faac784a0f5d48ac53cf366a9213ed8cb3af7085942447a106b"
+},
+  {
+  "id": "witch_blade-v1",
+  "key": "witch_blade",
+  "goal": "Усилить атаки замедляющим ядом",
+  "reason": "Если можешь регулярно атаковать между заклинаниями, Witch Blade добавляет яд с замедлением и уроном от интеллекта. Это усиление атак вместо защитного предмета; для плана без доступа к атакам ценность ниже.",
+  "sourceHash": "576aeb9ca3a2487aeaed438aa0f07298661972848b3af7171671e74a6133e166"
+},
+  {
+  "id": "spirit_vessel-v1",
+  "key": "spirit_vessel",
+  "goal": "Снижать восстановление здоровья цели",
+  "reason": "Если задача — ограничивать восстановление здоровья, Vessel даёт такой эффект на вражеской цели. Ему нужны заряды; без них активное давление недоступно. Сравни с защитой и контролем, если восстановление врага не основная проблема.",
+  "sourceHash": "6797e74a68b39e56e1f7a1bc7a7de70effb2048cb37b4b377209ec15606c19cd"
+},
+  {
+  "id": "rod_of_atos-v1",
+  "key": "rod_of_atos",
+  "goal": "Удерживать цель на месте",
+  "reason": "Если нужно удержать цель на месте для продолжения атаки, Atos даёт активное опутывание. Это вариант контроля перемещения вместо увеличения урона; возможность применить эффект к конкретной цели нужно оценивать отдельно.",
+  "sourceHash": "0c879ebbbeb2b3834376bd8e3f6bb53c0cc45ad23e401d5b14a191b61e202e0e"
+}
 ];
 export const RECIPE_ITEM_KEYS=new Set(ADVICE_RECIPES.map(r=>r.key));
 export function mechanicsHash(item:AdviceItem):string {
