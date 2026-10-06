@@ -48,7 +48,9 @@ async function refresh(retryCompleted=true):Promise<LiveMatch|null>{
    url.searchParams.set('key',config.steamApiKey);url.searchParams.set('server_steam_id',game.server_steam_id);
    const response=await fetch(url,{signal:AbortSignal.timeout(8000)});
    if(response.ok)details=await response.json();
-  }catch{/* Keep the current DotaTV discovery snapshot without inventing levels. */}
+   const result=details as {match?:{match_id?:unknown};teams?:unknown[]}|undefined;
+   if(!response.ok||String(result?.match?.match_id)!==game.match_id||!result?.teams?.length)console.warn('[LIVE MATCH] Details unavailable',JSON.stringify({match:game.match_id,server:game.server_steam_id,http:response.status,keys:details&&typeof details==='object'?Object.keys(details):[],responseMatch:result?.match?.match_id,teams:result?.teams?.length}));
+  }catch{console.warn('[LIVE MATCH] Details request failed',JSON.stringify({match:game.match_id,server:game.server_steam_id}));}
  }
  const snapshot=liveSnapshot(game,count,details);
  if(!snapshot){completed.add(game.match_id!);if(completed.size>100)completed.delete(completed.values().next().value!);preferredLobby=undefined;if(retryCompleted)return refresh(false);}
