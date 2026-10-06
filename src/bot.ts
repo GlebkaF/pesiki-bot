@@ -1,3 +1,4 @@
+import {replyCurrentMatch} from './current-match-command.js';
 import { Bot, type CommandContext, type Context } from "grammy";
 import { config } from "./config.js";
 import { getStackStatus } from "./status.js";
@@ -279,6 +280,11 @@ export function setupCommands(
   fetchStatsHandler: (period: StatsPeriod) => Promise<string>,
   onCommandReceived?: () => void,
 ): void {
+  bot.command("current_match", async (ctx) => {
+    onCommandReceived?.();
+    await replyCurrentMatch(ctx);
+  });
+
   bot.command("status", async (ctx) => {
     onCommandReceived?.();
     let message: string;
@@ -313,6 +319,7 @@ export function setupCommands(
   // Set bot commands menu (optional; 404 can occur with invalid token or custom API)
   bot.api
     .setMyCommands([
+      { command: "current_match", description: "Текущий матч: счёт, герои и статистика" },
       { command: "status", description: "Кто онлайн и кто сейчас играет" },
       { command: "stats", description: "Get today's Dota 2 stats" },
       { command: "yesterday", description: "Get yesterday's Dota 2 stats" },
