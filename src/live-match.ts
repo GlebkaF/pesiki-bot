@@ -1,3 +1,4 @@
+import {fetchRealtimeDetails,preferDetailedSnapshot} from './live-match-details.js';
 import {config,PLAYERS,PLAYER_IDS} from './config.js';
 import {getSteamPresence} from './steam-presence.js';
 import {findObserverGames,type TVGame} from './dota-observer.js';
@@ -41,18 +42,8 @@ async function refresh(retryCompleted=true):Promise<LiveMatch|null>{
  if(!selected)return null;
  const {game,count}=selected;
  preferredLobby=game.lobby_id;
- let details:unknown;
- if(config.steamApiKey&&game.server_steam_id){
-  try{
-   const url=new URL('https://api.steampowered.com/IDOTA2MatchStats_570/GetRealtimeStats/v1/');
-   url.searchParams.set('key',config.steamApiKey);url.searchParams.set('server_steam_id',game.server_steam_id);
-   const response=await fetch(url,{signal:AbortSignal.timeout(8000)});
-   if(response.ok)details=await response.json();
-   const result=details as {match?:{match_id?:unknown};teams?:unknown[]}|undefined;
-   if(!response.ok||String(result?.match?.match_id)!==game.match_id||!result?.teams?.length)console.warn('[LIVE MATCH] Details unavailable',JSON.stringify({match:game.match_id,server:game.server_steam_id,http:response.status,keys:details&&typeof details==='object'?Object.keys(details):[],responseMatch:result?.match?.match_id,teams:result?.teams?.length}));
-  }catch{console.warn('[LIVE MATCH] Details request failed',JSON.stringify({match:game.match_id,server:game.server_steam_id}));}
- }
- const snapshot=liveSnapshot(game,count,details);
+ const details=config.steamApiKey&&game.server_steam_id?await fetchRealtimeDetails(game.server_steam_id,game.match_id!,config.steamApiKey):undefined;
+ const snapshot=preferDetailedSnapshot(liveSnapshot(game,count,details),cached);
  if(!snapshot){completed.add(game.match_id!);if(completed.size>100)completed.delete(completed.values().next().value!);preferredLobby=undefined;if(retryCompleted)return refresh(false);}
  return snapshot;
 }

@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {fetchRealtimeDetails,preferDetailedSnapshot} from './live-match-details.js';
+import type {LiveMatch} from './live-match.js';
+const body={match:{match_id:'123'},teams:[{},{}]};
+let calls=0;const pauses:number[]=[];
+const result=await fetchRealtimeDetails('90294212592739349','123','test-key',async()=>{calls++;return calls===1?new Response('',{status:400}):Response.json(body);},async ms=>{pauses.push(ms);});
+assert.deepEqual(result,body);assert.equal(calls,2);assert.deepEqual(pauses,[750]);
+calls=0;await fetchRealtimeDetails('1','123','test-key',async()=>{calls++;return new Response('',{status:403});},async()=>{});assert.equal(calls,1);
+calls=0;assert.equal(await fetchRealtimeDetails('1','123','test-key',async()=>{calls++;return Response.json({...body,match:{match_id:'wrong'}});},async()=>{}),undefined);assert.equal(calls,3);
+calls=0;assert.deepEqual(await fetchRealtimeDetails('1','123','test-key',async()=>{calls++;if(calls===1)throw new Error('secret');return Response.json(body);},async()=>{}),body);
+const old={matchId:'123',detailed:true,updatedAt:1000,kind:'stack',stackCount:2,time:30,history:[],buildings:[],teams:[]} as LiveMatch;
+const partial={...old,detailed:false,updatedAt:2000,time:60};
+assert.equal(preferDetailedSnapshot(partial,old,3000)?.updatedAt,1000);assert.equal(preferDetailedSnapshot(partial,old,3000)?.time,30);
+assert.equal(preferDetailedSnapshot(partial,old,91000),partial);assert.equal(preferDetailedSnapshot({...partial,matchId:'456'},old,3000)?.matchId,'456');assert.equal(preferDetailedSnapshot(null,old,3000),null);
+console.log('Realtime details: transient 400 recovery, bounded retry, auth failure, mismatched match, network failure, consistent fresh snapshot and expiry passed.');
