@@ -8,6 +8,7 @@ import {validateAdvice} from './advice-model.js';
 import {LiveAdviceService,adviceFingerprint} from './live-advice.js';
 import type {LiveMatch,LivePlayer} from './live-match.js';
 import {adviceText,replyAdvice} from './advice-command.js';
+import {AdviceJournal,type AdviceJournalEvent} from './advice-journal.js';
 import {renderLiveAdvice} from './web/live-advice-render.js';
 
 const item=(id:number,key:string,cost:number,components:string[]=[]):AdviceItem=>({id,key,name:key,cost,components,description:'Fixture mechanics',notes:'',attributes:''});
@@ -123,6 +124,32 @@ for(const change of ['purchase','new-match','no-match','hidden-only'] as const){
  const state=await pending;
  assert.equal(state.status,change==='hidden-only'?'ready':'unavailable',change);
 }
+const journalDir=await mkdtemp(path.join(os.tmpdir(),'pesiki-advice-journal-'));
+try{
+ const journal=new AdviceJournal(journalDir);
+ const events:AdviceJournalEvent[]=[];
+ const sink={record:async(event:AdviceJournalEvent)=>{events.push(event);await journal.record(event);}};
+ const audited=new LiveAdviceService(source,async()=>output,()=>now,null,sink);
+ assert.equal((await audited.get(match)).status,'ready');
+ assert.deepEqual(events.map(e=>e.kind),['opportunity','prepared','generated','returned']);
+ const prepared=events.find(e=>e.kind==='prepared')!;
+ assert.deepEqual((prepared.data as {context:unknown}).context,buildAdviceContext(match,knowledge,new Map([[31,popularity]]),now));
+ assert.equal(new Set(events.map(e=>e.decisionId)).size,1);
+ const file=path.join(journalDir,new Date(now).toISOString().slice(0,10)+'.jsonl');
+ assert.deepEqual((await readFile(file,'utf8')).trim().split('\n').map(line=>JSON.parse(line)),events);
+ await audited.get({...hiddenChanged,updatedAt:now});
+ assert.equal(events.length,4,'polling and hidden-only changes do not create opportunities');
+ const failedEvents:AdviceJournalEvent[]=[];
+ const failing=new LiveAdviceService(source,async()=>{throw Error('secret-provider-error');},()=>now,null,{record:async(e)=>{failedEvents.push(e);}});
+ assert.equal((await failing.get(match)).status,'unavailable');
+ assert.ok(failedEvents.some(e=>e.kind==='rejected'&&(e.data as {stage:string}).stage==='model'));
+ assert.ok(!JSON.stringify(failedEvents).includes('secret-provider-error'));
+ const brokenSink=new LiveAdviceService(source,async()=>output,()=>now,null,{record:async()=>{throw Error('disk full');}});
+ assert.equal((await brokenSink.get(match)).status,'ready','journal failures do not break advice');
+ // Concurrent appends remain whole JSON lines and preserve submission order.
+ await Promise.all([0,1,2].map(i=>journal.record({...events[0],decisionId:String(i)})));
+ assert.deepEqual((await readFile(file,'utf8')).trim().split('\n').slice(-3).map(line=>JSON.parse(line).decisionId),['0','1','2']);
+}finally{await rm(journalDir,{recursive:true,force:true});}
 const budgetDir=await mkdtemp(path.join(os.tmpdir(),'pesiki-advice-budget-'));
 try{
  match.updatedAt=now;

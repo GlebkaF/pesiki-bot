@@ -1,9 +1,10 @@
-import {createHash} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 import {mkdir,readFile,writeFile,rename} from 'node:fs/promises';
 import path from 'node:path';
 import {adviceSources,type AdviceSources,type ItemPopularity} from './advice-sources.js';
 import {buildAdviceContext,canAdvise,adviceObservationKey,type AdviceContext,type AdviceCandidate} from './advice-context.js';
 import {generateAdvice,type ModelAdvice} from './advice-model.js';
+import {AdviceJournal,type AdviceJournalSink,type AdviceJournalEvent} from './advice-journal.js';
 import type {LiveMatch} from './live-match.js';
 export interface AdviceCard {account:number;name:string;hero:string;item:AdviceCandidate;reason:string;alternative:AdviceCandidate|null;alternativeReason:string;}
 export interface LiveAdvice {matchId:string;snapshotAt:number;generatedAt:number;gameTime:number;delay:number|null;gameMode:number|null;cards:AdviceCard[];plan:string;knowledgeRevision:string;statisticsAt:number|null;}
@@ -23,7 +24,15 @@ export class LiveAdviceService {
  private day='';private dailyCount=0;
  private lastState:{matchId:string;state:AdviceState}|undefined;
  private budgetLoaded=false;
- constructor(private sources:Pick<AdviceSources,'knowledge'|'popularity'>=adviceSources,private model:(context:AdviceContext)=>Promise<ModelAdvice>=generateAdvice,private now=Date.now,private budgetFile:string|null=path.join(process.env.DATA_DIR||'data','advice-budget.json')){}
+ private opportunityKey='';
+ private journal:AdviceJournalSink|null;
+ constructor(private sources:Pick<AdviceSources,'knowledge'|'popularity'>=adviceSources,private model:(context:AdviceContext)=>Promise<ModelAdvice>=generateAdvice,private now=Date.now,private budgetFile:string|null=path.join(process.env.DATA_DIR||'data','advice-budget.json'),journal?:AdviceJournalSink|null){
+  this.journal=journal===undefined?(budgetFile?new AdviceJournal(path.join(path.dirname(budgetFile),'advice-decisions')):null):journal;
+ }
+ private async record(decisionId:string,matchId:string|null,kind:AdviceJournalEvent['kind'],data:unknown):Promise<void>{
+  try{await this.journal?.record({schemaVersion:1,at:this.now(),decisionId,matchId,kind,data});}
+  catch{console.warn('[ADVICE] Decision journal unavailable');}
+ }
  private async reserveBudget(matchId:string):Promise<boolean>{
   if(!this.budgetLoaded&&this.budgetFile){
    try{
@@ -55,6 +64,12 @@ export class LiveAdviceService {
   return {status:this.pending?'loading':'unavailable',message:this.pending?'Разбираем составы и предметы…':'Готовим следующий шаг для наших.'};
  }
  async get(match:LiveMatch|null):Promise<AdviceState>{
+  const decisionId=randomUUID();
+  const opportunityKey=match?adviceFingerprint(match):'none';
+  if(opportunityKey!==this.opportunityKey){
+   this.opportunityKey=opportunityKey;
+   await this.record(decisionId,match?.matchId??null,'opportunity',{sampling:'requested-state-change',eligible:canAdvise(match,this.now()),observation:canAdvise(match,this.now())?JSON.parse(adviceObservationKey(match)):null});
+  }
   if(!canAdvise(match,this.now()))return this.peek(match);
   const fingerprint=adviceFingerprint(match),existing=this.peek(match);
   if(existing.status==='ready'&&(this.lastFingerprint===fingerprint||this.now()<this.nextAttempt))return existing;
@@ -65,6 +80,7 @@ export class LiveAdviceService {
   if((this.counts.get(match.matchId)??0)>=20||this.dailyCount>=100){const state:AdviceState={status:'limited',message:'Лимит разборов на сегодня или этот матч достигнут.'};this.lastState={matchId:match.matchId,state};return state;}
   this.nextAttempt=this.now()+120_000;
   const run=(async():Promise<AdviceState>=>{
+   let stage='sources';
    try{
     const knowledge=await this.sources.knowledge();
     const heroIds=[...new Set(match.teams.flatMap(t=>t.players).filter(p=>p.ours&&p.heroId).map(p=>p.heroId!))];
@@ -72,8 +88,13 @@ export class LiveAdviceService {
     // At most five heroes; serial reads respect the shared OpenDota circuit breaker.
     for(const id of heroIds){try{popularities.set(id,await this.sources.popularity(id));}catch{/* Verified item descriptions still permit a conditional suggestion. */}}
     const context=buildAdviceContext(match,knowledge,popularities,this.now());
+    stage='budget';
+    await this.record(decisionId,match.matchId,'prepared',{context,engine:'free-text-v2-projected',model:process.env.ADVICE_MODEL||process.env.OPENAI_MODEL_V2||process.env.OPENAI_MODEL||'gpt-5.6-sol'});
     if(!await this.reserveBudget(match.matchId))return {status:'limited',message:'Лимит разборов на сегодня или этот матч достигнут.'};
+    stage='model';
     const output=await this.model(context);
+    await this.record(decisionId,match.matchId,'generated',{output});
+    stage='revalidation';
     if(!canAdvise(this.latestMatch,this.now())||this.latestMatch.matchId!==match.matchId||adviceFingerprint(this.latestMatch)!==fingerprint)return {status:'unavailable',message:'Ситуация изменилась во время разбора. Ждём совет по новому снимку.'};
     if(!canAdvise(match,this.now()))return {status:'unavailable',message:'Снимок устарел во время разбора. Ждём обновления матча.'};
     const roster=match.teams.flatMap(t=>t.players);
@@ -83,10 +104,10 @@ export class LiveAdviceService {
     this.lastFingerprint=fingerprint;
     this.lastRoster=JSON.stringify(roster.map(p=>[p.account,p.heroId,p.ours]));
     return {status:'ready',advice:this.cached};
-   }catch{console.warn('[ADVICE] Generation unavailable');return {status:'unavailable',message:'Не удалось подготовить обоснованный совет. Попробуем на следующем снимке.'};}
+   }catch{await this.record(decisionId,match.matchId,'rejected',{stage});console.warn('[ADVICE] Generation unavailable');return {status:'unavailable',message:'Не удалось подготовить обоснованный совет. Попробуем на следующем снимке.'};}
   })();
   this.pending=run;
-  try{const state=await run;this.lastState={matchId:match.matchId,state};return state;}finally{this.pending=undefined;}
+  try{const state=await run;await this.record(decisionId,match.matchId,'returned',{state});this.lastState={matchId:match.matchId,state};return state;}finally{this.pending=undefined;}
  }
 }
 export const liveAdvice=new LiveAdviceService();
