@@ -8,7 +8,7 @@ export function adviceText(state:AdviceState):string{
  const parts=[`💡 План сборки · ${time}${a.gameMode===23?' · Turbo':''}`];
  if(a.plan)parts.push(a.plan);
  for(const c of a.cards){
-  const block=`${c.name} · ${c.hero}\nЦель: ${c.item.name} · по видимым компонентам ещё ${c.item.remainingCost} золота${c.purchaseStep?`\nБлижайшая часть: ${c.purchaseStep.name} · ${c.purchaseStep.cost} золота за штуку`:""}\n${c.reason}${c.alternative?`\nИли ${c.alternative.name}: ${c.alternativeReason}`:''}`;
+  const block=`${c.name} · ${c.hero}\nЦель: ${c.item.name} · по видимым компонентам ещё ${c.item.remainingCost} золота\n${c.matchups?.length?c.matchups.map(m=>`vs ${m.hero}: ${m.why}`).join("\n")+"\n":""}${c.reason}${c.alternative?`\nИли ${c.alternative.name}: ${c.alternativeReason}`:''}`;
   if(parts.join('\n\n').length+block.length>3450){parts.push('Остальные советы — на сайте.');break;}parts.push(block);
  }
  parts.push(`По снимку наблюдателя; фактическая задержка не измерена. Учтён инвентарь наших; курьер и тайник неизвестны.\n${a.statisticsAt?'Сборки OpenDota':'Статистика сборок недоступна'} · механики dotaconstants. Вариант плана, не гарантия.`);

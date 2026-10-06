@@ -130,20 +130,6 @@ await pairCached.get(pairMatch);
 const afterPurchase=pairCached.peek({...pairMatch,teams:pairMatch.teams.map(t=>({...t,players:t.players.map(p=>p.account===1?{...p,items:[2]}:p)}))});
 assert.equal(afterPurchase.status,'ready');
 if(afterPurchase.status==='ready')assert.deepEqual(afterPurchase.advice.cards.map(c=>c.account),[2],'cached cards invalidate per player too');
-// Two copies of a component are distinct purchases; an existing first copy
-// must not immediately invalidate the recommendation to buy the second.
-match.updatedAt=now;
-const componentOutput={...output,players:[{...output.players[0],purchaseStep:{id:1,key:'staff',name:'staff',cost:1000,quantity:1,attributes:''}}]};
-const componentService=new LiveAdviceService(source,async()=>componentOutput,()=>now,null);
-const componentReady=await componentService.get(match);
-assert.equal(componentReady.status,'ready');
-assert.equal(componentService.peek(match).status,'ready');
-const secondCopy={...match,teams:match.teams.map(t=>({...t,players:t.players.map(p=>p.ours?{...p,items:[1,1]}:p)}))};
-assert.notEqual(componentService.peek(secondCopy).status,'ready');
-if(componentReady.status==='ready'){
- assert.ok(renderLiveAdvice(componentReady).includes('Ближайшая часть: staff'));
- assert.ok(adviceText(componentReady).includes('Ближайшая часть: staff'));
-}
 const journalDir=await mkdtemp(path.join(os.tmpdir(),'pesiki-advice-journal-'));
 try{
  const journal=new AdviceJournal(journalDir);

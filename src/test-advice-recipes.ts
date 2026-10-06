@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {buildAdviceContext,buildCandidates,missingPurchaseSteps} from './advice-context.js';
+import {buildAdviceContext} from './advice-context.js';
 import {ADVICE_RECIPES,playerOptions} from './advice-recipes.js';
 import {validateAdvice} from './advice-model.js';
 import type {AdviceKnowledge} from './advice-sources.js';
@@ -16,7 +16,7 @@ const noPrior=buildAdviceContext(match,knowledge,new Map(),now);
 assert.ok(!playerOptions(noPrior,noPrior.players[0]).some(o=>o.id==='aether_lens-v1'),'range is not a generic spellcaster default');
 const options=playerOptions(context,context.players[0]);
 assert.equal(options.length,13,'all supported recipes with eligibility evidence survive candidate selection');
-const choice={players:[{account:1,optionId:'guardian_greaves-v1',alternativeId:'desolator-v1',componentId:null}]};
+const choice={players:[{account:1,optionId:'guardian_greaves-v1',alternativeId:'desolator-v1',matchupIds:[]}]};
 const good=validateAdvice(choice,context);
 assert.ok(good.players[0].reason.includes('только владельцу'));
 assert.ok(good.players[0].alternativeReason.includes('физическое давление'));
@@ -36,39 +36,15 @@ for(const invalid of [
  {players:[{...choice.players[0],alternativeId:'invented'}]},
  {players:[{...choice.players[0],optionId:null}]}
 ])assert.throws(()=>validateAdvice(invalid,context));
-assert.deepEqual(validateAdvice({players:[{account:1,optionId:null,alternativeId:null,componentId:null}]},context),{players:[],plan:''});
+assert.deepEqual(validateAdvice({players:[{account:1,optionId:null,alternativeId:null,matchupIds:[]}]},context),{players:[],plan:''});
 const corrupted={...context,players:context.players.map(p=>({...p,candidates:p.candidates.map(c=>c.key==='guardian_greaves'?{...c,description:c.description+' strong team dispel'}:c)}))};
 assert.throws(()=>validateAdvice(choice,corrupted),'source drift disables the recipe');
 assert.equal(playerOptions({...context,knowledgeRevision:'unknown'},context.players[0]).length,0);
 for(const recipe of ADVICE_RECIPES){
- const rendered=validateAdvice({players:[{account:1,optionId:recipe.id,alternativeId:null,componentId:null}]},context);
+ const rendered=validateAdvice({players:[{account:1,optionId:recipe.id,alternativeId:null,matchupIds:[]}]},context);
  assert.equal(rendered.players[0].reason,recipe.reason);
  assert.ok(recipe.reason.length<320);
 }
-const byKey=new Map(knowledge.items.map(i=>[i.key,i]));
-const hammer=byKey.get('mithril_hammer')!,desolator=byKey.get('desolator')!;
-const missing=missingPurchaseSteps(desolator,[hammer],byKey);
-assert.equal(missing.componentTreeComplete,true);
-assert.equal(missing.purchaseSteps.find(s=>s.id===hammer.id)?.quantity,1);
-assert.equal(missingPurchaseSteps(desolator,[],byKey).purchaseSteps.find(s=>s.id===hammer.id)?.quantity,2);
-assert.ok(!missingPurchaseSteps(desolator,[hammer,hammer],byKey).purchaseSteps.some(s=>s.id===hammer.id));
-const bkb=byKey.get('black_king_bar')!,bkbRecipe=byKey.get('recipe_black_king_bar')!;
-assert.ok(!missingPurchaseSteps(bkb,[bkbRecipe],byKey).purchaseSteps.some(s=>s.id===bkbRecipe.id));
-const force=byKey.get('force_staff')!,pike=byKey.get('hurricane_pike')!;
-const pikeMissing=missingPurchaseSteps(pike,[force],byKey);
-assert.ok(pikeMissing.componentTreeComplete);
-assert.ok(!pikeMissing.purchaseSteps.some(s=>force.components.includes(s.key)),'assembled Force Staff pays for its entire subtree');
-const brokenTree=new Map(byKey);brokenTree.delete('mithril_hammer');
-assert.deepEqual(missingPurchaseSteps(desolator,[],brokenTree),{purchaseSteps:[],componentTreeComplete:false});
-const badPrice={...desolator,cost:desolator.cost+1};
-assert.deepEqual(missingPurchaseSteps(badPrice,[],byKey),{purchaseSteps:[],componentTreeComplete:false});
-const cyclic={...desolator,components:[desolator.key]};
-assert.equal(missingPurchaseSteps(cyclic,[],new Map(byKey).set(cyclic.key,cyclic)).componentTreeComplete,false);
-const withComponent=validateAdvice({players:[{account:1,optionId:'desolator-v1',alternativeId:null,componentId:hammer.id}]},context);
-assert.equal(withComponent.players[0].purchaseStep?.id,hammer.id);
-assert.throws(()=>validateAdvice({players:[{account:1,optionId:'desolator-v1',alternativeId:null,componentId:bkbRecipe.id}]},context),'component must belong to the chosen build');
-const withOwned={...context,players:context.players.map(p=>({...p,candidates:buildCandidates({...player(1,true),items:[hammer.id,hammer.id]},knowledge)}))};
-assert.throws(()=>validateAdvice({players:[{account:1,optionId:'desolator-v1',alternativeId:null,componentId:hammer.id}]},withOwned),'cannot recommend an already fully owned component');
 const natural=JSON.parse(fs.readFileSync(new URL('../docs/research/advice-review/live-case-9032160861.json',import.meta.url),'utf8')).context;
 const invoker=natural.players.find((p:{hero:string})=>p.hero==='Invoker');
 const riki=natural.players.find((p:{hero:string})=>p.hero==='Riki');

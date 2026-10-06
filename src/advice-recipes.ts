@@ -1,3 +1,4 @@
+import {supportedMatchups,type AdviceMatchup} from './advice-matchups.js';
 import {createHash} from 'node:crypto';
 import {KNOWLEDGE_REVISION,type AdviceItem} from './advice-sources.js';
 import type {AdviceContext,AdvicePlayerContext} from './advice-context.js';
@@ -103,7 +104,7 @@ export const RECIPE_ITEM_KEYS=new Set(ADVICE_RECIPES.map(r=>r.key));
 export function mechanicsHash(item:AdviceItem):string {
  return createHash('sha256').update(JSON.stringify([item.id,item.description,item.notes,item.attributes])).digest('hex');
 }
-export interface AdviceOption {id:string;itemId:number;goal:string;reason:string;sourceRevision:string;patchStatus:'unknown';}
+export interface AdviceOption {matchups:AdviceMatchup[];id:string;itemId:number;goal:string;reason:string;sourceRevision:string;patchStatus:'unknown';}
 export function playerOptions(context:AdviceContext,player:AdvicePlayerContext):AdviceOption[]{
  if(context.knowledgeRevision!==KNOWLEDGE_REVISION)return [];
  return ADVICE_RECIPES.flatMap(recipe=>{
@@ -113,6 +114,6 @@ export function playerOptions(context:AdviceContext,player:AdvicePlayerContext):
   // Until explicit player intent exists, require a hero-specific prior or a
   // visible component. This is eligibility evidence, not proof of best purchase.
   if(['aether_lens','diffusal_blade'].includes(recipe.key)&&!(item.purchases&&item.purchases>0)&&!item.ownedComponents.length)return [];
-  return [{id:recipe.id,itemId:item.id,goal:recipe.goal,reason:recipe.reason,sourceRevision:context.knowledgeRevision,patchStatus:'unknown' as const}];
+  return [{matchups:supportedMatchups(context,player,item.key),id:recipe.id,itemId:item.id,goal:recipe.goal,reason:recipe.reason,sourceRevision:context.knowledgeRevision,patchStatus:'unknown' as const}];
  });
 }

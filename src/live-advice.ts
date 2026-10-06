@@ -1,12 +1,13 @@
+import type {AdviceMatchup} from './advice-matchups.js';
 import {createHash,randomUUID} from 'node:crypto';
 import {mkdir,readFile,writeFile,rename} from 'node:fs/promises';
 import path from 'node:path';
 import {adviceSources,type AdviceSources,type ItemPopularity} from './advice-sources.js';
-import {buildAdviceContext,canAdvise,adviceObservationKey,type AdviceContext,type AdviceCandidate,type AdvicePurchaseStep} from './advice-context.js';
+import {buildAdviceContext,canAdvise,adviceObservationKey,type AdviceContext,type AdviceCandidate} from './advice-context.js';
 import {generateAdvice,ADVICE_ENGINE_REVISION,type ModelAdvice} from './advice-model.js';
 import {AdviceJournal,type AdviceJournalSink,type AdviceJournalEvent} from './advice-journal.js';
 import type {LiveMatch} from './live-match.js';
-export interface AdviceCard {purchaseStep?:AdvicePurchaseStep;purchaseStepOwnedCount?:number;account:number;name:string;hero:string;item:AdviceCandidate;reason:string;alternative:AdviceCandidate|null;alternativeReason:string;}
+export interface AdviceCard {matchups?:AdviceMatchup[];account:number;name:string;hero:string;item:AdviceCandidate;reason:string;alternative:AdviceCandidate|null;alternativeReason:string;}
 export interface LiveAdvice {matchId:string;snapshotAt:number;generatedAt:number;gameTime:number;delay:number|null;gameMode:number|null;cards:AdviceCard[];plan:string;knowledgeRevision:string;statisticsAt:number|null;}
 export type AdviceState={status:'ready';advice:LiveAdvice}|{status:'unavailable'|'loading'|'limited';message:string};
 function rosterIdentity(match:LiveMatch):string{
@@ -61,7 +62,7 @@ export class LiveAdviceService {
   if(!canAdvise(match,this.now()))return {status:'unavailable',message:'Совет появится, когда будет доступен подробный матч наших.'};
   const roster=match.teams.flatMap(t=>t.players);
   const rosterKey=JSON.stringify(roster.map(p=>[p.account,p.heroId,p.ours]));
-  const validCards=this.cached?.cards.filter(c=>{const items=roster.find(p=>p.account===c.account)?.items??[];return !items.some(id=>id===c.item.id||id===c.alternative?.id)&&!(c.purchaseStep&&items.filter(id=>id===c.purchaseStep!.id).length>(c.purchaseStepOwnedCount??0));})??[];
+  const validCards=this.cached?.cards.filter(c=>{const items=roster.find(p=>p.account===c.account)?.items??[];return !items.some(id=>id===c.item.id||id===c.alternative?.id);})??[];
   if(this.cached?.matchId===match.matchId&&this.now()-this.cached.snapshotAt<180_000&&this.lastRoster===rosterKey&&validCards.length)return {status:'ready',advice:{...this.cached,cards:validCards}};
   if(!this.pending&&this.lastState?.matchId===match.matchId&&this.lastState.state.status!=='ready')return this.lastState.state;
   return {status:this.pending?'loading':'unavailable',message:this.pending?'Разбираем составы и предметы…':'Готовим следующий шаг для наших.'};
@@ -105,7 +106,7 @@ export class LiveAdviceService {
     const latestRoster=this.latestMatch.teams.flatMap(t=>t.players);
     const applicable=output.players.filter(p=>{const before=match.teams.flatMap(t=>t.players).find(v=>v.account===p.account)!,after=latestRoster.find(v=>v.account===p.account)!;return JSON.stringify([...before.items].sort((a,b)=>a-b))===JSON.stringify([...after.items].sort((a,b)=>a-b));});
     if(!applicable.length)return {status:'unavailable',message:'Предметы изменились во время разбора. Обновим план по новому снимку.'};
-    const cards=applicable.map(p=>{const player=context.players.find(c=>c.account===p.account)!,identity=roster.find(c=>c.account===p.account)!;return {...p.purchaseStep?{purchaseStep:p.purchaseStep,purchaseStepOwnedCount:identity.items.filter(id=>id===p.purchaseStep!.id).length}:{},account:p.account,name:identity.name,hero:identity.hero,item:player.candidates.find(c=>c.id===p.itemId)!,reason:p.reason,alternative:player.candidates.find(c=>c.id===p.alternativeId)??null,alternativeReason:p.alternativeReason};});
+    const cards=applicable.map(p=>{const player=context.players.find(c=>c.account===p.account)!,identity=roster.find(c=>c.account===p.account)!;return {matchups:p.matchups??[],account:p.account,name:identity.name,hero:identity.hero,item:player.candidates.find(c=>c.id===p.itemId)!,reason:p.reason,alternative:player.candidates.find(c=>c.id===p.alternativeId)??null,alternativeReason:p.alternativeReason};});
     const dates=[...popularities.values()].map(p=>p.fetchedAt);
     this.cached={matchId:match.matchId,snapshotAt:match.updatedAt,generatedAt:this.now(),gameTime:match.time!,delay:match.delay??null,gameMode:match.gameMode??null,cards,plan:output.plan,knowledgeRevision:knowledge.revision,statisticsAt:dates.length?Math.min(...dates):null};
     this.lastFingerprint=fingerprint;
