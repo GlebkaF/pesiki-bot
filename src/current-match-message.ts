@@ -5,7 +5,7 @@ const clean=(value:string)=>value.replace(/[\r\n\t]+/g,' ').slice(0,50);
 
 /** Plain text shared by chat adapters; each adapter must escape its own markup. */
 export function currentMatchText(match:LiveMatch|null,now=Date.now()):string{
- if(!match||now-match.updatedAt>=90_000)return 'Сейчас нет доступного матча для наблюдения. Попробуй чуть позже.';
+ if(!match||now-match.updatedAt>=90_000)return 'Сейчас нет доступного матча стака для наблюдения. Попробуй чуть позже.';
  const [radiant,dire]=match.teams;
  if(!radiant||!dire)return 'Данные матча пока недоступны. Попробуй чуть позже.';
  const lines=[match.kind==='stack'?`🎮 Матч стака · наших: ${match.stackCount}`:'🎮 Публичный матч · пока нет доступного матча стака',

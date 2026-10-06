@@ -9,7 +9,8 @@ assert.equal(selectLiveGame([game('11',[3]),game('10',[1,1])],members,active)?.c
 assert.equal(selectLiveGame([game('11',[3]),game('10',[1,1])],members,active)?.game.match_id,'10');
 assert.equal(selectLiveGame([game('1',[99]),game('2',[1])],new Map(),active)?.game.match_id,'2');
 assert.equal(selectLiveGame([game('1',[1],{is_watch_eligible:false})],members,active),undefined);
-assert.equal(selectLiveGame([game('1',[],{league_id:12}),game('2',[])],new Map(),active)?.game.match_id,'2');
+assert.equal(selectLiveGame([game('1',[],{league_id:12}),game('2',[])],new Map(),active),undefined);
+assert.equal(selectLiveGame([game('old-public',[99])],new Map(),active,'old-public'),undefined);
 assert.equal(selectLiveGame([game('1',[1],{last_update_time:Date.now()/1000-600})],members,active),undefined);
 const g=game('20',[],{game_time:240,radiant_score:3,dire_score:4,delay:120});
 const detail={match:{match_id:'20',game_time:120,game_state:5},teams:[{team_number:2,score:1,players:[{accountid:1,name:'<script>oops</script>',heroid:2,level:5,kill_count:1,death_count:0,assists_count:2}]},{team_number:3,score:2,players:[]}]};
@@ -20,7 +21,7 @@ assert.equal(liveSnapshot(g,0,{...detail,match:{...detail.match,game_state:6}}),
 const html=renderLiveMatch(snapshot);assert.ok(html.includes('Публичный матч'));assert.ok(html.includes('2:00'));assert.ok(!html.includes('<script>oops'));assert.ok(html.includes('&lt;script&gt;'));
 assert.ok(renderLiveMatch({...snapshot,kind:'stack',stackCount:3}).includes('участников стака: 3'));
 assert.equal(renderLiveMatch(null),'');
-console.log('Live match: stack ranking, deduplication, active roster, public fallback, snapshot consistency, completed games, HTML escaping passed.');
+console.log('Live match: stack ranking, deduplication, active roster, public matches excluded, snapshot consistency, completed games, HTML escaping passed.');
 
 assert.deepEqual(mapPoint(0,0),{left:50,top:50});
 assert.deepEqual(mapPoint(-.5,.5),{left:0,top:0});

@@ -10,7 +10,7 @@ const numeric=(value:unknown):number|undefined=>typeof value==='number'&&Number.
 const roster=new Map(PLAYERS.map(p=>[p.steamId,p.dotaName]));
 export function selectLiveGame(games:TVGame[],members:Map<string,number[]>,active:Set<number>,preferredLobby?:string):{game:TVGame;count:number}|undefined{
  const ranked=games.filter(g=>g.is_watch_eligible!==false&&g.match_id&&g.match_id!=='0'&&!g.deactivate_time&&typeof g.last_update_time==='number'&&Math.abs(Date.now()/1000-g.last_update_time)<=180).map(game=>({game,count:new Set([...(members.get(game.lobby_id)??[]),...(game.players??[]).map(p=>p.account_id??0)].filter(id=>active.has(id))).size}));
- return ranked.sort((a,b)=>b.count-a.count||Number(!!a.game.league_id)-Number(!!b.game.league_id)||Number(b.game.lobby_id===preferredLobby)-Number(a.game.lobby_id===preferredLobby))[0];
+ return ranked.filter(entry=>entry.count>0).sort((a,b)=>b.count-a.count||Number(!!a.game.league_id)-Number(!!b.game.league_id)||Number(b.game.lobby_id===preferredLobby)-Number(a.game.lobby_id===preferredLobby))[0];
 }
 export function liveSnapshot(game:TVGame,count:number,data?:any):LiveMatch|null{
  // Never combine scores from a different match or continue displaying a finished game.
@@ -34,11 +34,10 @@ async function refresh(retryCompleted=true):Promise<LiveMatch|null>{
  try{for(const [id,p] of await getSteamPresence(PLAYER_IDS)){
   const lobby=p.richPresence.WatchableGameID;
   if(/^\d+$/.test(lobby??'')&&lobby!=='0')members.set(lobby,[...(members.get(lobby)??[]),id]);
- }}catch{/* Public DotaTV remains available when friends presence is unavailable. */}
+ }}catch{/* Retain discovery of the last tracked lobby if Steam presence is temporarily unavailable. */}
  const active=new Set(PLAYER_IDS);
  const targeted=members.size||preferredLobby?await findObserverGames([...new Set([...members.keys(),...preferredLobby?[preferredLobby]:[]])]):[];
- let selected=selectLiveGame(targeted.filter(g=>!completed.has(g.match_id??'')&&(members.has(g.lobby_id)||g.lobby_id===preferredLobby)),members,active,preferredLobby);
- if(!selected)selected=selectLiveGame((await findObserverGames([])).filter(g=>!completed.has(g.match_id??'')),members,active);
+ const selected=selectLiveGame(targeted.filter(g=>!completed.has(g.match_id??'')&&(members.has(g.lobby_id)||g.lobby_id===preferredLobby)),members,active,preferredLobby);
  if(!selected)return null;
  const {game,count}=selected;
  preferredLobby=game.lobby_id;
