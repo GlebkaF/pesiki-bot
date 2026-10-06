@@ -12,6 +12,7 @@ const context:AdviceContext={...fixture.context,players:[fixture.context.players
 const player=context.players[0];
 const supported=supportedMatchups(context,player,'black_king_bar');
 assert.deepEqual(supported.map(m=>m.heroId),[5,11,26]);
+assert.deepEqual(supportedMatchups(context,player,'monkey_king_bar').map(m=>m.heroId),[44]);
 const choice={players:[{account:player.account,optionId:'black_king_bar-v1',alternativeId:null,matchupIds:['bkb-cm-frostbite','bkb-sf-requiem']}]};
 const result=validateAdvice(choice,context);
 assert.deepEqual(result.players[0].threatHeroIds,[5,11]);
