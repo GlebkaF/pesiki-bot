@@ -15,7 +15,7 @@ export function parseKnowledge(raw:unknown):AdviceKnowledge {
  if(!object(raw))throw Error('Invalid item knowledge');
  const items:AdviceItem[]=[];
  for(const [key,value] of Object.entries(raw)){
-  if(!object(value)||!Number.isSafeInteger(value.id)||Number(value.id)<=0||typeof value.dname!=='string'||typeof value.cost!=='number'||value.cost<=0||key.startsWith('recipe_')||value.qual==='neutral'||value.tier!==undefined)continue;
+  if(!object(value)||!Number.isSafeInteger(value.id)||Number(value.id)<=0||typeof value.dname!=='string'||typeof value.cost!=='number'||value.cost<=0||value.qual==='neutral'||value.tier!==undefined)continue;
   items.push({id:Number(value.id),key,name:clean(value.dname,80),cost:value.cost,
    components:Array.isArray(value.components)?value.components.filter((v):v is string=>typeof v==='string'):[],
    description:Array.isArray(value.abilities)?value.abilities.filter(object).map(a=>clean(a.title,100)+': '+clean(a.description,1500)).join('\n').slice(0,3500):'',
