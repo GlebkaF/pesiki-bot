@@ -61,8 +61,8 @@ export class LiveAdviceService {
   if(!canAdvise(match,this.now()))return {status:'unavailable',message:'Совет появится, когда будет доступен подробный матч наших.'};
   const roster=match.teams.flatMap(t=>t.players);
   const rosterKey=JSON.stringify(roster.map(p=>[p.account,p.heroId,p.ours]));
-  const bought=this.cached?.cards.some(c=>{const items=roster.find(p=>p.account===c.account)?.items??[];return items.some(id=>id===c.item.id||id===c.alternative?.id)||(c.purchaseStep&&items.filter(id=>id===c.purchaseStep!.id).length>(c.purchaseStepOwnedCount??0));});
-  if(this.cached?.matchId===match.matchId&&this.now()-this.cached.snapshotAt<180_000&&this.lastRoster===rosterKey&&!bought)return {status:'ready',advice:this.cached};
+  const validCards=this.cached?.cards.filter(c=>{const items=roster.find(p=>p.account===c.account)?.items??[];return !items.some(id=>id===c.item.id||id===c.alternative?.id)&&!(c.purchaseStep&&items.filter(id=>id===c.purchaseStep!.id).length>(c.purchaseStepOwnedCount??0));})??[];
+  if(this.cached?.matchId===match.matchId&&this.now()-this.cached.snapshotAt<180_000&&this.lastRoster===rosterKey&&validCards.length)return {status:'ready',advice:{...this.cached,cards:validCards}};
   if(!this.pending&&this.lastState?.matchId===match.matchId&&this.lastState.state.status!=='ready')return this.lastState.state;
   return {status:this.pending?'loading':'unavailable',message:this.pending?'Разбираем составы и предметы…':'Готовим следующий шаг для наших.'};
  }

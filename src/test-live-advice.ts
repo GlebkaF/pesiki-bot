@@ -125,6 +125,11 @@ pairService.peek({...pairMatch,teams:pairMatch.teams.map(t=>({...t,players:t.pla
 pairRelease();const partial=await pairPending;
 assert.equal(partial.status,'ready');
 if(partial.status==='ready')assert.deepEqual(partial.advice.cards.map(c=>c.account),[2],'one purchase must not discard the other player decision');
+const pairCached=new LiveAdviceService(source,async()=>({...output,players:[output.players[0],{...output.players[0],account:2}]}),()=>now,null);
+await pairCached.get(pairMatch);
+const afterPurchase=pairCached.peek({...pairMatch,teams:pairMatch.teams.map(t=>({...t,players:t.players.map(p=>p.account===1?{...p,items:[2]}:p)}))});
+assert.equal(afterPurchase.status,'ready');
+if(afterPurchase.status==='ready')assert.deepEqual(afterPurchase.advice.cards.map(c=>c.account),[2],'cached cards invalidate per player too');
 // Two copies of a component are distinct purchases; an existing first copy
 // must not immediately invalidate the recommendation to buy the second.
 match.updatedAt=now;
