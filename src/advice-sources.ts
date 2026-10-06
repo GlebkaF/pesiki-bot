@@ -7,15 +7,17 @@ export const KNOWLEDGE_REVISION='b4b5a8299de5f3e0704e62fdd04a6a54c4d4548e';
 const ROOT=`https://raw.githubusercontent.com/odota/dotaconstants/${KNOWLEDGE_REVISION}/build`;
 export interface AdviceItem {id:number;key:string;name:string;cost:number;components:string[];description:string;notes:string;attributes:string;}
 export interface AdviceAbility {name:string;description:string;damageType:string;piercesDebuffImmunity:string;dispellable:string;}
-export interface AdviceKnowledge {revision:string;items:AdviceItem[];heroAbilities?:Record<number,AdviceAbility[]>;}
+export interface AdviceKnowledge {revision:string;items:AdviceItem[];itemNames?:Record<number,string>;heroAbilities?:Record<number,AdviceAbility[]>;}
 export type PurchasePhases=Record<'start'|'early'|'mid'|'late',number>;
 export interface ItemPopularity {heroId:number;counts:Record<string,number>;byPhase?:Record<string,PurchasePhases>;fetchedAt:number;source:string;}
 const object=(x:unknown):x is Record<string,unknown>=>!!x&&typeof x==='object'&&!Array.isArray(x);
 const clean=(x:unknown,max=2000)=>typeof x==='string'?x.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,max):'';
 export function parseKnowledge(raw:unknown):AdviceKnowledge {
  if(!object(raw))throw Error('Invalid item knowledge');
- const items:AdviceItem[]=[];
+ const items:AdviceItem[]=[],itemNames:Record<number,string>={};
  for(const [key,value] of Object.entries(raw)){
+  // Inventory identity includes free and neutral items; purchase candidates do not.
+  if(object(value)&&Number.isSafeInteger(value.id)&&Number(value.id)>0&&typeof value.dname==='string'){const name=clean(value.dname,80);if(name)itemNames[Number(value.id)]=name;}
   if(!object(value)||!Number.isSafeInteger(value.id)||Number(value.id)<=0||typeof value.dname!=='string'||typeof value.cost!=='number'||value.cost<=0||value.qual==='neutral'||value.tier!==undefined)continue;
   items.push({id:Number(value.id),key,name:clean(value.dname,80),cost:value.cost,
    components:Array.isArray(value.components)?value.components.filter((v):v is string=>typeof v==='string'):[],
@@ -23,7 +25,7 @@ export function parseKnowledge(raw:unknown):AdviceKnowledge {
    notes:clean(value.notes),attributes:Array.isArray(value.attrib)?value.attrib.filter(object).filter(a=>typeof a.display==='string').map(a=>clean(a.display,100).replace('{value}',clean(String(a.value),100))).join('; '):''});
  }
  if(items.length<100)throw Error('Incomplete item knowledge');
- return {revision:KNOWLEDGE_REVISION,items};
+ return {revision:KNOWLEDGE_REVISION,items,itemNames};
 }
 export function parsePopularity(heroId:number,raw:unknown,now=Date.now()):ItemPopularity {
  if(!object(raw))throw Error('Invalid item popularity');

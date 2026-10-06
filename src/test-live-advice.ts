@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp,rm,writeFile,readFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {AdviceSources,parsePopularity,type AdviceItem,type AdviceKnowledge} from './advice-sources.js';
+import {AdviceSources,parsePopularity,parseKnowledge,type AdviceItem,type AdviceKnowledge} from './advice-sources.js';
 import {buildCandidates,buildAdviceContext,canAdvise} from './advice-context.js';
 import {LiveAdviceService,adviceFingerprint} from './live-advice.js';
 import type {LiveMatch,LivePlayer} from './live-match.js';
@@ -175,3 +175,17 @@ try{
  assert.equal(JSON.parse(await readFile(budgetPath,'utf8')).dailyCount,1);
 }finally{await rm(budgetDir,{recursive:true,force:true});}
 console.log('Advice: source schemas, persisted/coalesced cache, 429 backoff, Turbo context, owned upgrades, component costs, invalid model output, shared generation and stale/cross-match isolation passed.');
+
+// Recognized inventory is broader than the set of purchasable advice candidates.
+const identityRaw:Record<string,unknown>=Object.fromEntries(Array.from({length:100},(_,n)=>['shop_'+n,{id:10000+n,dname:'Shop '+n,cost:1000}]));
+identityRaw.famango={id:4204,dname:'Healing Lotus',cost:0};
+identityRaw.neutral_fixture={id:99001,dname:'Neutral fixture',cost:0,qual:'neutral',tier:1};
+const identityKnowledge=parseKnowledge(identityRaw);
+assert.equal(identityKnowledge.itemNames?.[4204],'Healing Lotus');
+assert.ok(!identityKnowledge.items.some(i=>i.id===4204||i.id===99001));
+const identityMatch=structuredClone(match);
+identityMatch.teams[0].players[0].items=[4204,99001,999999];
+const identityContext=buildAdviceContext(identityMatch,identityKnowledge,new Map(),now);
+assert.deepEqual(identityContext.players[0].inventory,['Healing Lotus','Neutral fixture','Unknown item #999999']);
+assert.ok(!identityContext.players[0].candidates.some(i=>[4204,99001,999999].includes(i.id)));
+console.log('Free/neutral inventory names retained; shop candidates unchanged; genuinely unknown IDs stay unknown.');

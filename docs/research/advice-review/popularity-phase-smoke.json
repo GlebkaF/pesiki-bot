@@ -1,0 +1,40 @@
+{
+  "scope": "One offline generation using deployed selector-v4 with source phase counts on the recorded 00:18 input. Not an estimate of utility.",
+  "result": [
+    {
+      "invokerBkbPhases": {
+        "start": 0,
+        "early": 0,
+        "mid": 41,
+        "late": 27
+      }
+    },
+    {
+      "engine": "bounded-selector-v4/decision-recipes-v3/draft-matchups-v1",
+      "gameTime": 18,
+      "players": [
+        {
+          "hero": "Riki",
+          "item": "diffusal_blade",
+          "alternative": "black_king_bar"
+        },
+        {
+          "hero": "Legion Commander",
+          "item": "blink",
+          "alternative": "blade_mail"
+        },
+        {
+          "hero": "Disruptor",
+          "item": "glimmer_cape",
+          "alternative": "force_staff"
+        },
+        {
+          "hero": "Invoker",
+          "item": "black_king_bar",
+          "alternative": "rod_of_atos"
+        }
+      ]
+    }
+  ],
+  "finding": "Phase data reached the selector but early Invoker choice remained BKB. Information loss fixed; this example is not resolved by phase metadata alone."
+}

@@ -1,0 +1,27 @@
+{
+  "scope": "Saved realtime response plus checked protocol schema. Does not establish every future response shape.",
+  "protocolSource": "https://github.com/SteamTracking/Protobufs/blob/master/dota2/dota_gcmessages_common.proto",
+  "observedPlayerFields": [
+    "abilities",
+    "accountid",
+    "assists_count",
+    "death_count",
+    "denies_count",
+    "gold",
+    "heroid",
+    "items",
+    "kill_count",
+    "level",
+    "lh_count",
+    "name",
+    "net_worth",
+    "playerid",
+    "team",
+    "team_slot",
+    "x",
+    "y"
+  ],
+  "abilityEncoding": "Array of integer IDs; no levels, cooldowns, facet choice or learned talent flags in observed player fields. Do not interpret ID presence as learned/ready.",
+  "inventoryBug": "parseKnowledge excluded cost=0 entries from both candidates and identity resolution. Item 4204 is Healing Lotus in pinned dictionary but became Unknown item #4204.",
+  "fix": "Separate itemNames catalog from purchasable AdviceItem list. Preserve genuinely unknown IDs. No claim that this changes the disputed early BKB choice."
+}
