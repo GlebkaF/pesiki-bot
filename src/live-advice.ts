@@ -3,7 +3,7 @@ import {mkdir,readFile,writeFile,rename} from 'node:fs/promises';
 import path from 'node:path';
 import {adviceSources,type AdviceSources,type ItemPopularity} from './advice-sources.js';
 import {buildAdviceContext,canAdvise,adviceObservationKey,type AdviceContext,type AdviceCandidate} from './advice-context.js';
-import {generateAdvice,type ModelAdvice} from './advice-model.js';
+import {generateAdvice,ADVICE_ENGINE_REVISION,type ModelAdvice} from './advice-model.js';
 import {AdviceJournal,type AdviceJournalSink,type AdviceJournalEvent} from './advice-journal.js';
 import type {LiveMatch} from './live-match.js';
 export interface AdviceCard {account:number;name:string;hero:string;item:AdviceCandidate;reason:string;alternative:AdviceCandidate|null;alternativeReason:string;}
@@ -89,11 +89,12 @@ export class LiveAdviceService {
     for(const id of heroIds){try{popularities.set(id,await this.sources.popularity(id));}catch{/* Verified item descriptions still permit a conditional suggestion. */}}
     const context=buildAdviceContext(match,knowledge,popularities,this.now());
     stage='budget';
-    await this.record(decisionId,match.matchId,'prepared',{context,engine:'free-text-v2-projected',model:process.env.ADVICE_MODEL||process.env.OPENAI_MODEL_V2||process.env.OPENAI_MODEL||'gpt-5.6-sol'});
+    await this.record(decisionId,match.matchId,'prepared',{context,engine:ADVICE_ENGINE_REVISION,model:process.env.ADVICE_MODEL||process.env.OPENAI_MODEL_V2||process.env.OPENAI_MODEL||'gpt-5.6-sol'});
     if(!await this.reserveBudget(match.matchId))return {status:'limited',message:'Лимит разборов на сегодня или этот матч достигнут.'};
     stage='model';
     const output=await this.model(context);
     await this.record(decisionId,match.matchId,'generated',{output});
+    if(!output.players.length)return {status:'unavailable',message:'Пока нет обоснованного следующего шага по доступным данным.'};
     stage='revalidation';
     if(!canAdvise(this.latestMatch,this.now())||this.latestMatch.matchId!==match.matchId||adviceFingerprint(this.latestMatch)!==fingerprint)return {status:'unavailable',message:'Ситуация изменилась во время разбора. Ждём совет по новому снимку.'};
     if(!canAdvise(match,this.now()))return {status:'unavailable',message:'Снимок устарел во время разбора. Ждём обновления матча.'};

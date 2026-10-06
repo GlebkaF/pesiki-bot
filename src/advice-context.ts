@@ -1,3 +1,4 @@
+import {RECIPE_ITEM_KEYS} from './advice-recipes.js';
 import type {LiveMatch,LivePlayer} from './live-match.js';
 import type {AdviceItem,AdviceKnowledge,AdviceAbility,ItemPopularity} from './advice-sources.js';
 export interface AdviceCandidate extends AdviceItem {purchases:number|null;ownedComponents:string[];remainingCost:number;}
@@ -17,7 +18,7 @@ export function buildCandidates(player:LivePlayer,knowledge:AdviceKnowledge,popu
  inventory.forEach(i=>blockChildren(i.key));
  // Consumed permanent upgrades are not reliably visible in the terse inventory.
  const consumed=new Set(['aghanims_shard','ultimate_scepter_2','moon_shard']);
- return knowledge.items.filter(i=>i.cost>=1000&&!i.key.startsWith('recipe_')&&!consumed.has(i.key)&&!blocked.has(i.key)&&((popularity?.counts[String(i.id)]??0)>0||GENERAL_ITEMS.has(i.key)))
+ return knowledge.items.filter(i=>i.cost>=1000&&!i.key.startsWith('recipe_')&&!consumed.has(i.key)&&!blocked.has(i.key)&&((popularity?.counts[String(i.id)]??0)>0||GENERAL_ITEMS.has(i.key)||RECIPE_ITEM_KEYS.has(i.key)))
   .map(item=>{
    // Each owned instance can pay for only one component, including nested components.
    const remaining=new Map<string,number>();inventory.forEach(i=>remaining.set(i.key,(remaining.get(i.key)??0)+1));
@@ -25,7 +26,7 @@ export function buildCandidates(player:LivePlayer,knowledge:AdviceKnowledge,popu
    const credit=(key:string,seen=new Set<string>()):number=>{if(seen.has(key))return 0;const next=new Set(seen).add(key);const value=byKey.get(key);if(!value)return 0;if((remaining.get(key)??0)>0){remaining.set(key,remaining.get(key)!-1);ownedComponents.push(value.name);return value.cost;}return value.components.reduce((sum,c)=>sum+credit(c,next),0)+(key.startsWith('recipe_')?0:credit('recipe_'+key,next));};
    const saved=credit(item.key);
    return {...item,purchases:popularity?.counts[String(item.id)]??null,ownedComponents,remainingCost:Math.max(0,item.cost-saved)};
-  }).sort((a,b)=>Number(b.ownedComponents.length>0)-Number(a.ownedComponents.length>0)||(b.purchases??0)-(a.purchases??0)||a.id-b.id).slice(0,32);
+  }).sort((a,b)=>Number(b.ownedComponents.length>0)-Number(a.ownedComponents.length>0)||(b.purchases??0)-(a.purchases??0)||a.id-b.id);
 }
 export function buildAdviceContext(match:LiveMatch,knowledge:AdviceKnowledge,popularities:Map<number,ItemPopularity>,now=Date.now()):AdviceContext {
  if(!canAdvise(match,now))throw Error('No fresh complete stack match');

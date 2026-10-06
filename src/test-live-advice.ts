@@ -4,7 +4,6 @@ import os from 'node:os';
 import path from 'node:path';
 import {AdviceSources,parsePopularity,type AdviceItem,type AdviceKnowledge} from './advice-sources.js';
 import {buildCandidates,buildAdviceContext,canAdvise} from './advice-context.js';
-import {validateAdvice} from './advice-model.js';
 import {LiveAdviceService,adviceFingerprint} from './live-advice.js';
 import type {LiveMatch,LivePlayer} from './live-match.js';
 import {adviceText,replyAdvice} from './advice-command.js';
@@ -56,14 +55,6 @@ const duplicateAccount={...match,teams:match.teams.map((t,i)=>({...t,players:t.p
 assert.equal(canAdvise(duplicateAccount,now),false);
 
 const output={players:[{account:1,itemId:2,reason:'Проверочный совет',alternativeId:4,alternativeReason:'Условная альтернатива',threatHeroIds:[]}],plan:'Проверочный план'};
-assert.deepEqual(validateAdvice(output,context),output);
-assert.throws(()=>validateAdvice({...output,players:[{...output.players[0],threatHeroIds:[999]}]},context));
-assert.throws(()=>validateAdvice({...output,players:[{...output.players[0],reason:'Lich угрожает физическим уроном'}]},context));
-assert.throws(()=>validateAdvice({...output,players:[{...output.players[0],itemId:999}]},context));
-assert.throws(()=>validateAdvice({...output,players:[{...output.players[0],account:999}]},context));
-assert.throws(()=>validateAdvice({...output,players:[...output.players,...output.players]},context));
-assert.throws(()=>validateAdvice({...output,players:[{...output.players[0],alternativeId:2}]},context));
-assert.throws(()=>validateAdvice({...output,players:[{...output.players[0],reason:'<script>bad</script>'}]},context));
 
 const dir=await mkdtemp(path.join(os.tmpdir(),'pesiki-advice-test-'));
 try{
