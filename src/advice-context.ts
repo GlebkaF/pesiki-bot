@@ -1,7 +1,8 @@
 import {RECIPE_ITEM_KEYS} from './advice-recipes.js';
 import type {LiveMatch,LivePlayer} from './live-match.js';
 import type {AdviceItem,AdviceKnowledge,AdviceAbility,ItemPopularity} from './advice-sources.js';
-export interface AdviceCandidate extends AdviceItem {purchases:number|null;ownedComponents:string[];remainingCost:number;}
+export interface AdvicePurchaseStep {id:number;key:string;name:string;cost:number;quantity:number;attributes:string;}
+export interface AdviceCandidate extends AdviceItem {purchaseSteps:AdvicePurchaseStep[];componentTreeComplete:boolean;purchases:number|null;ownedComponents:string[];remainingCost:number;}
 export interface AdvicePlayerContext {account:number;hero:string;heroId:number;team:string;allies:Array<{heroId:number;hero:string}>;enemies:Array<{heroId:number;hero:string}>;gold:number|null;netWorth:number|null;level:number|null;role:null;inventory:string[];candidates:AdviceCandidate[];sourceAt:number|null;}
 export interface AdviceContext {matchId:string;gameMode:number|null;gameTime:number;nominalSpectatorDelay:number|null;sourceLagSeconds:null;snapshotAt:number;inputPolicy:'draft-and-stack-inventory-v1';unknowns:string[];knowledgeRevision:string;players:AdvicePlayerContext[];teams:Array<{name:string;players:Array<{heroId:number;hero:string;ours:boolean;possibleAbilities:AdviceAbility[]}>}>;}
 const GENERAL_ITEMS=new Set(['black_king_bar','force_staff','glimmer_cape','ghost','lotus_orb','sphere','cyclone','aeon_disk','pipe','crimson_guard','heavens_halberd','sheepstick','orchid','bloodthorn','nullifier','shivas_guard','assault','skadi','monkey_king_bar']);
@@ -25,8 +26,34 @@ export function buildCandidates(player:LivePlayer,knowledge:AdviceKnowledge,popu
    const ownedComponents:string[]=[];
    const credit=(key:string,seen=new Set<string>()):number=>{if(seen.has(key))return 0;const next=new Set(seen).add(key);const value=byKey.get(key);if(!value)return 0;if((remaining.get(key)??0)>0){remaining.set(key,remaining.get(key)!-1);ownedComponents.push(value.name);return value.cost;}return value.components.reduce((sum,c)=>sum+credit(c,next),0)+(key.startsWith('recipe_')?0:credit('recipe_'+key,next));};
    const saved=credit(item.key);
-   return {...item,purchases:popularity?.counts[String(item.id)]??null,ownedComponents,remainingCost:Math.max(0,item.cost-saved)};
+   const steps=missingPurchaseSteps(item,inventory,byKey);
+   return {...item,...steps,purchases:popularity?.counts[String(item.id)]??null,ownedComponents,remainingCost:Math.max(0,item.cost-saved)};
   }).sort((a,b)=>Number(b.ownedComponents.length>0)-Number(a.ownedComponents.length>0)||(b.purchases??0)-(a.purchases??0)||a.id-b.id);
+}
+/** Expand the recipe tree as a multiset. Never promise a next component when
+ * source children/recipe costs are missing, cyclic or inconsistent. */
+export function missingPurchaseSteps(item:AdviceItem,inventory:AdviceItem[],byKey:Map<string,AdviceItem>):{purchaseSteps:AdvicePurchaseStep[];componentTreeComplete:boolean}{
+ const owned=new Map<string,number>();
+ for(const entry of inventory)owned.set(entry.key,(owned.get(entry.key)??0)+1);
+ const missing=new Map<number,AdvicePurchaseStep>();
+ let complete=true;
+ const visit=(value:AdviceItem,parents=new Set<string>())=>{
+  if(parents.has(value.key)){complete=false;return;}
+  if((owned.get(value.key)??0)>0){owned.set(value.key,owned.get(value.key)!-1);return;}
+  if(!value.components.length){
+   const previous=missing.get(value.id);
+   missing.set(value.id,{id:value.id,key:value.key,name:value.name,cost:value.cost,attributes:value.attributes,quantity:(previous?.quantity??0)+1});
+   return;
+  }
+  const children=value.components.map(key=>byKey.get(key));
+  const recipe=byKey.get('recipe_'+value.key);
+  if(recipe&&!value.components.includes(recipe.key))children.push(recipe);
+  if(children.some(c=>!c)||children.reduce((sum,c)=>sum+(c?.cost??0),0)!==value.cost){complete=false;return;}
+  const next=new Set(parents).add(value.key);
+  children.forEach(child=>visit(child!,next));
+ };
+ visit(item);
+ return {purchaseSteps:complete?[...missing.values()].filter(step=>step.id!==item.id):[],componentTreeComplete:complete};
 }
 export function buildAdviceContext(match:LiveMatch,knowledge:AdviceKnowledge,popularities:Map<number,ItemPopularity>,now=Date.now()):AdviceContext {
  if(!canAdvise(match,now))throw Error('No fresh complete stack match');

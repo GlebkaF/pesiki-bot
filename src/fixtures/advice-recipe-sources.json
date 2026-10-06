@@ -12,6 +12,317 @@
       "attributes": ""
     },
     {
+      "id": 4,
+      "key": "chainmail",
+      "name": "Chainmail",
+      "cost": 500,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 4 Armor"
+    },
+    {
+      "id": 5,
+      "key": "claymore",
+      "name": "Claymore",
+      "cost": 1350,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 20 Damage"
+    },
+    {
+      "id": 7,
+      "key": "javelin",
+      "name": "Javelin",
+      "cost": 900,
+      "components": [],
+      "description": "Pierce: Grants each attack a 25% chance to pierce through evasion and deal 60 bonus magical damage.",
+      "notes": "",
+      "attributes": ""
+    },
+    {
+      "id": 8,
+      "key": "mithril_hammer",
+      "name": "Mithril Hammer",
+      "cost": 1600,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 24 Damage"
+    },
+    {
+      "id": 17,
+      "key": "belt_of_strength",
+      "name": "Belt of Strength",
+      "cost": 450,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 6 Strength"
+    },
+    {
+      "id": 19,
+      "key": "robe",
+      "name": "Robe of the Magi",
+      "cost": 450,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 6 Intelligence"
+    },
+    {
+      "id": 21,
+      "key": "ogre_axe",
+      "name": "Ogre Axe",
+      "cost": 1000,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 10 Strength"
+    },
+    {
+      "id": 22,
+      "key": "blade_of_alacrity",
+      "name": "Blade of Alacrity",
+      "cost": 1000,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 10 Agility"
+    },
+    {
+      "id": 23,
+      "key": "staff_of_wizardry",
+      "name": "Staff of Wizardry",
+      "cost": 1000,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 10 Intelligence"
+    },
+    {
+      "id": 25,
+      "key": "gloves",
+      "name": "Gloves of Haste",
+      "cost": 450,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 20 Attack Speed"
+    },
+    {
+      "id": 485,
+      "key": "blitz_knuckles",
+      "name": "Blitz Knuckles",
+      "cost": 1000,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 35 Attack Speed"
+    },
+    {
+      "id": 27,
+      "key": "ring_of_regen",
+      "name": "Ring of Regen",
+      "cost": 175,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 1.25 Health Regeneration"
+    },
+    {
+      "id": 28,
+      "key": "sobi_mask",
+      "name": "Sage's Mask",
+      "cost": 175,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 0.7 Mana Regeneration"
+    },
+    {
+      "id": 29,
+      "key": "boots",
+      "name": "Boots of Speed",
+      "cost": 500,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 45 Movement Speed"
+    },
+    {
+      "id": 1848,
+      "key": "shawl",
+      "name": "Shawl",
+      "cost": 450,
+      "components": [],
+      "description": "",
+      "notes": "Stacks multiplicatively with other sources of magic resistance.",
+      "attributes": "+ 10% Magic Resistance"
+    },
+    {
+      "id": 51,
+      "key": "demon_edge",
+      "name": "Demon Edge",
+      "cost": 2200,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 40 Damage"
+    },
+    {
+      "id": 57,
+      "key": "void_stone",
+      "name": "Void Stone",
+      "cost": 700,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 1.75 Mana Regeneration"
+    },
+    {
+      "id": 1802,
+      "key": "tiara_of_selemene",
+      "name": "Tiara of Selemene",
+      "cost": 1700,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 6 Mana Regeneration"
+    },
+    {
+      "id": 58,
+      "key": "mystic_staff",
+      "name": "Mystic Staff",
+      "cost": 2800,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 25 Intelligence"
+    },
+    {
+      "id": 59,
+      "key": "energy_booster",
+      "name": "Energy Booster",
+      "cost": 800,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 250 Mana"
+    },
+    {
+      "id": 593,
+      "key": "fluffy_hat",
+      "name": "Fluffy Hat",
+      "cost": 250,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 125 Health"
+    },
+    {
+      "id": 1849,
+      "key": "wizard_hat",
+      "name": "Wizard Hat",
+      "cost": 250,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 125 Mana"
+    },
+    {
+      "id": 67,
+      "key": "oblivion_staff",
+      "name": "Oblivion Staff",
+      "cost": 1625,
+      "components": [
+        "blitz_knuckles",
+        "robe",
+        "sobi_mask"
+      ],
+      "description": "",
+      "notes": "",
+      "attributes": "+ 10 Intelligence; + 35 Attack Speed; + 1.25 Mana Regeneration"
+    },
+    {
+      "id": 78,
+      "key": "recipe_mekansm",
+      "name": "Mekansm Recipe",
+      "cost": 850,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": ""
+    },
+    {
+      "id": 79,
+      "key": "mekansm",
+      "name": "Mekansm",
+      "cost": 1775,
+      "components": [
+        "headdress",
+        "chainmail"
+      ],
+      "description": "Restore: Restores 250 health to allied units in a 1200 radius.\nMekansm Aura: Grants 2.5 health regeneration to allied units in a 1200 radius.",
+      "notes": "Restore does not affect units that have been affected by Restore or Guardian Greaves Mend within Mekansm's cooldown. Multiple instances of Mekansm Aura do not stack.",
+      "attributes": "+ 5 Armor"
+    },
+    {
+      "id": 87,
+      "key": "recipe_ring_of_basilius",
+      "name": "Ring of Basilius Recipe",
+      "cost": 250,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": ""
+    },
+    {
+      "id": 88,
+      "key": "ring_of_basilius",
+      "name": "Ring of Basilius",
+      "cost": 425,
+      "components": [
+        "sobi_mask"
+      ],
+      "description": "Basilius Aura: Grants 1 mana regeneration to allies. Radius: 1200",
+      "notes": "",
+      "attributes": "+ 0.25 Mana Regeneration"
+    },
+    {
+      "id": 93,
+      "key": "recipe_headdress",
+      "name": "Headdress Recipe",
+      "cost": 250,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": ""
+    },
+    {
+      "id": 94,
+      "key": "headdress",
+      "name": "Headdress",
+      "cost": 425,
+      "components": [
+        "ring_of_regen"
+      ],
+      "description": "Regeneration Aura: Grants 2 health regeneration to allies. Radius: 1200",
+      "notes": "",
+      "attributes": "+ 0.5 Health Regeneration"
+    },
+    {
+      "id": 95,
+      "key": "recipe_sheepstick",
+      "name": "Scythe of Vyse Recipe",
+      "cost": 700,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": ""
+    },
+    {
       "id": 96,
       "key": "sheepstick",
       "name": "Scythe of Vyse",
@@ -23,6 +334,16 @@
       "description": "Hex: Turns a target unit into a harmless critter for 2.8 seconds. The target has a base movement speed of 140 and will be silenced, muted, and disarmed. Instantly destroys illusions.",
       "notes": "The target will have a base movement speed of 140, but buffs granting maximum movement speed won't be disabled.",
       "attributes": "+ 30 Intelligence; + 8.5 Mana Regeneration"
+    },
+    {
+      "id": 97,
+      "key": "recipe_orchid",
+      "name": "Orchid Malevolence Recipe",
+      "cost": 300,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": ""
     },
     {
       "id": 98,
@@ -38,6 +359,16 @@
       "attributes": "+ 35 Attack Speed; + 20 Damage; + 2.5 Mana Regeneration; + 12 Intelligence"
     },
     {
+      "id": 233,
+      "key": "recipe_aether_lens",
+      "name": "Aether Lens Recipe",
+      "cost": 775,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": ""
+    },
+    {
       "id": 232,
       "key": "aether_lens",
       "name": "Aether Lens",
@@ -49,6 +380,16 @@
       "description": "",
       "notes": "Cast Range bonuses from Aether Lens and Dagon do not stack.",
       "attributes": "+ 300 Mana; + 2.5 Mana Regeneration; + 225 Cast Range"
+    },
+    {
+      "id": 101,
+      "key": "recipe_force_staff",
+      "name": "Force Staff Recipe",
+      "cost": 950,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": ""
     },
     {
       "id": 102,
@@ -64,6 +405,16 @@
       "attributes": "+ 10 Intelligence; + 175 Health"
     },
     {
+      "id": 262,
+      "key": "recipe_hurricane_pike",
+      "name": "Hurricane Pike Recipe",
+      "cost": 350,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": ""
+    },
+    {
       "id": 263,
       "key": "hurricane_pike",
       "name": "Hurricane Pike",
@@ -75,6 +426,16 @@
       "description": "Hurricane Thrust: Pushes you and target enemy 425 units away from each other, and for 5 seconds, allows you to make 5 attacks against the target without range restrictions and with +100 attack speed. Can be cast on self or allies to push the target 600 units in the direction it is facing. Enemy Range: 425",
       "notes": "Self-cast will use Hurricane Pike on yourself. Hurricane Pike doesn't interrupt the target's actions. Will not work on a unit inside Chronosphere, Duel, or Black Hole. Attack Range bonuses from Monkey King Bar and Dragon Lance and its upgrades do not stack.",
       "attributes": "+ 15 Intelligence; + 200 Health; + 20 Agility; + 15 Strength; + 130 Attack Range (Ranged Only)"
+    },
+    {
+      "id": 115,
+      "key": "recipe_black_king_bar",
+      "name": "Black King Bar Recipe",
+      "cost": 1450,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": ""
     },
     {
       "id": 116,
@@ -90,6 +451,16 @@
       "attributes": "+ 10 Strength; + 24 Damage"
     },
     {
+      "id": 134,
+      "key": "recipe_monkey_king_bar",
+      "name": "Monkey King Bar Recipe",
+      "cost": 900,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": ""
+    },
+    {
       "id": 135,
       "key": "monkey_king_bar",
       "name": "Monkey King Bar",
@@ -102,6 +473,29 @@
       "description": "Pierce: Grants each attack a 80% chance to pierce through evasion and deal 70 bonus magical damage.",
       "notes": "",
       "attributes": "+ 50 Damage; + 50 Attack Speed; + 50 Attack Range (Melee Only)"
+    },
+    {
+      "id": 234,
+      "key": "recipe_dragon_lance",
+      "name": "Dragon Lance Recipe",
+      "cost": 550,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": ""
+    },
+    {
+      "id": 236,
+      "key": "dragon_lance",
+      "name": "Dragon Lance",
+      "cost": 2000,
+      "components": [
+        "blade_of_alacrity",
+        "belt_of_strength"
+      ],
+      "description": "",
+      "notes": "Attack Range bonuses from Monkey King Bar and Dragon Lance and its upgrades do not stack.",
+      "attributes": "+ 15 Agility; + 10 Strength; + 130 Attack Range (Ranged Only)"
     },
     {
       "id": 166,
@@ -132,6 +526,73 @@
       "attributes": "+ 55 Damage"
     },
     {
+      "id": 173,
+      "key": "recipe_diffusal_blade",
+      "name": "Diffusal Blade Recipe",
+      "cost": 1050,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": ""
+    },
+    {
+      "id": 174,
+      "key": "diffusal_blade",
+      "name": "Diffusal Blade",
+      "cost": 2500,
+      "components": [
+        "blade_of_alacrity",
+        "robe"
+      ],
+      "description": "Inhibit: Targets an enemy, slowing it for 4 seconds.\nManabreak: Each attack burns 40 mana from the target, and deals 1 physical damage per burned mana. Illusions do not burn mana.",
+      "notes": "Does not stack with other diffusal blades.",
+      "attributes": "+ 15 Agility; + 10 Intelligence"
+    },
+    {
+      "id": 179,
+      "key": "recipe_arcane_boots",
+      "name": "Arcane Boots Recipe",
+      "cost": 325,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": ""
+    },
+    {
+      "id": 180,
+      "key": "arcane_boots",
+      "name": "Arcane Boots",
+      "cost": 1500,
+      "components": [
+        "boots",
+        "ring_of_basilius",
+        "wizard_hat"
+      ],
+      "description": "Replenish: Restores 150 mana to all nearby allies. Radius: 1200\nBasilius Aura: Grants 1 mana regeneration to allies. Radius: 1200",
+      "notes": "Does not work on Meepo clones.",
+      "attributes": "+ 45 Movement Speed; + 0.25 Mana Regeneration; + 125 Mana"
+    },
+    {
+      "id": 240,
+      "key": "blight_stone",
+      "name": "Orb of Blight",
+      "cost": 300,
+      "components": [],
+      "description": "Lesser Corruption: Your attacks reduce the target's armor by -2 for 3 seconds.",
+      "notes": "Does not stack with its upgrades, Desolator, or Stygian Desolator.",
+      "attributes": ""
+    },
+    {
+      "id": 230,
+      "key": "recipe_guardian_greaves",
+      "name": "Guardian Greaves Recipe",
+      "cost": 1175,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": ""
+    },
+    {
       "id": 231,
       "key": "guardian_greaves",
       "name": "Guardian Greaves",
@@ -143,6 +604,26 @@
       "description": "Mend: Restores 325 health and 200 mana to nearby allies, and removes most negative effects from the caster. Radius: 1200 Dispel Type: Basic Dispel\nGuardian Aura: Grants 2.5 health regeneration and 1.5 mana regeneration to allied units. If the wearer's health falls below 25%, their health regeneration is increased to 14.5. Radius: 1200",
       "notes": "Mend does not affect units that have been affected by Mend or Mekansm Restore within Guardian Greaves' cooldown.",
       "attributes": "+ 50 Movement Speed; + 5 Armor; + 150 Mana; + 1.0 Mana Regeneration"
+    },
+    {
+      "id": 215,
+      "key": "shadow_amulet",
+      "name": "Shadow Amulet",
+      "cost": 900,
+      "components": [],
+      "description": "Fade: Grants invisibility to you or a target allied hero for 3.5s. Movement speed during the invisibility is reduced by 35%.",
+      "notes": "Takes 1.25s of the 3.5s for the hero to fully fade into invisibility.",
+      "attributes": "FADE TIME: 1.25"
+    },
+    {
+      "id": 253,
+      "key": "recipe_glimmer_cape",
+      "name": "Glimmer Cape Recipe",
+      "cost": 800,
+      "components": [],
+      "description": "",
+      "notes": "",
+      "attributes": ""
     },
     {
       "id": 254,

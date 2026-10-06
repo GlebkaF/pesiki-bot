@@ -5,10 +5,10 @@ import {currentMatchUrl} from './current-match-command.js';
 export function adviceText(state:AdviceState):string{
  if(state.status!=='ready')return state.message;
  const a=state.advice,time=`${Math.floor(a.gameTime/60)}:${String(Math.floor(a.gameTime)%60).padStart(2,'0')}`;
- const parts=[`💡 Следующий шаг · ${time}${a.gameMode===23?' · Turbo':''}`];
+ const parts=[`💡 План сборки · ${time}${a.gameMode===23?' · Turbo':''}`];
  if(a.plan)parts.push(a.plan);
  for(const c of a.cards){
-  const block=`${c.name} · ${c.hero}\n→ ${c.item.name} · по видимым компонентам ещё ${c.item.remainingCost} золота\n${c.reason}${c.alternative?`\nИли ${c.alternative.name}: ${c.alternativeReason}`:''}`;
+  const block=`${c.name} · ${c.hero}\nЦель: ${c.item.name} · по видимым компонентам ещё ${c.item.remainingCost} золота${c.purchaseStep?`\nБлижайшая часть: ${c.purchaseStep.name} · ${c.purchaseStep.cost} золота за штуку`:""}\n${c.reason}${c.alternative?`\nИли ${c.alternative.name}: ${c.alternativeReason}`:''}`;
   if(parts.join('\n\n').length+block.length>3450){parts.push('Остальные советы — на сайте.');break;}parts.push(block);
  }
  parts.push(`По снимку наблюдателя; фактическая задержка не измерена. Учтён инвентарь наших; курьер и тайник неизвестны.\n${a.statisticsAt?'Сборки OpenDota':'Статистика сборок недоступна'} · механики dotaconstants. Вариант плана, не гарантия.`);

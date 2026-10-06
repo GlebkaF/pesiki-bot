@@ -2,11 +2,11 @@ import {createHash,randomUUID} from 'node:crypto';
 import {mkdir,readFile,writeFile,rename} from 'node:fs/promises';
 import path from 'node:path';
 import {adviceSources,type AdviceSources,type ItemPopularity} from './advice-sources.js';
-import {buildAdviceContext,canAdvise,adviceObservationKey,type AdviceContext,type AdviceCandidate} from './advice-context.js';
+import {buildAdviceContext,canAdvise,adviceObservationKey,type AdviceContext,type AdviceCandidate,type AdvicePurchaseStep} from './advice-context.js';
 import {generateAdvice,ADVICE_ENGINE_REVISION,type ModelAdvice} from './advice-model.js';
 import {AdviceJournal,type AdviceJournalSink,type AdviceJournalEvent} from './advice-journal.js';
 import type {LiveMatch} from './live-match.js';
-export interface AdviceCard {account:number;name:string;hero:string;item:AdviceCandidate;reason:string;alternative:AdviceCandidate|null;alternativeReason:string;}
+export interface AdviceCard {purchaseStep?:AdvicePurchaseStep;purchaseStepOwnedCount?:number;account:number;name:string;hero:string;item:AdviceCandidate;reason:string;alternative:AdviceCandidate|null;alternativeReason:string;}
 export interface LiveAdvice {matchId:string;snapshotAt:number;generatedAt:number;gameTime:number;delay:number|null;gameMode:number|null;cards:AdviceCard[];plan:string;knowledgeRevision:string;statisticsAt:number|null;}
 export type AdviceState={status:'ready';advice:LiveAdvice}|{status:'unavailable'|'loading'|'limited';message:string};
 export function adviceFingerprint(match:LiveMatch):string{
@@ -58,7 +58,7 @@ export class LiveAdviceService {
   if(!canAdvise(match,this.now()))return {status:'unavailable',message:'Совет появится, когда будет доступен подробный матч наших.'};
   const roster=match.teams.flatMap(t=>t.players);
   const rosterKey=JSON.stringify(roster.map(p=>[p.account,p.heroId,p.ours]));
-  const bought=this.cached?.cards.some(c=>roster.find(p=>p.account===c.account)?.items.some(id=>id===c.item.id||id===c.alternative?.id));
+  const bought=this.cached?.cards.some(c=>{const items=roster.find(p=>p.account===c.account)?.items??[];return items.some(id=>id===c.item.id||id===c.alternative?.id)||(c.purchaseStep&&items.filter(id=>id===c.purchaseStep!.id).length>(c.purchaseStepOwnedCount??0));});
   if(this.cached?.matchId===match.matchId&&this.now()-this.cached.snapshotAt<180_000&&this.lastRoster===rosterKey&&!bought)return {status:'ready',advice:this.cached};
   if(!this.pending&&this.lastState?.matchId===match.matchId&&this.lastState.state.status!=='ready')return this.lastState.state;
   return {status:this.pending?'loading':'unavailable',message:this.pending?'Разбираем составы и предметы…':'Готовим следующий шаг для наших.'};
@@ -99,7 +99,7 @@ export class LiveAdviceService {
     if(!canAdvise(this.latestMatch,this.now())||this.latestMatch.matchId!==match.matchId||adviceFingerprint(this.latestMatch)!==fingerprint)return {status:'unavailable',message:'Ситуация изменилась во время разбора. Ждём совет по новому снимку.'};
     if(!canAdvise(match,this.now()))return {status:'unavailable',message:'Снимок устарел во время разбора. Ждём обновления матча.'};
     const roster=match.teams.flatMap(t=>t.players);
-    const cards=output.players.map(p=>{const player=context.players.find(c=>c.account===p.account)!,identity=roster.find(c=>c.account===p.account)!;return {account:p.account,name:identity.name,hero:identity.hero,item:player.candidates.find(c=>c.id===p.itemId)!,reason:p.reason,alternative:player.candidates.find(c=>c.id===p.alternativeId)??null,alternativeReason:p.alternativeReason};});
+    const cards=output.players.map(p=>{const player=context.players.find(c=>c.account===p.account)!,identity=roster.find(c=>c.account===p.account)!;return {...p.purchaseStep?{purchaseStep:p.purchaseStep,purchaseStepOwnedCount:identity.items.filter(id=>id===p.purchaseStep!.id).length}:{},account:p.account,name:identity.name,hero:identity.hero,item:player.candidates.find(c=>c.id===p.itemId)!,reason:p.reason,alternative:player.candidates.find(c=>c.id===p.alternativeId)??null,alternativeReason:p.alternativeReason};});
     const dates=[...popularities.values()].map(p=>p.fetchedAt);
     this.cached={matchId:match.matchId,snapshotAt:match.updatedAt,generatedAt:this.now(),gameTime:match.time!,delay:match.delay??null,gameMode:match.gameMode??null,cards,plan:output.plan,knowledgeRevision:knowledge.revision,statisticsAt:dates.length?Math.min(...dates):null};
     this.lastFingerprint=fingerprint;

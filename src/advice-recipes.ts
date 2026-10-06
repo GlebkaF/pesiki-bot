@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import {KNOWLEDGE_REVISION,type AdviceItem} from './advice-sources.js';
 import type {AdviceContext,AdvicePlayerContext} from './advice-context.js';
 
-export const RECIPE_REVISION='decision-recipes-v1';
+export const RECIPE_REVISION='decision-recipes-v2';
 export interface AdviceRecipe {id:string;key:string;goal:string;reason:string;sourceHash:string;}
 // Source-bound general plans, not verified current-patch counter matchups.
 // Source changes disable the affected recipe until its claims are reviewed.
@@ -90,6 +90,13 @@ export const ADVICE_RECIPES:readonly AdviceRecipe[]=[
     "goal": "Снижать проблему уклонения при атаках",
     "reason": "Если подтверждённая проблема — уклонение, MKB даёт атакам шанс его пробить. Это не гарантия каждого попадания. Без такой задачи сравни с обычным усилением урона или защитой.",
     "sourceHash": "f3491fea77bd2f56836e347aa29a547c4971d5bcc5f126e07bc3b01df8eada15"
+  },
+  {
+    "id": "diffusal_blade-v1",
+    "key": "diffusal_blade",
+    "goal": "Удерживать цель для атак и выжигать ману",
+    "reason": "Если план — держаться рядом с целью и атаковать, Diffusal даёт активное замедление и выжигание маны атаками. Это давление вместо защиты; иллюзии ману не выжигают. Возможность бить цель всё равно нужна.",
+    "sourceHash": "5c733e650a61072687eb0eb5d83c7b3961631ca8d73437d6e8a43986dd79a9ca"
   }
 ];
 export const RECIPE_ITEM_KEYS=new Set(ADVICE_RECIPES.map(r=>r.key));
@@ -102,6 +109,10 @@ export function playerOptions(context:AdviceContext,player:AdvicePlayerContext):
  return ADVICE_RECIPES.flatMap(recipe=>{
   const item=player.candidates.find(c=>c.key===recipe.key);
   if(!item||mechanicsHash(item)!==recipe.sourceHash)return [];
+  // Range and mana-burning attack plans require hero-specific relevance.
+  // Until explicit player intent exists, require a hero-specific prior or a
+  // visible component. This is eligibility evidence, not proof of best purchase.
+  if(['aether_lens','diffusal_blade'].includes(recipe.key)&&!(item.purchases&&item.purchases>0)&&!item.ownedComponents.length)return [];
   return [{id:recipe.id,itemId:item.id,goal:recipe.goal,reason:recipe.reason,sourceRevision:context.knowledgeRevision,patchStatus:'unknown' as const}];
  });
 }
