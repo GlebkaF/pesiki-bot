@@ -4,8 +4,8 @@ import {getSteamPresence} from './steam-presence.js';
 import {findObserverGames,type TVGame} from './dota-observer.js';
 import {HERO_CATALOG} from './hero-catalog.js';
 
-export interface LivePlayer{account:number;name:string;hero:string;level?:number;kills?:number;deaths?:number;assists?:number;ours:boolean;slot:number;netWorth?:number;gold?:number;lastHits?:number;denies?:number;x?:number;y?:number;items:number[];}
-export interface LiveMatch{matchId:string;kind:'stack'|'public';stackCount:number;time?:number;delay?:number;updatedAt:number;detailed:boolean;buildings:Array<{x:number;y:number;team:number;destroyed:boolean}>;history:Array<{time:number;lead:number}>;teams:Array<{name:string;score?:number;netWorth?:number;players:LivePlayer[]}>;}
+export interface LivePlayer{account:number;name:string;hero:string;heroId?:number;level?:number;kills?:number;deaths?:number;assists?:number;ours:boolean;slot:number;netWorth?:number;gold?:number;lastHits?:number;denies?:number;x?:number;y?:number;items:number[];}
+export interface LiveMatch{matchId:string;kind:'stack'|'public';stackCount:number;gameMode?:number;time?:number;delay?:number;updatedAt:number;detailed:boolean;buildings:Array<{x:number;y:number;team:number;destroyed:boolean}>;history:Array<{time:number;lead:number}>;teams:Array<{name:string;score?:number;netWorth?:number;players:LivePlayer[]}>;}
 const numeric=(value:unknown):number|undefined=>typeof value==='number'&&Number.isFinite(value)?value:undefined;
 const roster=new Map(PLAYERS.map(p=>[p.steamId,p.dotaName]));
 export function selectLiveGame(games:TVGame[],members:Map<string,number[]>,active:Set<number>,preferredLobby?:string):{game:TVGame;count:number}|undefined{
@@ -21,10 +21,10 @@ export function liveSnapshot(game:TVGame,count:number,data?:any):LiveMatch|null{
   const players=source?.players??(game.players??[]).filter(p=>p.team===index).map(p=>({accountid:p.account_id,heroid:p.hero_id}));
   return {netWorth:numeric(source?.net_worth),name:index===0?'Radiant':'Dire',score:detailed?numeric(source?.score):numeric(index===0?game.radiant_score:game.dire_score),players:players.map((p:any,slot:number)=>{
    const account=numeric(p.accountid)??0;
-   return {slot:numeric(p.playerid)??index*5+slot,netWorth:numeric(p.net_worth),gold:numeric(p.gold),lastHits:numeric(p.lh_count),denies:numeric(p.denies_count),x:numeric(p.x),y:numeric(p.y),items:Array.isArray(p.items)?p.items.slice(0,9).map((n:unknown)=>numeric(n)??-1):[],account,name:roster.get(account)||String(p.name||'Игрок').slice(0,80),hero:HERO_CATALOG.find(h=>h.id===p.heroid)?.localized_name||'Герой не выбран',ours:roster.has(account),level:numeric(p.level),kills:numeric(p.kill_count),deaths:numeric(p.death_count),assists:numeric(p.assists_count)};
+   return {slot:numeric(p.playerid)??index*5+slot,netWorth:numeric(p.net_worth),gold:numeric(p.gold),lastHits:numeric(p.lh_count),denies:numeric(p.denies_count),x:numeric(p.x),y:numeric(p.y),items:Array.isArray(p.items)?p.items.slice(0,9).map((n:unknown)=>numeric(n)??-1):[],account,heroId:numeric(p.heroid),name:roster.get(account)||String(p.name||'Игрок').slice(0,80),hero:HERO_CATALOG.find(h=>h.id===p.heroid)?.localized_name||'Герой не выбран',ours:roster.has(account),level:numeric(p.level),kills:numeric(p.kill_count),deaths:numeric(p.death_count),assists:numeric(p.assists_count)};
   })};
  });
- return {buildings:detailed&&Array.isArray(data.buildings)?data.buildings.filter((b:any)=>b.type===0&&[2,3].includes(b.team)&&numeric(b.x)!==undefined&&numeric(b.y)!==undefined).map((b:any)=>({x:b.x,y:b.y,team:b.team,destroyed:!!b.destroyed})):[],history:[],matchId:game.match_id!,kind:count?'stack':'public',stackCount:count,time:detailed?numeric(data.match.game_time):numeric(game.game_time),delay:numeric(game.delay),updatedAt:Date.now(),detailed,teams};
+ return {buildings:detailed&&Array.isArray(data.buildings)?data.buildings.filter((b:any)=>b.type===0&&[2,3].includes(b.team)&&numeric(b.x)!==undefined&&numeric(b.y)!==undefined).map((b:any)=>({x:b.x,y:b.y,team:b.team,destroyed:!!b.destroyed})):[],history:[],gameMode:detailed?numeric(data.match.game_mode):undefined,matchId:game.match_id!,kind:count?'stack':'public',stackCount:count,time:detailed?numeric(data.match.game_time):numeric(game.game_time),delay:numeric(game.delay),updatedAt:Date.now(),detailed,teams};
 }
 const completed=new Set<string>();
 let preferredLobby:string|undefined;

@@ -1,0 +1,973 @@
+{
+  "checkedAt": "2026-10-06T14:18:19.668Z",
+  "constantsRevision": "b4b5a8299de5f3e0704e62fdd04a6a54c4d4548e",
+  "requests": [
+    {
+      "url": "https://raw.githubusercontent.com/odota/dotaconstants/b4b5a8299de5f3e0704e62fdd04a6a54c4d4548e/build/items.json",
+      "status": 200
+    },
+    {
+      "url": "https://raw.githubusercontent.com/odota/dotaconstants/b4b5a8299de5f3e0704e62fdd04a6a54c4d4548e/build/heroes.json",
+      "status": 200
+    },
+    {
+      "url": "https://api.opendota.com/api/heroStats",
+      "status": 200
+    },
+    {
+      "url": "https://api.opendota.com/api/heroes/74/itemPopularity",
+      "status": 200
+    },
+    {
+      "url": "https://api.opendota.com/api/heroes/31/itemPopularity",
+      "status": 200
+    },
+    {
+      "url": "https://api.opendota.com/api/heroes/68/itemPopularity",
+      "status": 200
+    }
+  ],
+  "heroes": [
+    {
+      "heroId": 74,
+      "name": "Invoker",
+      "popularity": {
+        "start_game_items": [
+          {
+            "itemId": 16,
+            "name": "Iron Branch",
+            "key": "branches",
+            "purchases": 199,
+            "cost": 55,
+            "components": null
+          },
+          {
+            "itemId": 20,
+            "name": "Circlet",
+            "key": "circlet",
+            "purchases": 156,
+            "cost": 155,
+            "components": null
+          },
+          {
+            "itemId": 42,
+            "name": "Observer Ward",
+            "key": "ward_observer",
+            "purchases": 83,
+            "cost": 0,
+            "components": null
+          },
+          {
+            "itemId": 237,
+            "name": "Faerie Fire",
+            "key": "faerie_fire",
+            "purchases": 83,
+            "cost": 65,
+            "components": null
+          },
+          {
+            "itemId": 44,
+            "name": "Tango",
+            "key": "tango",
+            "purchases": 80,
+            "cost": 90,
+            "components": null
+          },
+          {
+            "itemId": 15,
+            "name": "Mantle of Intelligence",
+            "key": "mantle",
+            "purchases": 45,
+            "cost": 140,
+            "components": null
+          },
+          {
+            "itemId": 34,
+            "name": "Magic Stick",
+            "key": "magic_stick",
+            "purchases": 15,
+            "cost": 200,
+            "components": null
+          },
+          {
+            "itemId": 218,
+            "name": "Observer and Sentry Wards",
+            "key": "ward_dispenser",
+            "purchases": 6,
+            "cost": 50,
+            "components": [
+              "ward_sentry",
+              "ward_observer"
+            ]
+          }
+        ],
+        "early_game_items": [
+          {
+            "itemId": 77,
+            "name": "Null Talisman",
+            "key": "null_talisman",
+            "purchases": 104,
+            "cost": 505,
+            "components": [
+              "circlet",
+              "mantle"
+            ]
+          },
+          {
+            "itemId": 23,
+            "name": "Staff of Wizardry",
+            "key": "staff_of_wizardry",
+            "purchases": 71,
+            "cost": 1000,
+            "components": null
+          },
+          {
+            "itemId": 29,
+            "name": "Boots of Speed",
+            "key": "boots",
+            "purchases": 55,
+            "cost": 500,
+            "components": null
+          },
+          {
+            "itemId": 259,
+            "name": "Kaya",
+            "key": "kaya",
+            "purchases": 35,
+            "cost": 2100,
+            "components": [
+              "staff_of_wizardry",
+              "robe"
+            ]
+          },
+          {
+            "itemId": 223,
+            "name": "Meteor Hammer",
+            "key": "meteor_hammer",
+            "purchases": 21,
+            "cost": 2850,
+            "components": [
+              "kaya",
+              "crown"
+            ]
+          },
+          {
+            "itemId": 92,
+            "name": "Urn of Shadows",
+            "key": "urn_of_shadows",
+            "purchases": 10,
+            "cost": 825,
+            "components": [
+              "sobi_mask",
+              "ring_of_protection",
+              "circlet",
+              ""
+            ]
+          },
+          {
+            "itemId": 1122,
+            "name": "Diadem",
+            "key": "diadem",
+            "purchases": 7,
+            "cost": 1000,
+            "components": null
+          },
+          {
+            "itemId": 75,
+            "name": "Wraith Band",
+            "key": "wraith_band",
+            "purchases": 4,
+            "cost": 505,
+            "components": [
+              "circlet",
+              "slippers"
+            ]
+          }
+        ],
+        "mid_game_items": [
+          {
+            "itemId": 48,
+            "name": "Boots of Travel",
+            "key": "travel_boots",
+            "purchases": 90,
+            "cost": 2500,
+            "components": [
+              "boots"
+            ]
+          },
+          {
+            "itemId": 21,
+            "name": "Ogre Axe",
+            "key": "ogre_axe",
+            "purchases": 61,
+            "cost": 1000,
+            "components": null
+          },
+          {
+            "itemId": 8,
+            "name": "Mithril Hammer",
+            "key": "mithril_hammer",
+            "purchases": 52,
+            "cost": 1600,
+            "components": null
+          },
+          {
+            "itemId": 223,
+            "name": "Meteor Hammer",
+            "key": "meteor_hammer",
+            "purchases": 52,
+            "cost": 2850,
+            "components": [
+              "kaya",
+              "crown"
+            ]
+          },
+          {
+            "itemId": 609,
+            "name": "Aghanim's Shard",
+            "key": "aghanims_shard",
+            "purchases": 44,
+            "cost": 1400,
+            "components": null
+          },
+          {
+            "itemId": 116,
+            "name": "Black King Bar",
+            "key": "black_king_bar",
+            "purchases": 41,
+            "cost": 4050,
+            "components": [
+              "mithril_hammer",
+              "ogre_axe"
+            ]
+          },
+          {
+            "itemId": 259,
+            "name": "Kaya",
+            "key": "kaya",
+            "purchases": 39,
+            "cost": 2100,
+            "components": [
+              "staff_of_wizardry",
+              "robe"
+            ]
+          },
+          {
+            "itemId": 23,
+            "name": "Staff of Wizardry",
+            "key": "staff_of_wizardry",
+            "purchases": 36,
+            "cost": 1000,
+            "components": null
+          }
+        ],
+        "late_game_items": [
+          {
+            "itemId": 235,
+            "name": "Octarine Core",
+            "key": "octarine_core",
+            "purchases": 41,
+            "cost": 5100,
+            "components": [
+              "soul_booster",
+              "tiara_of_selemene",
+              ""
+            ]
+          },
+          {
+            "itemId": 129,
+            "name": "Soul Booster",
+            "key": "soul_booster",
+            "purchases": 38,
+            "cost": 3000,
+            "components": [
+              "point_booster",
+              "vitality_booster",
+              "energy_booster"
+            ]
+          },
+          {
+            "itemId": 119,
+            "name": "Shiva's Guard",
+            "key": "shivas_guard",
+            "purchases": 37,
+            "cost": 4500,
+            "components": [
+              "platemail",
+              "splintmail",
+              "chasm_stone"
+            ]
+          },
+          {
+            "itemId": 96,
+            "name": "Scythe of Vyse",
+            "key": "sheepstick",
+            "purchases": 34,
+            "cost": 5200,
+            "components": [
+              "mystic_staff",
+              "tiara_of_selemene"
+            ]
+          },
+          {
+            "itemId": 58,
+            "name": "Mystic Staff",
+            "key": "mystic_staff",
+            "purchases": 33,
+            "cost": 2800,
+            "components": null
+          },
+          {
+            "itemId": 116,
+            "name": "Black King Bar",
+            "key": "black_king_bar",
+            "purchases": 27,
+            "cost": 4050,
+            "components": [
+              "mithril_hammer",
+              "ogre_axe"
+            ]
+          },
+          {
+            "itemId": 1,
+            "name": "Blink Dagger",
+            "key": "blink",
+            "purchases": 13,
+            "cost": 2250,
+            "components": null
+          },
+          {
+            "itemId": 110,
+            "name": "Refresher Orb",
+            "key": "refresher",
+            "purchases": 12,
+            "cost": 5000,
+            "components": [
+              "ring_of_tarrasque",
+              "tiara_of_selemene"
+            ]
+          }
+        ]
+      },
+      "turbo": {
+        "picks": 482017,
+        "wins": 237737,
+        "note": "Hero aggregate only; not Turbo item builds or evidence that an item improves win rate."
+      }
+    },
+    {
+      "heroId": 31,
+      "name": "Lich",
+      "popularity": {
+        "start_game_items": [
+          {
+            "itemId": 16,
+            "name": "Iron Branch",
+            "key": "branches",
+            "purchases": 147,
+            "cost": 55,
+            "components": null
+          },
+          {
+            "itemId": 44,
+            "name": "Tango",
+            "key": "tango",
+            "purchases": 98,
+            "cost": 90,
+            "components": null
+          },
+          {
+            "itemId": 1123,
+            "name": "Blood Grenade",
+            "key": "blood_grenade",
+            "purchases": 95,
+            "cost": 50,
+            "components": null
+          },
+          {
+            "itemId": 237,
+            "name": "Faerie Fire",
+            "key": "faerie_fire",
+            "purchases": 81,
+            "cost": 65,
+            "components": null
+          },
+          {
+            "itemId": 218,
+            "name": "Observer and Sentry Wards",
+            "key": "ward_dispenser",
+            "purchases": 80,
+            "cost": 50,
+            "components": [
+              "ward_sentry",
+              "ward_observer"
+            ]
+          },
+          {
+            "itemId": 188,
+            "name": "Smoke of Deceit",
+            "key": "smoke_of_deceit",
+            "purchases": 78,
+            "cost": 50,
+            "components": null
+          },
+          {
+            "itemId": 216,
+            "name": "Enchanted Mango",
+            "key": "enchanted_mango",
+            "purchases": 78,
+            "cost": 65,
+            "components": null
+          },
+          {
+            "itemId": 43,
+            "name": "Sentry Ward",
+            "key": "ward_sentry",
+            "purchases": 63,
+            "cost": 50,
+            "components": null
+          }
+        ],
+        "early_game_items": [
+          {
+            "itemId": 29,
+            "name": "Boots of Speed",
+            "key": "boots",
+            "purchases": 92,
+            "cost": 500,
+            "components": null
+          },
+          {
+            "itemId": 214,
+            "name": "Tranquil Boots",
+            "key": "tranquil_boots",
+            "purchases": 39,
+            "cost": 900,
+            "components": [
+              "boots",
+              "wind_lace",
+              "ring_of_regen"
+            ]
+          }
+        ],
+        "mid_game_items": [
+          {
+            "itemId": 609,
+            "name": "Aghanim's Shard",
+            "key": "aghanims_shard",
+            "purchases": 50,
+            "cost": 1400,
+            "components": null
+          },
+          {
+            "itemId": 1,
+            "name": "Blink Dagger",
+            "key": "blink",
+            "purchases": 35,
+            "cost": 2250,
+            "components": null
+          },
+          {
+            "itemId": 254,
+            "name": "Glimmer Cape",
+            "key": "glimmer_cape",
+            "purchases": 26,
+            "cost": 2150,
+            "components": [
+              "shadow_amulet",
+              "shawl"
+            ]
+          },
+          {
+            "itemId": 23,
+            "name": "Staff of Wizardry",
+            "key": "staff_of_wizardry",
+            "purchases": 15,
+            "cost": 1000,
+            "components": null
+          },
+          {
+            "itemId": 102,
+            "name": "Force Staff",
+            "key": "force_staff",
+            "purchases": 10,
+            "cost": 2200,
+            "components": [
+              "staff_of_wizardry",
+              "fluffy_hat"
+            ]
+          },
+          {
+            "itemId": 37,
+            "name": "Ghost Scepter",
+            "key": "ghost",
+            "purchases": 9,
+            "cost": 1500,
+            "components": null
+          },
+          {
+            "itemId": 1128,
+            "name": "Pavise",
+            "key": "pavise",
+            "purchases": 7,
+            "cost": 1350,
+            "components": [
+              "wizard_hat",
+              "fluffy_hat",
+              "ring_of_protection"
+            ]
+          },
+          {
+            "itemId": 229,
+            "name": "Solar Crest",
+            "key": "solar_crest",
+            "purchases": 6,
+            "cost": 2575,
+            "components": [
+              "pavise",
+              "chainmail",
+              "wind_lace"
+            ]
+          }
+        ],
+        "late_game_items": [
+          {
+            "itemId": 108,
+            "name": "Aghanim's Scepter",
+            "key": "ultimate_scepter",
+            "purchases": 43,
+            "cost": 4200,
+            "components": [
+              "point_booster",
+              "staff_of_wizardry",
+              "ogre_axe",
+              "blade_of_alacrity"
+            ]
+          },
+          {
+            "itemId": 1,
+            "name": "Blink Dagger",
+            "key": "blink",
+            "purchases": 36,
+            "cost": 2250,
+            "components": null
+          },
+          {
+            "itemId": 254,
+            "name": "Glimmer Cape",
+            "key": "glimmer_cape",
+            "purchases": 12,
+            "cost": 2150,
+            "components": [
+              "shadow_amulet",
+              "shawl"
+            ]
+          },
+          {
+            "itemId": 256,
+            "name": "Aeon Disk",
+            "key": "aeon_disk",
+            "purchases": 10,
+            "cost": 3000,
+            "components": [
+              "vitality_booster",
+              "energy_booster"
+            ]
+          },
+          {
+            "itemId": 229,
+            "name": "Solar Crest",
+            "key": "solar_crest",
+            "purchases": 8,
+            "cost": 2575,
+            "components": [
+              "pavise",
+              "chainmail",
+              "wind_lace"
+            ]
+          },
+          {
+            "itemId": 102,
+            "name": "Force Staff",
+            "key": "force_staff",
+            "purchases": 6,
+            "cost": 2200,
+            "components": [
+              "staff_of_wizardry",
+              "fluffy_hat"
+            ]
+          },
+          {
+            "itemId": 152,
+            "name": "Shadow Blade",
+            "key": "invis_sword",
+            "purchases": 4,
+            "cost": 3250,
+            "components": [
+              "claymore",
+              "blitz_knuckles",
+              "shadow_amulet"
+            ]
+          },
+          {
+            "itemId": 48,
+            "name": "Boots of Travel",
+            "key": "travel_boots",
+            "purchases": 3,
+            "cost": 2500,
+            "components": [
+              "boots"
+            ]
+          }
+        ]
+      },
+      "turbo": {
+        "picks": 138330,
+        "wins": 73364,
+        "note": "Hero aggregate only; not Turbo item builds or evidence that an item improves win rate."
+      }
+    },
+    {
+      "heroId": 68,
+      "name": "Ancient Apparition",
+      "popularity": {
+        "start_game_items": [
+          {
+            "itemId": 16,
+            "name": "Iron Branch",
+            "key": "branches",
+            "purchases": 149,
+            "cost": 55,
+            "components": null
+          },
+          {
+            "itemId": 44,
+            "name": "Tango",
+            "key": "tango",
+            "purchases": 102,
+            "cost": 90,
+            "components": null
+          },
+          {
+            "itemId": 1123,
+            "name": "Blood Grenade",
+            "key": "blood_grenade",
+            "purchases": 84,
+            "cost": 50,
+            "components": null
+          },
+          {
+            "itemId": 218,
+            "name": "Observer and Sentry Wards",
+            "key": "ward_dispenser",
+            "purchases": 65,
+            "cost": 50,
+            "components": [
+              "ward_sentry",
+              "ward_observer"
+            ]
+          },
+          {
+            "itemId": 43,
+            "name": "Sentry Ward",
+            "key": "ward_sentry",
+            "purchases": 57,
+            "cost": 50,
+            "components": null
+          },
+          {
+            "itemId": 237,
+            "name": "Faerie Fire",
+            "key": "faerie_fire",
+            "purchases": 57,
+            "cost": 65,
+            "components": null
+          },
+          {
+            "itemId": 34,
+            "name": "Magic Stick",
+            "key": "magic_stick",
+            "purchases": 49,
+            "cost": 200,
+            "components": null
+          },
+          {
+            "itemId": 188,
+            "name": "Smoke of Deceit",
+            "key": "smoke_of_deceit",
+            "purchases": 40,
+            "cost": 50,
+            "components": null
+          }
+        ],
+        "early_game_items": [
+          {
+            "itemId": 29,
+            "name": "Boots of Speed",
+            "key": "boots",
+            "purchases": 85,
+            "cost": 500,
+            "components": null
+          },
+          {
+            "itemId": 180,
+            "name": "Arcane Boots",
+            "key": "arcane_boots",
+            "purchases": 13,
+            "cost": 1500,
+            "components": [
+              "boots",
+              "ring_of_basilius",
+              "wizard_hat"
+            ]
+          },
+          {
+            "itemId": 92,
+            "name": "Urn of Shadows",
+            "key": "urn_of_shadows",
+            "purchases": 5,
+            "cost": 825,
+            "components": [
+              "sobi_mask",
+              "ring_of_protection",
+              "circlet",
+              ""
+            ]
+          },
+          {
+            "itemId": 214,
+            "name": "Tranquil Boots",
+            "key": "tranquil_boots",
+            "purchases": 5,
+            "cost": 900,
+            "components": [
+              "boots",
+              "wind_lace",
+              "ring_of_regen"
+            ]
+          },
+          {
+            "itemId": 77,
+            "name": "Null Talisman",
+            "key": "null_talisman",
+            "purchases": 4,
+            "cost": 505,
+            "components": [
+              "circlet",
+              "mantle"
+            ]
+          },
+          {
+            "itemId": 73,
+            "name": "Bracer",
+            "key": "bracer",
+            "purchases": 2,
+            "cost": 505,
+            "components": [
+              "circlet",
+              "gauntlets"
+            ]
+          },
+          {
+            "itemId": 4,
+            "name": "Chainmail",
+            "key": "chainmail",
+            "purchases": 1,
+            "cost": 500,
+            "components": null
+          },
+          {
+            "itemId": 23,
+            "name": "Staff of Wizardry",
+            "key": "staff_of_wizardry",
+            "purchases": 1,
+            "cost": 1000,
+            "components": null
+          }
+        ],
+        "mid_game_items": [
+          {
+            "itemId": 180,
+            "name": "Arcane Boots",
+            "key": "arcane_boots",
+            "purchases": 64,
+            "cost": 1500,
+            "components": [
+              "boots",
+              "ring_of_basilius",
+              "wizard_hat"
+            ]
+          },
+          {
+            "itemId": 23,
+            "name": "Staff of Wizardry",
+            "key": "staff_of_wizardry",
+            "purchases": 47,
+            "cost": 1000,
+            "components": null
+          },
+          {
+            "itemId": 609,
+            "name": "Aghanim's Shard",
+            "key": "aghanims_shard",
+            "purchases": 28,
+            "cost": 1400,
+            "components": null
+          },
+          {
+            "itemId": 254,
+            "name": "Glimmer Cape",
+            "key": "glimmer_cape",
+            "purchases": 26,
+            "cost": 2150,
+            "components": [
+              "shadow_amulet",
+              "shawl"
+            ]
+          },
+          {
+            "itemId": 61,
+            "name": "Vitality Booster",
+            "key": "vitality_booster",
+            "purchases": 24,
+            "cost": 1000,
+            "components": null
+          },
+          {
+            "itemId": 206,
+            "name": "Rod of Atos",
+            "key": "rod_of_atos",
+            "purchases": 20,
+            "cost": 2250,
+            "components": [
+              "staff_of_wizardry",
+              "vitality_booster"
+            ]
+          },
+          {
+            "itemId": 102,
+            "name": "Force Staff",
+            "key": "force_staff",
+            "purchases": 14,
+            "cost": 2200,
+            "components": [
+              "staff_of_wizardry",
+              "fluffy_hat"
+            ]
+          },
+          {
+            "itemId": 1128,
+            "name": "Pavise",
+            "key": "pavise",
+            "purchases": 7,
+            "cost": 1350,
+            "components": [
+              "wizard_hat",
+              "fluffy_hat",
+              "ring_of_protection"
+            ]
+          }
+        ],
+        "late_game_items": [
+          {
+            "itemId": 254,
+            "name": "Glimmer Cape",
+            "key": "glimmer_cape",
+            "purchases": 20,
+            "cost": 2150,
+            "components": [
+              "shadow_amulet",
+              "shawl"
+            ]
+          },
+          {
+            "itemId": 1,
+            "name": "Blink Dagger",
+            "key": "blink",
+            "purchases": 17,
+            "cost": 2250,
+            "components": null
+          },
+          {
+            "itemId": 102,
+            "name": "Force Staff",
+            "key": "force_staff",
+            "purchases": 16,
+            "cost": 2200,
+            "components": [
+              "staff_of_wizardry",
+              "fluffy_hat"
+            ]
+          },
+          {
+            "itemId": 58,
+            "name": "Mystic Staff",
+            "key": "mystic_staff",
+            "purchases": 14,
+            "cost": 2800,
+            "components": null
+          },
+          {
+            "itemId": 96,
+            "name": "Scythe of Vyse",
+            "key": "sheepstick",
+            "purchases": 10,
+            "cost": 5200,
+            "components": [
+              "mystic_staff",
+              "tiara_of_selemene"
+            ]
+          },
+          {
+            "itemId": 256,
+            "name": "Aeon Disk",
+            "key": "aeon_disk",
+            "purchases": 9,
+            "cost": 3000,
+            "components": [
+              "vitality_booster",
+              "energy_booster"
+            ]
+          },
+          {
+            "itemId": 100,
+            "name": "Eul's Scepter of Divinity",
+            "key": "cyclone",
+            "purchases": 7,
+            "cost": 2600,
+            "components": [
+              "staff_of_wizardry",
+              "void_stone",
+              "wind_lace"
+            ]
+          },
+          {
+            "itemId": 1466,
+            "name": "Gleipnir",
+            "key": "gungir",
+            "purchases": 7,
+            "cost": 4650,
+            "components": [
+              "rod_of_atos",
+              "point_booster",
+              "chasm_stone"
+            ]
+          }
+        ]
+      },
+      "turbo": {
+        "picks": 160183,
+        "wins": 84516,
+        "note": "Hero aggregate only; not Turbo item builds or evidence that an item improves win rate."
+      }
+    }
+  ],
+  "limitations": [
+    "This is a source availability probe, not a personalized recommendation or production integration.",
+    "Popularity is purchase-event counts, not percentage of players, win rate, or optimal purchase order.",
+    "OpenDota describes popularity as professional games; current source selects at most 100 parsed hero records.",
+    "Popularity does not expose patch, role, mode, match dates, or actual sample size; do not transfer timings to Turbo.",
+    "A pinned constants revision is reproducible, but is not proof every field matches the current letter patch.",
+    "Requests stop on OpenDota 429. Missing data remains missing; no guessed fallback statistics."
+  ]
+}

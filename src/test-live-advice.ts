@@ -1,0 +1,96 @@
+import assert from 'node:assert/strict';
+import {mkdtemp,rm,writeFile,readFile} from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import {AdviceSources,parsePopularity,type AdviceItem,type AdviceKnowledge} from './advice-sources.js';
+import {buildCandidates,buildAdviceContext,canAdvise} from './advice-context.js';
+import {validateAdvice} from './advice-model.js';
+import {LiveAdviceService} from './live-advice.js';
+import type {LiveMatch,LivePlayer} from './live-match.js';
+import {adviceText,replyAdvice} from './advice-command.js';
+import {renderLiveAdvice} from './web/live-advice-render.js';
+
+const item=(id:number,key:string,cost:number,components:string[]=[]):AdviceItem=>({id,key,name:key,cost,components,description:'Fixture mechanics',notes:'',attributes:''});
+const knowledge:AdviceKnowledge={revision:'test',items:[item(1,'staff',1000),item(2,'force_staff',2200,['staff']),item(3,'hurricane_pike',4500,['force_staff']),item(4,'black_king_bar',4050)]};
+let now=1_790_000_000_000;
+const player=(account:number,ours=false):LivePlayer=>({account,name:'Игрок <b>',hero:'Lich',heroId:31,ours,slot:account-1,items:[1],gold:1200,netWorth:6000,level:12});
+const match:LiveMatch={matchId:'123',kind:'stack',stackCount:1,gameMode:23,time:900,delay:120,updatedAt:now,detailed:true,buildings:[],history:[],teams:[{name:'Radiant',players:[player(1,true),...Array.from({length:4},(_,i)=>player(i+2))]},{name:'Dire',players:Array.from({length:5},(_,i)=>player(i+6))}]};
+const raw={start_game_items:{},early_game_items:{},mid_game_items:{'2':12,'3':6},late_game_items:{'3':4}};
+const popularity=parsePopularity(31,raw,now);
+assert.equal(popularity.counts['3'],10);
+assert.throws(()=>parsePopularity(31,{...raw,late_game_items:{'3':-1}}));
+assert.throws(()=>parsePopularity(31,{}));
+assert.ok(canAdvise(match,now));
+assert.ok(!canAdvise({...match,updatedAt:now-90_000},now));
+assert.ok(!canAdvise({...match,kind:'public'},now));
+assert.ok(!canAdvise({...match,detailed:false},now));
+assert.ok(!canAdvise({...match,teams:match.teams.slice(0,1)},now));
+const candidates=buildCandidates(match.teams[0].players[0],knowledge,popularity);
+assert.equal(candidates.find(c=>c.id===2)?.remainingCost,1200);
+assert.equal(candidates.find(c=>c.id===3)?.remainingCost,3500);
+assert.ok(!buildCandidates({...player(1,true),items:[3]},knowledge,popularity).some(c=>[1,2,3].includes(c.id)));
+const context=buildAdviceContext(match,knowledge,new Map([[31,popularity]]),now);
+assert.equal(context.gameMode,23);assert.equal(context.players[0].role,null);
+const output={players:[{account:1,itemId:2,reason:'Проверочный совет',alternativeId:4,alternativeReason:'Условная альтернатива'}],plan:'Проверочный план'};
+assert.deepEqual(validateAdvice(output,context),output);
+assert.throws(()=>validateAdvice({...output,players:[{...output.players[0],itemId:999}]},context));
+assert.throws(()=>validateAdvice({...output,players:[{...output.players[0],account:999}]},context));
+assert.throws(()=>validateAdvice({...output,players:[...output.players,...output.players]},context));
+assert.throws(()=>validateAdvice({...output,players:[{...output.players[0],alternativeId:2}]},context));
+assert.throws(()=>validateAdvice({...output,players:[{...output.players[0],reason:'<script>bad</script>'}]},context));
+
+const dir=await mkdtemp(path.join(os.tmpdir(),'pesiki-advice-test-'));
+try{
+ let calls=0;
+ const fetcher:typeof fetch=async()=>{calls++;return new Response(JSON.stringify(raw),{status:200});};
+ const sources=new AdviceSources(dir,fetcher,()=>now);
+ const [a,b]=await Promise.all([sources.popularity(31),sources.popularity(31)]);
+ assert.deepEqual(a,b);assert.equal(calls,1);
+ const reloaded=new AdviceSources(dir,fetcher,()=>now);
+ await reloaded.popularity(31);assert.equal(calls,1,'disk cache survives restart');
+ now+=7*60*60_000;
+ let failures=0;
+ const broken=new AdviceSources(dir,async()=>{failures++;return new Response('',{status:429});},()=>now);
+ await assert.rejects(broken.popularity(31));await assert.rejects(broken.popularity(31));
+ assert.equal(failures,1,'failed upstream is not hammered or returned as fresh cache');
+}finally{await rm(dir,{recursive:true,force:true});}
+
+match.updatedAt=now;
+let generations=0,release!:()=>void;
+const latch=new Promise<void>(resolve=>{release=resolve;});
+const source={knowledge:async()=>knowledge,popularity:async()=>popularity};
+const service=new LiveAdviceService(source,async()=>{generations++;await latch;return output;},()=>now,null);
+const first=service.get(match),second=service.get(match);
+release();
+const results=await Promise.all([first,second]);
+assert.equal(generations,1);assert.ok(results.every(r=>r.status==='ready'));
+const ready=results[0];assert.equal(ready.status,'ready');
+if(ready.status==='ready'){
+ const html=renderLiveAdvice(ready);assert.ok(html.includes('Игрок &lt;b&gt;'));assert.ok(!html.includes('Игрок <b>'));assert.ok(html.includes('Turbo'));
+ assert.ok(adviceText(ready).includes('force_staff'));assert.ok(adviceText(ready).length<4096);
+ const sent:unknown[]=[];
+ const ctx={chat:{id:1},message:{message_id:2},reply:async(...args:unknown[])=>{sent.push(args);return {message_id:3};},api:{editMessageText:async(...args:unknown[])=>{sent.push(args);}}};
+ await replyAdvice(ctx as never,async()=>ready);
+ assert.equal(sent.length,2);assert.ok(JSON.stringify(sent).includes('Советы и матч на сайте'));assert.ok(!JSON.stringify(sent).includes('parse_mode'));
+}
+assert.equal((await service.get(match)).status,'ready');assert.equal(generations,1);
+const changed={...match,teams:match.teams.map(t=>({...t,players:t.players.map(p=>p.ours?{...p,items:[2]}:p)}))};
+assert.notEqual(service.peek(changed).status,'ready','a bought item invalidates displayed advice');
+assert.notEqual(service.peek({...match,matchId:'456'}).status,'ready','no cross-match leakage');
+now+=91_000;
+assert.notEqual((await service.get(match)).status,'ready','stale match does not trigger the model');
+assert.equal(generations,1);
+const budgetDir=await mkdtemp(path.join(os.tmpdir(),'pesiki-advice-budget-'));
+try{
+ match.updatedAt=now;
+ const budgetPath=path.join(budgetDir,'budget.json');
+ await writeFile(budgetPath,JSON.stringify({day:new Date(now).toISOString().slice(0,10),dailyCount:20,counts:[[match.matchId,20]]}));
+ const limited=new LiveAdviceService(source,async()=>{throw Error('Budget must prevent model call');},()=>now,budgetPath);
+ assert.equal((await limited.get(match)).status,'limited');
+ assert.equal(limited.peek(match).status,'limited');
+ await writeFile(budgetPath,JSON.stringify({day:new Date(now).toISOString().slice(0,10),dailyCount:0,counts:[]}));
+ const persisted=new LiveAdviceService(source,async()=>output,()=>now,budgetPath);
+ assert.equal((await persisted.get(match)).status,'ready');
+ assert.equal(JSON.parse(await readFile(budgetPath,'utf8')).dailyCount,1);
+}finally{await rm(budgetDir,{recursive:true,force:true});}
+console.log('Advice: source schemas, persisted/coalesced cache, 429 backoff, Turbo context, owned upgrades, component costs, invalid model output, shared generation and stale/cross-match isolation passed.');

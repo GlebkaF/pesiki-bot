@@ -33,6 +33,7 @@ RUN apk add --no-cache --virtual .build-deps python3 make g++ \
     && npm ci --omit=dev \
     && apk del .build-deps
 
+COPY licenses ./licenses
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/src/web/assets ./dist/web/assets
 COPY --from=parser /parser/replay-parser ./tools/replay-parser/replay-parser

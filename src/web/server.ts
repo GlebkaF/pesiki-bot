@@ -1,3 +1,4 @@
+import {liveAdvice} from '../live-advice.js';
 import {getLiveMatch} from '../live-match.js';
 import {renderLiveMatch} from './live-match-render.js';
 import {buildMatchComparison} from '../match-comparison.js';
@@ -127,8 +128,10 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   }
   if (p === '/api/live-match' && req.method === 'GET') {
     const match=await getLiveMatch();
+    const advice=liveAdvice.peek(match);
+    if(match)void liveAdvice.get(match).catch(()=>{});
     res.setHeader('Cache-Control','no-store');
-    return sendJson(res,200,{html:renderLiveMatch(match),expiresAt:match?match.updatedAt+90_000:0});
+    return sendJson(res,200,{html:renderLiveMatch(match,advice),expiresAt:match?match.updatedAt+90_000:0});
   }
   if (p === "/" && req.method === "GET") {
     const { matches, updatedAt } = await getFeed();
