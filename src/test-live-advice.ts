@@ -5,7 +5,7 @@ import path from 'node:path';
 import {AdviceSources,parsePopularity,type AdviceItem,type AdviceKnowledge} from './advice-sources.js';
 import {buildCandidates,buildAdviceContext,canAdvise} from './advice-context.js';
 import {validateAdvice} from './advice-model.js';
-import {LiveAdviceService} from './live-advice.js';
+import {LiveAdviceService,adviceFingerprint} from './live-advice.js';
 import type {LiveMatch,LivePlayer} from './live-match.js';
 import {adviceText,replyAdvice} from './advice-command.js';
 import {renderLiveAdvice} from './web/live-advice-render.js';
@@ -34,6 +34,26 @@ assert.ok(!buildCandidates({...player(1,true),items:[]},withRecipe,{...popularit
 assert.ok(!buildCandidates({...player(1,true),items:[3]},knowledge,popularity).some(c=>[1,2,3].includes(c.id)));
 const context=buildAdviceContext(match,knowledge,new Map([[31,popularity]]),now);
 assert.equal(context.gameMode,23);assert.equal(context.players[0].role,null);
+assert.equal(context.sourceLagSeconds,null);
+assert.equal(context.nominalSpectatorDelay,120);
+assert.equal(context.inputPolicy,'draft-and-stack-inventory-v1');
+// Metamorphic test: excluded facts cannot affect context, candidates or cache.
+const hiddenChanged:LiveMatch={...match,teams:match.teams.map(t=>({...t,netWorth:999999,
+ players:t.players.map(p=>p.ours?p:{...p,items:[4,3,2],gold:99999,netWorth:88888,level:30})}))};
+assert.deepEqual(buildAdviceContext(hiddenChanged,knowledge,new Map([[31,popularity]]),now),context);
+assert.equal(adviceFingerprint(hiddenChanged),adviceFingerprint(match));
+assert.ok(context.teams.every(t=>!('netWorth' in t)&&t.players.every(p=>!('inventory' in p)&&!('level' in p))));
+const reordered={...match,teams:[...match.teams].reverse().map(t=>({...t,players:[...t.players].reverse()}))};
+assert.equal(adviceFingerprint(reordered),adviceFingerprint(match));
+const ownChanged={...match,teams:match.teams.map(t=>({...t,players:t.players.map(p=>p.ours?{...p,items:[4]}:p)}))};
+assert.notEqual(adviceFingerprint(ownChanged),adviceFingerprint(match));
+assert.notDeepEqual(buildAdviceContext(ownChanged,knowledge,new Map([[31,popularity]]),now).players[0].candidates,context.players[0].candidates);
+const opposingStack={...match,teams:match.teams.map((t,i)=>({...t,players:t.players.map((p,j)=>i===1&&j===0?{...p,ours:true}:p)}))};
+assert.equal(canAdvise(opposingStack,now),false,'one shared response cannot expose opposing tracked inventories');
+assert.throws(()=>buildAdviceContext(opposingStack,knowledge,new Map(),now));
+const duplicateAccount={...match,teams:match.teams.map((t,i)=>({...t,players:t.players.map((p,j)=>i===1&&j===0?{...p,account:1}:p)}))};
+assert.equal(canAdvise(duplicateAccount,now),false);
+
 const output={players:[{account:1,itemId:2,reason:'Проверочный совет',alternativeId:4,alternativeReason:'Условная альтернатива',threatHeroIds:[]}],plan:'Проверочный план'};
 assert.deepEqual(validateAdvice(output,context),output);
 assert.throws(()=>validateAdvice({...output,players:[{...output.players[0],threatHeroIds:[999]}]},context));
@@ -72,7 +92,7 @@ assert.equal(generations,1);assert.ok(results.every(r=>r.status==='ready'));
 const ready=results[0];assert.equal(ready.status,'ready');
 if(ready.status==='ready'){
  const html=renderLiveAdvice(ready);assert.ok(html.includes('Игрок &lt;b&gt;'));assert.ok(!html.includes('Игрок <b>'));assert.ok(html.includes('Turbo'));
- assert.ok(adviceText(ready).includes('force_staff'));assert.ok(adviceText(ready).length<4096);
+ assert.ok(adviceText(ready).includes('force_staff'));assert.ok(adviceText(ready).includes('фактическая задержка не измерена'));assert.ok(!adviceText(ready).includes('DotaTV +120'));assert.ok(html.includes('фактическая задержка данных не измерена'));assert.ok(adviceText(ready).length<4096);
  const sent:unknown[]=[];
  const ctx={chat:{id:1},message:{message_id:2},reply:async(...args:unknown[])=>{sent.push(args);return {message_id:3};},api:{editMessageText:async(...args:unknown[])=>{sent.push(args);}}};
  await replyAdvice(ctx as never,async()=>ready);
@@ -85,6 +105,24 @@ assert.notEqual(service.peek({...match,matchId:'456'}).status,'ready','no cross-
 now+=91_000;
 assert.notEqual((await service.get(match)).status,'ready','stale match does not trigger the model');
 assert.equal(generations,1);
+// The first caller must not receive an obsolete result even when a second
+// observer update arrives while the model is running.
+match.updatedAt=now;
+for(const change of ['purchase','new-match','no-match','hidden-only'] as const){
+ let finish!:()=>void,start!:()=>void;
+ const started=new Promise<void>(resolve=>{start=resolve;});
+ const delayed=new Promise<void>(resolve=>{finish=resolve;});
+ const racing=new LiveAdviceService(source,async()=>{start();await delayed;return output;},()=>now,null);
+ const pending=racing.get(match);
+ await started;
+ const next=change==='purchase'?{...changed,updatedAt:now+1}:
+  change==='new-match'?{...match,matchId:'new',updatedAt:now+1}:
+  change==='hidden-only'?{...hiddenChanged,updatedAt:now}:null;
+ racing.peek(next);
+ finish();
+ const state=await pending;
+ assert.equal(state.status,change==='hidden-only'?'ready':'unavailable',change);
+}
 const budgetDir=await mkdtemp(path.join(os.tmpdir(),'pesiki-advice-budget-'));
 try{
  match.updatedAt=now;

@@ -2,18 +2,19 @@ import {createHash} from 'node:crypto';
 import {mkdir,readFile,writeFile,rename} from 'node:fs/promises';
 import path from 'node:path';
 import {adviceSources,type AdviceSources,type ItemPopularity} from './advice-sources.js';
-import {buildAdviceContext,canAdvise,type AdviceContext,type AdviceCandidate} from './advice-context.js';
+import {buildAdviceContext,canAdvise,adviceObservationKey,type AdviceContext,type AdviceCandidate} from './advice-context.js';
 import {generateAdvice,type ModelAdvice} from './advice-model.js';
 import type {LiveMatch} from './live-match.js';
 export interface AdviceCard {account:number;name:string;hero:string;item:AdviceCandidate;reason:string;alternative:AdviceCandidate|null;alternativeReason:string;}
 export interface LiveAdvice {matchId:string;snapshotAt:number;generatedAt:number;gameTime:number;delay:number|null;gameMode:number|null;cards:AdviceCard[];plan:string;knowledgeRevision:string;statisticsAt:number|null;}
 export type AdviceState={status:'ready';advice:LiveAdvice}|{status:'unavailable'|'loading'|'limited';message:string};
 export function adviceFingerprint(match:LiveMatch):string{
- return createHash('sha256').update(JSON.stringify([match.matchId,match.gameMode,Math.floor((match.time??0)/120),match.teams.map(t=>t.players.map(p=>[p.account,p.heroId,p.level,p.items,Math.floor((p.netWorth??0)/2000)]))])).digest('hex');
+ return createHash('sha256').update(adviceObservationKey(match)).digest('hex');
 }
 /** One generation per match, shared by the website and Telegram. */
 export class LiveAdviceService {
  private pending:Promise<AdviceState>|undefined;
+ private latestMatch:LiveMatch|null=null;
  private cached:LiveAdvice|undefined;
  private lastFingerprint='';
  private lastRoster='';
@@ -43,6 +44,8 @@ export class LiveAdviceService {
   return true;
  }
  peek(match:LiveMatch|null):AdviceState{
+  // Calls from web/Telegram also update the state an in-flight answer must satisfy.
+  if(!match||!this.latestMatch||match.updatedAt>=this.latestMatch.updatedAt)this.latestMatch=match;
   if(!canAdvise(match,this.now()))return {status:'unavailable',message:'Совет появится, когда будет доступен подробный матч наших.'};
   const roster=match.teams.flatMap(t=>t.players);
   const rosterKey=JSON.stringify(roster.map(p=>[p.account,p.heroId,p.ours]));
@@ -71,6 +74,7 @@ export class LiveAdviceService {
     const context=buildAdviceContext(match,knowledge,popularities,this.now());
     if(!await this.reserveBudget(match.matchId))return {status:'limited',message:'Лимит разборов на сегодня или этот матч достигнут.'};
     const output=await this.model(context);
+    if(!canAdvise(this.latestMatch,this.now())||this.latestMatch.matchId!==match.matchId||adviceFingerprint(this.latestMatch)!==fingerprint)return {status:'unavailable',message:'Ситуация изменилась во время разбора. Ждём совет по новому снимку.'};
     if(!canAdvise(match,this.now()))return {status:'unavailable',message:'Снимок устарел во время разбора. Ждём обновления матча.'};
     const roster=match.teams.flatMap(t=>t.players);
     const cards=output.players.map(p=>{const player=context.players.find(c=>c.account===p.account)!,identity=roster.find(c=>c.account===p.account)!;return {account:p.account,name:identity.name,hero:identity.hero,item:player.candidates.find(c=>c.id===p.itemId)!,reason:p.reason,alternative:player.candidates.find(c=>c.id===p.alternativeId)??null,alternativeReason:p.alternativeReason};});

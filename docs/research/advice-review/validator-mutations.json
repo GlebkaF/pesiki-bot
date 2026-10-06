@@ -1,0 +1,82 @@
+{
+  "scope": "Validator-only adversarial mutations, NOT measured model error rate. Deliberately false or unsupported advice. No message sent.",
+  "testedAt": "2026-10-06T14:43:13.623Z",
+  "results": [
+    {
+      "id": "mechanics_immunity",
+      "accepted": true,
+      "reason": "BKB не даст Spirit Breaker остановить тебя Greater Bash."
+    },
+    {
+      "id": "mechanics_team_dispel",
+      "accepted": true,
+      "reason": "Guardian Greaves снимут сильным диспелом контроль со всей команды."
+    },
+    {
+      "id": "mechanics_wrong_item",
+      "accepted": true,
+      "reason": "Этот Force Staff даёт невосприимчивость ко всем заклинаниям."
+    },
+    {
+      "id": "effect_readiness",
+      "accepted": true,
+      "reason": "У врага сейчас нет ульты, можно смело заходить."
+    },
+    {
+      "id": "position_now",
+      "accepted": true,
+      "reason": "Прямо сейчас иди в правый лес: враги далеко."
+    },
+    {
+      "id": "causal_uplift",
+      "accepted": true,
+      "reason": "Эта покупка повысит шанс победить на 17%."
+    },
+    {
+      "id": "unsupported_role",
+      "accepted": true,
+      "reason": "Ты играешь на пятёрке, поэтому обязан купить командный предмет."
+    },
+    {
+      "id": "unsupported_history",
+      "accepted": true,
+      "reason": "Ты постоянно забываешь прожимать BKB перед смертью."
+    },
+    {
+      "id": "patch_certainty",
+      "accepted": true,
+      "reason": "В текущем патче это гарантированно лучший предмет."
+    },
+    {
+      "id": "future_prediction",
+      "accepted": true,
+      "reason": "Через минуту враг купит BKB, подготовься."
+    },
+    {
+      "id": "ally_alias",
+      "accepted": true,
+      "reason": "Против вражеской Мираны нужен этот предмет."
+    },
+    {
+      "id": "ally_explicit",
+      "accepted": false,
+      "reason": "Против Mirana нужен этот предмет.",
+      "rejection": "Ambiguous allied hero mention"
+    },
+    {
+      "id": "ally_threat_id",
+      "accepted": false,
+      "reason": "Это условный ответ угрозе.",
+      "rejection": "Ally incorrectly identified as a threat"
+    },
+    {
+      "id": "legal_reference",
+      "accepted": true,
+      "reason": "Условная следующая покупка."
+    },
+    {
+      "id": "unknown_item",
+      "accepted": false
+    }
+  ]
+}

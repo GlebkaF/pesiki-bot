@@ -2,10 +2,10 @@ import type {LiveMatch,LivePlayer} from './live-match.js';
 import type {AdviceItem,AdviceKnowledge,AdviceAbility,ItemPopularity} from './advice-sources.js';
 export interface AdviceCandidate extends AdviceItem {purchases:number|null;ownedComponents:string[];remainingCost:number;}
 export interface AdvicePlayerContext {account:number;hero:string;heroId:number;team:string;allies:Array<{heroId:number;hero:string}>;enemies:Array<{heroId:number;hero:string}>;gold:number|null;netWorth:number|null;level:number|null;role:null;inventory:string[];candidates:AdviceCandidate[];sourceAt:number|null;}
-export interface AdviceContext {matchId:string;gameMode:number|null;gameTime:number;delay:number|null;snapshotAt:number;knowledgeRevision:string;players:AdvicePlayerContext[];teams:Array<{name:string;netWorth:number|null;players:Array<{hero:string;ours:boolean;level:number|null;netWorth:number|null;inventory:string[];possibleAbilities:AdviceAbility[]}>}>;}
+export interface AdviceContext {matchId:string;gameMode:number|null;gameTime:number;nominalSpectatorDelay:number|null;sourceLagSeconds:null;snapshotAt:number;inputPolicy:'draft-and-stack-inventory-v1';unknowns:string[];knowledgeRevision:string;players:AdvicePlayerContext[];teams:Array<{name:string;players:Array<{heroId:number;hero:string;ours:boolean;possibleAbilities:AdviceAbility[]}>}>;}
 const GENERAL_ITEMS=new Set(['black_king_bar','force_staff','glimmer_cape','ghost','lotus_orb','sphere','cyclone','aeon_disk','pipe','crimson_guard','heavens_halberd','sheepstick','orchid','bloodthorn','nullifier','shivas_guard','assault','skadi','monkey_king_bar']);
 export function canAdvise(match:LiveMatch|null,now=Date.now()):match is LiveMatch {
- return !!match&&match.kind==='stack'&&match.stackCount>0&&match.detailed&&now-match.updatedAt>=0&&now-match.updatedAt<90_000&&typeof match.time==='number'&&match.time>=0&&match.teams.length===2&&match.teams.every(t=>t.players.length===5)&&match.teams.flatMap(t=>t.players).some(p=>p.ours&&p.heroId);
+ return !!match&&match.kind==='stack'&&match.stackCount>0&&match.detailed&&now-match.updatedAt>=0&&now-match.updatedAt<90_000&&typeof match.time==='number'&&match.time>=0&&match.teams.length===2&&match.teams.every(t=>t.players.length===5)&&match.teams.filter(t=>t.players.some(p=>p.ours)).length===1&&new Set(match.teams.flatMap(t=>t.players.map(p=>p.account))).size===10&&match.teams.flatMap(t=>t.players).some(p=>p.ours&&p.heroId);
 }
 export function buildCandidates(player:LivePlayer,knowledge:AdviceKnowledge,popularity?:ItemPopularity):AdviceCandidate[]{
  const byKey=new Map(knowledge.items.map(i=>[i.key,i]));
@@ -31,7 +31,16 @@ export function buildAdviceContext(match:LiveMatch,knowledge:AdviceKnowledge,pop
  if(!canAdvise(match,now))throw Error('No fresh complete stack match');
  const byId=new Map(knowledge.items.map(i=>[i.id,i]));
  const inventory=(p:LivePlayer)=>p.items.filter(id=>id>0).map(id=>byId.get(id)?.name??`Unknown item #${id}`);
- return {matchId:match.matchId,gameMode:match.gameMode??null,gameTime:match.time!,delay:match.delay??null,snapshotAt:match.updatedAt,knowledgeRevision:knowledge.revision,
+ return {matchId:match.matchId,gameMode:match.gameMode??null,gameTime:match.time!,nominalSpectatorDelay:match.delay??null,sourceLagSeconds:null,snapshotAt:match.updatedAt,inputPolicy:'draft-and-stack-inventory-v1',unknowns:['actual source lag','patch','roles and intentions','enemy inventory and economy','ability levels and cooldowns','facets and upgrades','stash and courier','personal history'],knowledgeRevision:knowledge.revision,
   players:match.teams.flatMap(t=>t.players).filter(p=>p.ours&&p.heroId).map(p=>{const team=match.teams.find(t=>t.players.some(v=>v.account===p.account))!;const identity=(v:LivePlayer)=>({heroId:v.heroId??0,hero:v.hero});return {account:p.account,hero:p.hero,heroId:p.heroId!,team:team.name,allies:team.players.filter(v=>v.account!==p.account).map(identity),enemies:match.teams.filter(t=>t!==team).flatMap(t=>t.players).map(identity),gold:p.gold??null,netWorth:p.netWorth??null,level:p.level??null,role:null,inventory:inventory(p),candidates:buildCandidates(p,knowledge,popularities.get(p.heroId!)),sourceAt:popularities.get(p.heroId!)?.fetchedAt??null};}),
-  teams:match.teams.map(t=>({name:t.name,netWorth:t.netWorth??null,players:t.players.map(p=>({hero:p.hero,ours:p.ours,level:p.level??null,netWorth:p.netWorth??null,inventory:inventory(p),possibleAbilities:knowledge.heroAbilities?.[p.heroId??0]??[]}))}))};
+  teams:match.teams.map(t=>({name:t.name,players:t.players.map(p=>({heroId:p.heroId??0,hero:p.hero,ours:p.ours,possibleAbilities:knowledge.heroAbilities?.[p.heroId??0]??[]}))}))};
+}
+
+/** Only admitted facts can invalidate advice; spectator-only changes must not
+ * influence generation through cache keys or derived features either. */
+export function adviceObservationKey(match:LiveMatch):string {
+ return JSON.stringify([match.matchId,match.gameMode,Math.floor((match.time??0)/120),
+  match.teams.map(t=>({name:t.name,players:t.players.map(p=>({account:p.account,heroId:p.heroId,ours:p.ours,
+   ...(p.ours?{level:p.level,items:[...p.items].sort((a,b)=>a-b),gold:p.gold==null?null:Math.floor(p.gold/500),netWorth:p.netWorth==null?null:Math.floor(p.netWorth/2000)}:{})
+  })).sort((a,b)=>a.account-b.account)})).sort((a,b)=>a.name.localeCompare(b.name))]);
 }
