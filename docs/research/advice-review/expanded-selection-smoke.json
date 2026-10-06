@@ -1,0 +1,28 @@
+{
+  "engine": "bounded-selector-v3/decision-recipes-v3/draft-matchups-v1",
+  "gameTime": 18,
+  "players": [
+    {
+      "hero": "Riki",
+      "item": "diffusal_blade",
+      "alternative": "black_king_bar"
+    },
+    {
+      "hero": "Legion Commander",
+      "item": "blink",
+      "alternative": "blade_mail"
+    },
+    {
+      "hero": "Disruptor",
+      "item": "glimmer_cape",
+      "alternative": "force_staff"
+    },
+    {
+      "hero": "Invoker",
+      "item": "black_king_bar",
+      "alternative": "force_staff"
+    }
+  ],
+  "scope": "Single offline replay of the recorded 00:18 input; no chat message sent; not a causal A/B comparison or utility proof.",
+  "finding": "New Blade Mail option was selected as Legion alternative. Invoker BKB at level 1 still lacks a convincing priority rationale; candidate expansion alone does not resolve early-game ranking."
+}

@@ -8,7 +8,8 @@ const ROOT=`https://raw.githubusercontent.com/odota/dotaconstants/${KNOWLEDGE_RE
 export interface AdviceItem {id:number;key:string;name:string;cost:number;components:string[];description:string;notes:string;attributes:string;}
 export interface AdviceAbility {name:string;description:string;damageType:string;piercesDebuffImmunity:string;dispellable:string;}
 export interface AdviceKnowledge {revision:string;items:AdviceItem[];heroAbilities?:Record<number,AdviceAbility[]>;}
-export interface ItemPopularity {heroId:number;counts:Record<string,number>;fetchedAt:number;source:string;}
+export type PurchasePhases=Record<'start'|'early'|'mid'|'late',number>;
+export interface ItemPopularity {heroId:number;counts:Record<string,number>;byPhase?:Record<string,PurchasePhases>;fetchedAt:number;source:string;}
 const object=(x:unknown):x is Record<string,unknown>=>!!x&&typeof x==='object'&&!Array.isArray(x);
 const clean=(x:unknown,max=2000)=>typeof x==='string'?x.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,max):'';
 export function parseKnowledge(raw:unknown):AdviceKnowledge {
@@ -26,15 +27,16 @@ export function parseKnowledge(raw:unknown):AdviceKnowledge {
 }
 export function parsePopularity(heroId:number,raw:unknown,now=Date.now()):ItemPopularity {
  if(!object(raw))throw Error('Invalid item popularity');
- const counts:Record<string,number>={};
- for(const phase of ['start_game_items','early_game_items','mid_game_items','late_game_items']){
+ const counts:Record<string,number>={},byPhase:Record<string,PurchasePhases>={};
+ for(const [phase,label] of [['start_game_items','start'],['early_game_items','early'],['mid_game_items','mid'],['late_game_items','late']] as const){
   const values=raw[phase];if(!object(values))throw Error('Incomplete item popularity');
   for(const [id,count] of Object.entries(values)){
    if(!/^\d+$/.test(id)||typeof count!=='number'||!Number.isSafeInteger(count)||count<0)throw Error('Invalid purchase count');
    counts[id]=(counts[id]??0)+count;
+   (byPhase[id]??={start:0,early:0,mid:0,late:0})[label]=count;
   }
  }
- return {heroId,counts,fetchedAt:now,source:`https://api.opendota.com/api/heroes/${heroId}/itemPopularity`};
+ return {heroId,counts,byPhase,fetchedAt:now,source:`https://api.opendota.com/api/heroes/${heroId}/itemPopularity`};
 }
 export function parseHeroAbilities(abilities:unknown,heroes:unknown):Record<number,AdviceAbility[]>{
  if(!object(abilities)||!object(heroes))throw Error('Invalid ability knowledge');

@@ -18,6 +18,7 @@ const match:LiveMatch={matchId:'123',kind:'stack',stackCount:1,gameMode:23,time:
 const raw={start_game_items:{},early_game_items:{},mid_game_items:{'2':12,'3':6},late_game_items:{'3':4}};
 const popularity=parsePopularity(31,raw,now);
 assert.equal(popularity.counts['3'],10);
+assert.deepEqual(popularity.byPhase?.['3'],{start:0,early:0,mid:6,late:4});
 assert.throws(()=>parsePopularity(31,{...raw,late_game_items:{'3':-1}}));
 assert.throws(()=>parsePopularity(31,{}));
 assert.ok(canAdvise(match,now));
@@ -28,6 +29,10 @@ assert.ok(!canAdvise({...match,teams:match.teams.slice(0,1)},now));
 const candidates=buildCandidates(match.teams[0].players[0],knowledge,popularity);
 assert.equal(candidates.find(c=>c.id===2)?.remainingCost,1200);
 assert.equal(candidates.find(c=>c.id===3)?.remainingCost,3500);
+assert.deepEqual(candidates.find(c=>c.id===3)?.purchasesByPhase,{start:0,early:0,mid:6,late:4});
+assert.deepEqual(candidates.find(c=>c.id===4)?.purchasesByPhase,{start:0,early:0,mid:0,late:0});
+assert.equal(buildCandidates(player(1,true),knowledge).find(c=>c.id===4)?.purchasesByPhase,null);
+assert.equal(buildCandidates(player(1,true),knowledge,{...popularity,byPhase:undefined}).find(c=>c.id===4)?.purchasesByPhase,null);
 const withRecipe={...knowledge,items:[...knowledge.items,item(5,'recipe_force_staff',1200)]};
 assert.equal(buildCandidates({...player(1,true),items:[1,5]},withRecipe,popularity).find(c=>c.id===2)?.remainingCost,0);
 assert.ok(!buildCandidates({...player(1,true),items:[]},withRecipe,{...popularity,counts:{'5':100,'2':1}}).some(c=>c.id===5));

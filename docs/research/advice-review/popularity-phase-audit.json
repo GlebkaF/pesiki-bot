@@ -1,0 +1,12 @@
+{
+  "source": "https://api.opendota.com/api/heroes/74/itemPopularity",
+  "observedDate": "2026-10-06",
+  "hero": "Invoker",
+  "bkb": {
+    "start_game_items": 0,
+    "early_game_items": 0,
+    "mid_game_items": 41,
+    "late_game_items": 27
+  },
+  "finding": "Aggregate 68 discarded the distinction between 0 early, 41 mid and 27 late observations. Preserve source phases without treating them as Turbo timings or optimal-choice labels."
+}

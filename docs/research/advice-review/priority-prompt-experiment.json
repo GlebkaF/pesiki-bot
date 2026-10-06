@@ -1,0 +1,185 @@
+{
+  "status": "rejected_for_rollout",
+  "reason": "Initial anti-defense wording led to an early Invoker abstention, but red team found systematic bias risks. Revised balanced wording still selected early BKB. No reliable selection improvement demonstrated.",
+  "scope": "Six model calls, two recorded windows of one Turbo match. Single sample per variant and context. Not human expert labels or an accuracy estimate.",
+  "inputGameTimes": [
+    18,
+    660
+  ],
+  "prompts": {
+    "stage_priority": "Выбирай именно следующий крупный предмет, а не полезную покупку когда-нибудь. Сначала оцени стадию по видимому инвентарю и уровню, без минутных норм. На стартовом инвентаре сравни первые рабочие предметы героя; наличие вражеского контроля само по себе не обосновывает защитный предмет раньше всего остального. Не делай узкий vs-эффект решающим, если он не объясняет приоритет относительно темпа и доступа к цели. Наличие готового объяснения matchups не делает вариант лучше варианта без matchups. Альтернатива тоже должна быть реалистичным следующим шагом на этой стадии. Если известного контекста недостаточно, не маскируй это универсальной защитой: верни null.",
+    "next_purchase_priority": "Выбирай следующий крупный предмет, а не полезную покупку когда-нибудь. Обоснуй для себя приоритет именно следующей покупки относительно доступных альтернатив с учётом видимого инвентаря и стоимости. Не выводи жёсткую стадию игры или роль из уровня, золота и героя. При неизвестных намерениях не предполагай план через фарм или урон. Защитный предмет может быть первым рабочим предметом: не понижай его приоритет лишь потому, что он защитный. Но одно наличие контроля в драфте не делает защиту лучшим следующим выбором для всех. Наличие готового текста matchups не даёт варианту преимущества перед вариантом без matchups. Альтернатива тоже должна быть обоснованным следующим выбором; иначе alternativeId=null без отмены хорошего основного выбора. При недостатке оснований для основного выбора верни для этого account optionId=null, alternativeId=null, matchupIds=[], сохрани решения остальных игроков."
+  },
+  "redTeamRisks": [
+    "Bias against useful early defensive items",
+    "Inferring fixed stage or role from level and inventory",
+    "Model-memory default hero builds replacing player intent",
+    "Discarding a valid main choice when no alternative is justified",
+    "Ambiguous null outside the per-player schema"
+  ],
+  "runs": [
+    {
+      "variant": "baseline",
+      "engine": "bounded-selector-v3/decision-recipes-v3/draft-matchups-v1",
+      "gameTime": 660,
+      "players": [
+        {
+          "hero": "Riki",
+          "item": "black_king_bar",
+          "alternative": "monkey_king_bar"
+        },
+        {
+          "hero": "Legion Commander",
+          "item": "black_king_bar",
+          "alternative": "monkey_king_bar"
+        },
+        {
+          "hero": "Disruptor",
+          "item": "glimmer_cape",
+          "alternative": "force_staff"
+        },
+        {
+          "hero": "Invoker",
+          "item": "rod_of_atos",
+          "alternative": "black_king_bar"
+        }
+      ]
+    },
+    {
+      "variant": "stage_priority",
+      "engine": "bounded-selector-v3/decision-recipes-v3/draft-matchups-v1",
+      "gameTime": 18,
+      "players": [
+        {
+          "hero": "Riki",
+          "item": "diffusal_blade",
+          "alternative": null
+        },
+        {
+          "hero": "Legion Commander",
+          "item": "blink",
+          "alternative": "blade_mail"
+        },
+        {
+          "hero": "Disruptor",
+          "item": "glimmer_cape",
+          "alternative": "force_staff"
+        },
+        {
+          "hero": "Invoker",
+          "item": null,
+          "alternative": null
+        }
+      ]
+    },
+    {
+      "variant": "baseline",
+      "engine": "bounded-selector-v3/decision-recipes-v3/draft-matchups-v1",
+      "gameTime": 18,
+      "players": [
+        {
+          "hero": "Riki",
+          "item": "diffusal_blade",
+          "alternative": "black_king_bar"
+        },
+        {
+          "hero": "Legion Commander",
+          "item": "blink",
+          "alternative": "blade_mail"
+        },
+        {
+          "hero": "Disruptor",
+          "item": "glimmer_cape",
+          "alternative": "force_staff"
+        },
+        {
+          "hero": "Invoker",
+          "item": "black_king_bar",
+          "alternative": "rod_of_atos"
+        }
+      ]
+    },
+    {
+      "variant": "stage_priority",
+      "engine": "bounded-selector-v3/decision-recipes-v3/draft-matchups-v1",
+      "gameTime": 660,
+      "players": [
+        {
+          "hero": "Riki",
+          "item": "manta",
+          "alternative": "black_king_bar"
+        },
+        {
+          "hero": "Legion Commander",
+          "item": "black_king_bar",
+          "alternative": "desolator"
+        },
+        {
+          "hero": "Disruptor",
+          "item": "glimmer_cape",
+          "alternative": "force_staff"
+        },
+        {
+          "hero": "Invoker",
+          "item": "rod_of_atos",
+          "alternative": "force_staff"
+        }
+      ]
+    },
+    {
+      "variant": "next_purchase_priority",
+      "engine": "bounded-selector-v3/decision-recipes-v3/draft-matchups-v1",
+      "gameTime": 18,
+      "players": [
+        {
+          "hero": "Riki",
+          "item": "diffusal_blade",
+          "alternative": "black_king_bar"
+        },
+        {
+          "hero": "Legion Commander",
+          "item": "blink",
+          "alternative": "blade_mail"
+        },
+        {
+          "hero": "Disruptor",
+          "item": "glimmer_cape",
+          "alternative": "force_staff"
+        },
+        {
+          "hero": "Invoker",
+          "item": "black_king_bar",
+          "alternative": "force_staff"
+        }
+      ]
+    },
+    {
+      "variant": "next_purchase_priority",
+      "engine": "bounded-selector-v3/decision-recipes-v3/draft-matchups-v1",
+      "gameTime": 660,
+      "players": [
+        {
+          "hero": "Riki",
+          "item": "black_king_bar",
+          "alternative": null
+        },
+        {
+          "hero": "Legion Commander",
+          "item": "black_king_bar",
+          "alternative": null
+        },
+        {
+          "hero": "Disruptor",
+          "item": "force_staff",
+          "alternative": "glimmer_cape"
+        },
+        {
+          "hero": "Invoker",
+          "item": "rod_of_atos",
+          "alternative": "force_staff"
+        }
+      ]
+    }
+  ],
+  "nextInvestigation": "Audit missing intent and available evidence for early choices; do not tune a ban to force agreement with one automated reviewer."
+}
