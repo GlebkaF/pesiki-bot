@@ -2,7 +2,7 @@ import {buildMatchCombatWindow} from "../match-combat-window.js";
 import type {ParsedMatch} from '../replay.js';
 import type {MatchInsights} from '../match-insights.js';
 import type {MatchApi,MatchApiPlayer} from '../opendota.js';
-import {PLAYERS} from '../config.js';
+import {ALL_PLAYERS as PLAYERS} from '../config.js';
 import {heroImage} from './game-assets.js';
 import {playerAvatar} from './player-avatar-render.js';
 import {resolveOfficialRosterPlayer,rosterAccount} from './match-official.js';

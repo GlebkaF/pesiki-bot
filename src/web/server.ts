@@ -22,7 +22,7 @@ import { config } from "../config.js";
 import { renderFeed, renderMatch, layout, type ApiOverview, type ApiSidePlayer } from "./render.js";
 import { fetchMatchApi } from "../opendota.js";
 import { getHeroNames } from "../heroes.js";
-import { PLAYERS } from "../config.js";
+import { ALL_PLAYERS as PLAYERS } from "../config.js";
 
 const ANALYSIS_DIR = path.join(process.env.DATA_DIR || "data", "analysis");
 

@@ -1,6 +1,6 @@
 import type {ApmStore} from './apm-store.js';
 import {APM_VERSION} from './apm-store.js';
-import {PLAYERS} from './config.js';
+import {ALL_PLAYERS as PLAYERS} from './config.js';
 import {HERO_CATALOG} from './hero-catalog.js';
 import type {ParsedMatch,ParsedPlayer} from './replay.js';
 import {verifiedReplayScoreboard} from './replay-scoreboard.js';

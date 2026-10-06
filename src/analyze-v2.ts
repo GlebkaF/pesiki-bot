@@ -12,7 +12,7 @@ import { withAnalysisApm } from "./analysis-apm.js";
  *  - основной голос получает компактный детерминированный пакет фактов.
  */
 import {getApmStore} from "./apm-store.js";
-import { PLAYERS, PLAYER_IDS, type Player } from "./config.js";
+import { ALL_PLAYERS, PLAYERS, PLAYER_IDS, type Player } from "./config.js";
 import { fetchPlayerProfile, fetchRecentMatches, savedRecentMatches, fetchMatchApi } from "./opendota.js";
 import { fetchReplayForAnalysis, toSteam32, type ParsedMatch, type ParsedPlayer, type ParseProgress } from "./replay.js";
 import { escapeHtml } from "./telegram-html.js";
@@ -39,7 +39,7 @@ export interface MatchAnalysis {
   laneReport: string[];
 }
 
-const bySteam32 = new Map<number, Player>(PLAYERS.map((p) => [p.steamId, p]));
+const bySteam32 = new Map<number, Player>(ALL_PLAYERS.map((p) => [p.steamId, p]));
 
 function sum(nums: number[]): number {
   return nums.reduce((a, b) => a + b, 0);

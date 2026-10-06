@@ -13,7 +13,7 @@ import {abilityLabel} from "../ability-labels.js";
 import { buildMatchInsights, damageTypeLabel, goldReasonLabel, type MatchInsights, type MatchPlayerInsights, type BreakdownEntry } from "../match-insights.js";
 import type { ParsedMatch } from "../replay.js";
 import type { MatchApi, MatchApiPlayer } from "../opendota.js";
-import { PLAYERS } from "../config.js";
+import { ALL_PLAYERS as PLAYERS } from "../config.js";
 import { HERO_CATALOG } from "../hero-catalog.js";
 import { heroName } from "../player-profile.js";
 import { esc } from "./render.js";

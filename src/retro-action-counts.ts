@@ -13,7 +13,7 @@ import { getApmStore } from "./apm-store.js";
 import { fetchMatchApi } from "./opendota.js";
 import { buildReplayUrl, decompress, type ParsedMatch } from "./replay.js";
 import { validActionCounts } from "./action-counts.js";
-import { PLAYERS } from "./config.js";
+import { ALL_PLAYERS as PLAYERS } from "./config.js";
 const store=getApmStore(),dataDir=process.env.DATA_DIR||"data",archiveDir=process.env.REPLAY_ARCHIVE_DIR||path.join(dataDir,"replay-archives");
 const reportPath=path.join(dataDir,"action-retro-report.json");
 const exists=(p:string)=>stat(p).then(()=>true,()=>false);

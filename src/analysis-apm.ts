@@ -1,6 +1,6 @@
 import {finalPlayerKda} from "./replay-scoreboard.js";
 import type { ParsedMatch } from "./replay.js";
-import { PLAYERS } from "./config.js";
+import { ALL_PLAYERS as PLAYERS } from "./config.js";
 
 /** Keep exact numbers in our-player lines deterministic, including cached analyses. */
 export function withAnalysisApm(text: string, parsed: ParsedMatch): string {

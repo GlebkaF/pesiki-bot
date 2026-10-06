@@ -1,6 +1,6 @@
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import { PLAYERS } from "./config.js";
+import { ALL_PLAYERS as PLAYERS } from "./config.js";
 import { ApmStore, getApmStore, type ApmRecord } from "./apm-store.js";
 import { HERO_CATALOG } from "./hero-catalog.js";
 import { groupActions } from "./action-counts.js";
