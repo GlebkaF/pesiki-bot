@@ -32,9 +32,13 @@ const item=player.candidates.find(c=>c.id===result.players[0].itemId)!;
 const state:AdviceState={status:'ready',advice:{matchId:context.matchId,snapshotAt:context.snapshotAt,generatedAt:context.snapshotAt,gameTime:context.gameTime,delay:null,gameMode:23,knowledgeRevision:context.knowledgeRevision,statisticsAt:null,plan:'',cards:[{account:player.account,name:'Test',hero:player.hero,item,reason:result.players[0].reason,alternative:null,alternativeReason:'',matchups:result.players[0].matchups}]}};
 const html=renderLiveAdvice(state),telegram=adviceText(state);
 for(const text of [html,telegram]){
- assert.ok(text.includes('vs Crystal Maiden'));
- assert.ok(text.includes('vs Shadow Fiend'));
+
  assert.ok(text.includes('Requiem'));
  assert.ok(!text.includes('Ближайшая часть'));
+}
+for(const hero of ['Crystal Maiden','Shadow Fiend']){
+ assert.ok(html.includes(`alt="${hero}" title="${hero}"`));
+ assert.ok(!html.includes(`vs ${hero}`));
+ assert.ok(telegram.includes(`vs ${hero}`));
 }
 console.log('Matchup explanations: real enemy identities, source drift, wrong item/ally, free-text injection, website and Telegram passed.');
