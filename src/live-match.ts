@@ -3,8 +3,8 @@ import {getSteamPresence} from './steam-presence.js';
 import {findObserverGames,type TVGame} from './dota-observer.js';
 import {HERO_CATALOG} from './hero-catalog.js';
 
-export interface LivePlayer{account:number;name:string;hero:string;level?:number;kills?:number;deaths?:number;assists?:number;ours:boolean;}
-export interface LiveMatch{matchId:string;kind:'stack'|'public';stackCount:number;time?:number;delay?:number;updatedAt:number;detailed:boolean;teams:Array<{name:string;score?:number;players:LivePlayer[]}>;}
+export interface LivePlayer{account:number;name:string;hero:string;level?:number;kills?:number;deaths?:number;assists?:number;ours:boolean;slot:number;netWorth?:number;gold?:number;lastHits?:number;denies?:number;x?:number;y?:number;items:number[];}
+export interface LiveMatch{matchId:string;kind:'stack'|'public';stackCount:number;time?:number;delay?:number;updatedAt:number;detailed:boolean;buildings:Array<{x:number;y:number;team:number;destroyed:boolean}>;history:Array<{time:number;lead:number}>;teams:Array<{name:string;score?:number;netWorth?:number;players:LivePlayer[]}>;}
 const numeric=(value:unknown):number|undefined=>typeof value==='number'&&Number.isFinite(value)?value:undefined;
 const roster=new Map(PLAYERS.map(p=>[p.steamId,p.dotaName]));
 export function selectLiveGame(games:TVGame[],members:Map<string,number[]>,active:Set<number>,preferredLobby?:string):{game:TVGame;count:number}|undefined{
@@ -18,16 +18,17 @@ export function liveSnapshot(game:TVGame,count:number,data?:any):LiveMatch|null{
  const teams=[2,3].map((team,index)=>{
   const source=detailed?data.teams.find((t:any)=>t.team_number===team)??data.teams[index]:undefined;
   const players=source?.players??(game.players??[]).filter(p=>p.team===index).map(p=>({accountid:p.account_id,heroid:p.hero_id}));
-  return {name:index===0?'Radiant':'Dire',score:detailed?numeric(source?.score):numeric(index===0?game.radiant_score:game.dire_score),players:players.map((p:any)=>{
+  return {netWorth:numeric(source?.net_worth),name:index===0?'Radiant':'Dire',score:detailed?numeric(source?.score):numeric(index===0?game.radiant_score:game.dire_score),players:players.map((p:any,slot:number)=>{
    const account=numeric(p.accountid)??0;
-   return {account,name:roster.get(account)||String(p.name||'Игрок').slice(0,80),hero:HERO_CATALOG.find(h=>h.id===p.heroid)?.localized_name||'Герой не выбран',ours:roster.has(account),level:numeric(p.level),kills:numeric(p.kill_count),deaths:numeric(p.death_count),assists:numeric(p.assists_count)};
+   return {slot:numeric(p.playerid)??index*5+slot,netWorth:numeric(p.net_worth),gold:numeric(p.gold),lastHits:numeric(p.lh_count),denies:numeric(p.denies_count),x:numeric(p.x),y:numeric(p.y),items:Array.isArray(p.items)?p.items.slice(0,9).map((n:unknown)=>numeric(n)??-1):[],account,name:roster.get(account)||String(p.name||'Игрок').slice(0,80),hero:HERO_CATALOG.find(h=>h.id===p.heroid)?.localized_name||'Герой не выбран',ours:roster.has(account),level:numeric(p.level),kills:numeric(p.kill_count),deaths:numeric(p.death_count),assists:numeric(p.assists_count)};
   })};
  });
- return {matchId:game.match_id!,kind:count?'stack':'public',stackCount:count,time:detailed?numeric(data.match.game_time):numeric(game.game_time),delay:numeric(game.delay),updatedAt:Date.now(),detailed,teams};
+ return {buildings:detailed&&Array.isArray(data.buildings)?data.buildings.filter((b:any)=>b.type===0&&[2,3].includes(b.team)&&numeric(b.x)!==undefined&&numeric(b.y)!==undefined).map((b:any)=>({x:b.x,y:b.y,team:b.team,destroyed:!!b.destroyed})):[],history:[],matchId:game.match_id!,kind:count?'stack':'public',stackCount:count,time:detailed?numeric(data.match.game_time):numeric(game.game_time),delay:numeric(game.delay),updatedAt:Date.now(),detailed,teams};
 }
+const completed=new Set<string>();
 let preferredLobby:string|undefined;
 let cached:LiveMatch|null=null,lastAttempt=0,pending:Promise<LiveMatch|null>|undefined;
-async function refresh():Promise<LiveMatch|null>{
+async function refresh(retryCompleted=true):Promise<LiveMatch|null>{
  const members=new Map<string,number[]>();
  try{for(const [id,p] of await getSteamPresence(PLAYER_IDS)){
   const lobby=p.richPresence.WatchableGameID;
@@ -35,8 +36,8 @@ async function refresh():Promise<LiveMatch|null>{
  }}catch{/* Public DotaTV remains available when friends presence is unavailable. */}
  const active=new Set(PLAYER_IDS);
  const targeted=members.size||preferredLobby?await findObserverGames([...new Set([...members.keys(),...preferredLobby?[preferredLobby]:[]])]):[];
- let selected=selectLiveGame(targeted.filter(g=>members.has(g.lobby_id)||g.lobby_id===preferredLobby),members,active,preferredLobby);
- if(!selected)selected=selectLiveGame(await findObserverGames([]),members,active);
+ let selected=selectLiveGame(targeted.filter(g=>!completed.has(g.match_id??'')&&(members.has(g.lobby_id)||g.lobby_id===preferredLobby)),members,active,preferredLobby);
+ if(!selected)selected=selectLiveGame((await findObserverGames([])).filter(g=>!completed.has(g.match_id??'')),members,active);
  if(!selected)return null;
  const {game,count}=selected;
  preferredLobby=game.lobby_id;
@@ -49,12 +50,14 @@ async function refresh():Promise<LiveMatch|null>{
    if(response.ok)details=await response.json();
   }catch{/* Keep the current DotaTV discovery snapshot without inventing levels. */}
  }
- return liveSnapshot(game,count,details);
+ const snapshot=liveSnapshot(game,count,details);
+ if(!snapshot){completed.add(game.match_id!);if(completed.size>100)completed.delete(completed.values().next().value!);preferredLobby=undefined;if(retryCompleted)return refresh(false);}
+ return snapshot;
 }
 export async function getLiveMatch():Promise<LiveMatch|null>{
  if(pending)return pending;
  if(Date.now()-lastAttempt<30_000)return cached&&Date.now()-cached.updatedAt<90_000?cached:null;
  lastAttempt=Date.now();
- pending=refresh().then(value=>{cached=value;return value;}).catch(()=>{console.warn('[LIVE MATCH] Refresh unavailable');return cached&&Date.now()-cached.updatedAt<90_000?cached:null;}).finally(()=>{pending=undefined;});
+ pending=refresh().then(value=>{if(value&&value.detailed&&value.time!==undefined&&value.teams.every(t=>t.netWorth!==undefined)){const previous=cached?.matchId===value.matchId?cached.history:[];value.history=[...previous.filter(p=>p.time<value.time!),{time:value.time,lead:value.teams[0].netWorth!-value.teams[1].netWorth!}].slice(-120);}cached=value;return value;}).catch(()=>{console.warn('[LIVE MATCH] Refresh unavailable');return cached&&Date.now()-cached.updatedAt<90_000?cached:null;}).finally(()=>{pending=undefined;});
  return pending;
 }

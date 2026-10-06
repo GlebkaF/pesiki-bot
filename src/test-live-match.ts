@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {selectLiveGame,liveSnapshot} from './live-match.js';
-import {renderLiveMatch} from './web/live-match-render.js';
+import {renderLiveMatch,mapPoint,LIVE_MATCH_SCRIPT} from './web/live-match-render.js';
 import type {TVGame} from './dota-observer.js';
 const game=(id:string,ids:number[],extra:Partial<TVGame>={}):TVGame=>({lobby_id:id,match_id:id,is_watch_eligible:true,last_update_time:Date.now()/1000,players:ids.map(account_id=>({account_id,hero_id:2,team:0})),...extra});
 const active=new Set([1,2,3]);
@@ -18,6 +18,17 @@ assert.equal(snapshot.time,120);assert.equal(snapshot.teams[0].score,1);assert.e
 assert.equal(liveSnapshot(g,0,{...detail,match:{...detail.match,match_id:'21'}})?.time,240);
 assert.equal(liveSnapshot(g,0,{...detail,match:{...detail.match,game_state:6}}),null);
 const html=renderLiveMatch(snapshot);assert.ok(html.includes('Публичный матч'));assert.ok(html.includes('2:00'));assert.ok(!html.includes('<script>oops'));assert.ok(html.includes('&lt;script&gt;'));
-assert.ok(renderLiveMatch({...snapshot,kind:'stack',stackCount:3}).includes('Участников стака: 3'));
+assert.ok(renderLiveMatch({...snapshot,kind:'stack',stackCount:3}).includes('участников стака: 3'));
 assert.equal(renderLiveMatch(null),'');
 console.log('Live match: stack ranking, deduplication, active roster, public fallback, snapshot consistency, completed games, HTML escaping passed.');
+
+assert.deepEqual(mapPoint(0,0),{left:50,top:50});
+assert.deepEqual(mapPoint(-.5,.5),{left:0,top:0});
+assert.equal(mapPoint(undefined,0),null);assert.equal(mapPoint(NaN,0),null);assert.equal(mapPoint(2,0),null);
+new Function(LIVE_MATCH_SCRIPT);
+const rich=liveSnapshot(g,0,{...detail,teams:[{...detail.teams[0],net_worth:12345,players:[{...detail.teams[0].players[0],x:0,y:0,net_worth:12345,gold:1500,lh_count:80,denies_count:4,items:[1,50,-1,999999]}]},detail.teams[1]],buildings:[{team:2,type:0,x:.1,y:.2,destroyed:false}]})!;
+assert.equal(rich.teams[0].netWorth,12345);assert.equal(rich.teams[0].players[0].lastHits,80);assert.equal(rich.buildings.length,1);
+const richHtml=renderLiveMatch(rich);assert.ok(richHtml.includes('Blink Dagger'));assert.ok(richHtml.includes('Предмет #999999'));assert.ok(richHtml.includes('data-live-select="0"'));assert.ok(richHtml.includes('left:50%;top:50%'));assert.ok(richHtml.includes('12.3k'));
+assert.ok(!renderLiveMatch(snapshot).includes('class="live-pin '));
+const graph=renderLiveMatch({...rich,history:[{time:0,lead:100},{time:30,lead:-500}]});assert.ok(graph.includes('<polyline'));assert.ok(graph.includes('0:30'));
+console.log('Observer UI: map bounds, missing positions, gold, inventory, unknown items, graph, browser script passed.');
