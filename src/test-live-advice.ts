@@ -100,21 +100,31 @@ assert.equal(generations,1);
 // The first caller must not receive an obsolete result even when a second
 // observer update arrives while the model is running.
 match.updatedAt=now;
-for(const change of ['purchase','new-match','no-match','hidden-only'] as const){
+for(const change of ['purchase','new-match','no-match','hidden-only','level-gold'] as const){
  let finish!:()=>void,start!:()=>void;
  const started=new Promise<void>(resolve=>{start=resolve;});
  const delayed=new Promise<void>(resolve=>{finish=resolve;});
  const racing=new LiveAdviceService(source,async()=>{start();await delayed;return output;},()=>now,null);
  const pending=racing.get(match);
  await started;
- const next=change==='purchase'?{...changed,updatedAt:now+1}:
-  change==='new-match'?{...match,matchId:'new',updatedAt:now+1}:
+ const next=change==='level-gold'?{...match,updatedAt:now,time:match.time!+30,teams:match.teams.map(t=>({...t,players:t.players.map(p=>({...p,level:(p.level??0)+1,gold:(p.gold??0)+600}))}))}:change==='purchase'?{...changed,updatedAt:now}:
+  change==='new-match'?{...match,matchId:'new',updatedAt:now}:
   change==='hidden-only'?{...hiddenChanged,updatedAt:now}:null;
  racing.peek(next);
  finish();
  const state=await pending;
- assert.equal(state.status,change==='hidden-only'?'ready':'unavailable',change);
+ assert.equal(state.status,['hidden-only','level-gold'].includes(change)?'ready':'unavailable',change);
 }
+const pairMatch={...match,stackCount:2,teams:match.teams.map(t=>({...t,players:t.players.map(p=>p.account===2?{...p,ours:true}:p)}))};
+let pairRelease!:()=>void,pairStart!:()=>void;
+const pairStarted=new Promise<void>(resolve=>{pairStart=resolve;});
+const pairWait=new Promise<void>(resolve=>{pairRelease=resolve;});
+const pairService=new LiveAdviceService(source,async()=>{pairStart();await pairWait;return {...output,players:[output.players[0],{...output.players[0],account:2}]};},()=>now,null);
+const pairPending=pairService.get(pairMatch);await pairStarted;
+pairService.peek({...pairMatch,teams:pairMatch.teams.map(t=>({...t,players:t.players.map(p=>p.account===1?{...p,items:[2]}:p)}))});
+pairRelease();const partial=await pairPending;
+assert.equal(partial.status,'ready');
+if(partial.status==='ready')assert.deepEqual(partial.advice.cards.map(c=>c.account),[2],'one purchase must not discard the other player decision');
 // Two copies of a component are distinct purchases; an existing first copy
 // must not immediately invalidate the recommendation to buy the second.
 match.updatedAt=now;

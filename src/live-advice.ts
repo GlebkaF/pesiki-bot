@@ -9,6 +9,9 @@ import type {LiveMatch} from './live-match.js';
 export interface AdviceCard {purchaseStep?:AdvicePurchaseStep;purchaseStepOwnedCount?:number;account:number;name:string;hero:string;item:AdviceCandidate;reason:string;alternative:AdviceCandidate|null;alternativeReason:string;}
 export interface LiveAdvice {matchId:string;snapshotAt:number;generatedAt:number;gameTime:number;delay:number|null;gameMode:number|null;cards:AdviceCard[];plan:string;knowledgeRevision:string;statisticsAt:number|null;}
 export type AdviceState={status:'ready';advice:LiveAdvice}|{status:'unavailable'|'loading'|'limited';message:string};
+function rosterIdentity(match:LiveMatch):string{
+ return JSON.stringify(match.teams.map(t=>[t.name,t.players.map(p=>[p.account,p.heroId,p.ours]).sort((a,b)=>Number(a[0])-Number(b[0]))]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));
+}
 export function adviceFingerprint(match:LiveMatch):string{
  return createHash('sha256').update(adviceObservationKey(match)).digest('hex');
 }
@@ -96,10 +99,13 @@ export class LiveAdviceService {
     await this.record(decisionId,match.matchId,'generated',{output});
     if(!output.players.length)return {status:'unavailable',message:'Пока нет обоснованного следующего шага по доступным данным.'};
     stage='revalidation';
-    if(!canAdvise(this.latestMatch,this.now())||this.latestMatch.matchId!==match.matchId||adviceFingerprint(this.latestMatch)!==fingerprint)return {status:'unavailable',message:'Ситуация изменилась во время разбора. Ждём совет по новому снимку.'};
+    if(!canAdvise(this.latestMatch,this.now())||this.latestMatch.matchId!==match.matchId||rosterIdentity(this.latestMatch)!==rosterIdentity(match))return {status:'unavailable',message:'Ситуация изменилась во время разбора. Ждём совет по новому снимку.'};
     if(!canAdvise(match,this.now()))return {status:'unavailable',message:'Снимок устарел во время разбора. Ждём обновления матча.'};
     const roster=match.teams.flatMap(t=>t.players);
-    const cards=output.players.map(p=>{const player=context.players.find(c=>c.account===p.account)!,identity=roster.find(c=>c.account===p.account)!;return {...p.purchaseStep?{purchaseStep:p.purchaseStep,purchaseStepOwnedCount:identity.items.filter(id=>id===p.purchaseStep!.id).length}:{},account:p.account,name:identity.name,hero:identity.hero,item:player.candidates.find(c=>c.id===p.itemId)!,reason:p.reason,alternative:player.candidates.find(c=>c.id===p.alternativeId)??null,alternativeReason:p.alternativeReason};});
+    const latestRoster=this.latestMatch.teams.flatMap(t=>t.players);
+    const applicable=output.players.filter(p=>{const before=match.teams.flatMap(t=>t.players).find(v=>v.account===p.account)!,after=latestRoster.find(v=>v.account===p.account)!;return JSON.stringify([...before.items].sort((a,b)=>a-b))===JSON.stringify([...after.items].sort((a,b)=>a-b));});
+    if(!applicable.length)return {status:'unavailable',message:'Предметы изменились во время разбора. Обновим план по новому снимку.'};
+    const cards=applicable.map(p=>{const player=context.players.find(c=>c.account===p.account)!,identity=roster.find(c=>c.account===p.account)!;return {...p.purchaseStep?{purchaseStep:p.purchaseStep,purchaseStepOwnedCount:identity.items.filter(id=>id===p.purchaseStep!.id).length}:{},account:p.account,name:identity.name,hero:identity.hero,item:player.candidates.find(c=>c.id===p.itemId)!,reason:p.reason,alternative:player.candidates.find(c=>c.id===p.alternativeId)??null,alternativeReason:p.alternativeReason};});
     const dates=[...popularities.values()].map(p=>p.fetchedAt);
     this.cached={matchId:match.matchId,snapshotAt:match.updatedAt,generatedAt:this.now(),gameTime:match.time!,delay:match.delay??null,gameMode:match.gameMode??null,cards,plan:output.plan,knowledgeRevision:knowledge.revision,statisticsAt:dates.length?Math.min(...dates):null};
     this.lastFingerprint=fingerprint;
