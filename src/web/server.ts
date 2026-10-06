@@ -1,3 +1,5 @@
+import {getLiveMatch} from '../live-match.js';
+import {renderLiveMatch} from './live-match-render.js';
 import {buildMatchComparison} from '../match-comparison.js';
 import {renderComparison} from './match-comparison-render.js';
 import {sendText} from "./http-response.js";
@@ -122,6 +124,11 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     const economyMatch=profile.matches.find(m=>m.id===Number(url.searchParams.get("economy")))??profile.measured[0];
     const economy=economyMatch?buildEconomy(getApmStore(),profile.account,economyMatch.id):null;
     return send(res,200,renderPlayer(profile,profiles,Number.isSafeInteger(page)?page:1,Number(url.searchParams.get("match"))||undefined,url.searchParams.get("hero")||undefined,economy,buildPlayerProgress(getApmStore(),profile)));
+  }
+  if (p === '/api/live-match' && req.method === 'GET') {
+    const match=await getLiveMatch();
+    res.setHeader('Cache-Control','no-store');
+    return sendJson(res,200,{html:renderLiveMatch(match),expiresAt:match?match.updatedAt+90_000:0});
   }
   if (p === "/" && req.method === "GET") {
     const { matches, updatedAt } = await getFeed();
