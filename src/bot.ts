@@ -1,4 +1,3 @@
-import {replyAdvice} from './advice-command.js';
 import {replyCurrentMatch} from './current-match-command.js';
 import { Bot, type CommandContext, type Context } from "grammy";
 import { config } from "./config.js";
@@ -225,7 +224,7 @@ async function handleAnalyzeCommand(
   }
 
   const progressMsg = await ctx.reply(
-    requestedMatchId ? "🔎 Ищу реплей матча..." : "🔎 Ищу последний матч...",
+    requestedMatchId ? "🔎 Ищу реплей матча..." : "🔄 Обновляю историю и ищу последний матч...",
   );
   let lastText = "";
   const editProgress = async (text: string) => {
@@ -241,7 +240,7 @@ async function handleAnalyzeCommand(
   try {
     let matchId = requestedMatchId;
     if (matchId === null) {
-      const lastMatch = await findLastPartyMatch();
+      const lastMatch = await findLastPartyMatch(true);
       if (!lastMatch) {
         throw new Error("Не удалось найти последний матч");
       }
@@ -281,7 +280,6 @@ export function setupCommands(
   fetchStatsHandler: (period: StatsPeriod) => Promise<string>,
   onCommandReceived?: () => void,
 ): void {
-  bot.command("advice", async (ctx) => { await replyAdvice(ctx); });
   bot.command("current_match", async (ctx) => {
     onCommandReceived?.();
     await replyCurrentMatch(ctx);
@@ -310,7 +308,7 @@ export function setupCommands(
   );
 
   // Register /analyze command
-  bot.command("analyze", (ctx) => handleAnalyzeCommand(ctx, onCommandReceived));
+  bot.command(["analyze", "analize"], (ctx) => handleAnalyzeCommand(ctx, onCommandReceived));
 
   // Register /copium command (biased analysis)
   bot.command("copium", (ctx) => handleCopiumCommand(ctx, onCommandReceived));
@@ -321,7 +319,6 @@ export function setupCommands(
   // Set bot commands menu (optional; 404 can occur with invalid token or custom API)
   bot.api
     .setMyCommands([
-      { command: "advice", description: "Что собирать нашим в текущем матче" },
       { command: "current_match", description: "Текущий матч: счёт, герои и статистика" },
       { command: "status", description: "Кто онлайн и кто сейчас играет" },
       { command: "stats", description: "Get today's Dota 2 stats" },

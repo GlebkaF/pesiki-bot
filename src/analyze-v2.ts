@@ -13,7 +13,7 @@ import { withAnalysisApm } from "./analysis-apm.js";
  */
 import {getApmStore} from "./apm-store.js";
 import { ALL_PLAYERS, PLAYERS, PLAYER_IDS, type Player } from "./config.js";
-import { fetchPlayerProfile, fetchRecentMatches, savedRecentMatches, fetchMatchApi } from "./opendota.js";
+import { fetchRecentMatches, savedRecentMatches, fetchMatchApi } from "./opendota.js";
 import { fetchReplayForAnalysis, toSteam32, type ParsedMatch, type ParsedPlayer, type ParseProgress } from "./replay.js";
 import { escapeHtml } from "./telegram-html.js";
 import { generateMainVoiceAnalysis } from "./analyze-main-voice.js";
@@ -172,7 +172,8 @@ export function analyseParsedMatch(parsed: ParsedMatch): MatchAnalysis {
   };
 }
 
-export async function findLastPartyMatch(): Promise<{
+/** Refresh bypasses the history cache; saved matches remain a fallback during outages. */
+export async function findLastPartyMatch(fresh = false): Promise<{
   matchId: number;
   playerId: number;
   playerName: string;
@@ -182,28 +183,32 @@ export async function findLastPartyMatch(): Promise<{
     .then(raw => JSON.parse(raw) as {matches: {matchId:number;startTime:number;ours:{steamId:number;name:string}[]}[]})
     .catch(()=>null);
   const newest = feed?.matches.filter(m=>m.ours.length).sort((a,b)=>b.startTime-a.startTime)[0];
-  if (newest && (!known || newest.startTime > known.match.start_time)) {
-    return {matchId:newest.matchId,playerId:newest.ours[0].steamId,playerName:newest.ours[0].name};
+  let latest: { matchId: number; startTime: number; playerId: number; playerName: string } | null = known
+    ? {matchId:known.match.match_id,startTime:known.match.start_time,playerId:known.playerId,playerName:PLAYERS.find(p=>p.steamId===known.playerId)?.dotaName ?? String(known.playerId)}
+    : null;
+  if (newest && (!latest || newest.startTime > latest.startTime)) {
+    latest = {matchId:newest.matchId,startTime:newest.startTime,playerId:newest.ours[0].steamId,playerName:newest.ours[0].name};
   }
-  if (known) return {matchId:known.match.match_id,playerId:known.playerId,playerName:PLAYERS.find(p=>p.steamId===known.playerId)?.dotaName ?? String(known.playerId)};
-  let latest: { matchId: number; startTime: number; playerId: number } | null = null;
-  for (const playerId of PLAYER_IDS) {
-    try {
-      const recent = (await fetchRecentMatches(playerId))[0];
-      if (recent && (!latest || recent.start_time > latest.startTime)) {
-        latest = { matchId: recent.match_id, startTime: recent.start_time, playerId };
+  if (fresh || !latest) {
+    for (const playerId of PLAYER_IDS) {
+      try {
+        const recent = await fetchRecentMatches(playerId, undefined, fresh);
+        for (const match of recent) {
+          if (!latest || match.start_time > latest.startTime ||
+              (match.start_time === latest.startTime && match.match_id > latest.matchId)) {
+            latest = {
+              matchId: match.match_id, startTime: match.start_time, playerId,
+              playerName: PLAYERS.find(p=>p.steamId===playerId)?.dotaName ?? String(playerId),
+            };
+          }
+        }
+      } catch (error) {
+        console.warn(`[ANALYZE] не загрузились матчи ${playerId}:`, (error as Error).message);
       }
-    } catch (error) {
-      console.warn(`[ANALYZE] не загрузились матчи ${playerId}:`, (error as Error).message);
     }
   }
   if (!latest) return null;
-  const profile = await fetchPlayerProfile(latest.playerId).catch(()=>null);
-  return {
-    matchId: latest.matchId,
-    playerId: latest.playerId,
-    playerName: profile?.profile?.personaname || String(latest.playerId),
-  };
+  return {matchId:latest.matchId,playerId:latest.playerId,playerName:latest.playerName};
 }
 
 /** Разбор матча по реплею. Прогресс отдаётся наружу, чтобы бот мог обновлять сообщение. */
