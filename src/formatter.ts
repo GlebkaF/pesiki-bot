@@ -448,19 +448,44 @@ function calculateNominations(
     addNomination("Сухарь", "🥨", [{ player, value: "0 смертей за период" }]);
   }
 
-  // Equal K/D/A must occur in one match, not just in the period totals.
-  for (const player of activePlayers) {
-    const luckyScores = player.heroes.flatMap(({ kda }) =>
-      kda && kda.every((value) => Number.isInteger(value) && value >= 0) &&
+  // Choose one actual match: 7/7/7 wins over 6/6/6, then any other equal score.
+  const luckyCandidates = activePlayers.flatMap(player => {
+    const scores = [...new Set(player.heroes.flatMap(({ kda }) =>
+      kda && kda.every(value => Number.isInteger(value) && value >= 0) &&
       kda[0] === kda[1] && kda[1] === kda[2] ? [kda.join("/")] : []
-    );
-    if (luckyScores.length > 0) {
-      addNomination("Фартовый", "🍀", [{
-        player,
-        value: [...new Set(luckyScores)].join(", "),
-      }]);
-    }
+    ))];
+    return scores.map(value => ({ player, value }));
+  });
+  const luckyPriority = (value: string) => value === "7/7/7" ? 2 : value === "6/6/6" ? 1 : 0;
+  const bestLuckyPriority = Math.max(...luckyCandidates.map(c => luckyPriority(c.value)));
+  const bestLucky = luckyCandidates.filter(c => luckyPriority(c.value) === bestLuckyPriority);
+  if (bestLucky.length) {
+    addNomination("Фартовый", "🍀", [bestLucky[Math.floor(Math.random() * bestLucky.length)]]);
   }
+
+  // Compare only periods with complete replay coverage for the metric.
+  const wardCandidates = sortWithTiebreaker(activePlayers.filter(p =>
+    p.replayNominations?.wardMatches === p.totalMatches && p.replayNominations.observers > 0
+  ), p => p.replayNominations!.observers / p.totalMatches);
+  addNomination("Большой брат", "👁️", wardCandidates.map(player => ({
+    player,
+    value: `${Math.round(player.replayNominations!.observers / player.totalMatches * 10) / 10} observer-вардов/игра`,
+  })));
+
+  const photographers = activePlayers.filter(p => {
+    const r = p.replayNominations;
+    if (!r || r.fightMatches !== p.totalMatches || r.fights < 3) return false;
+    const rate = r.participated / r.fights;
+    const teamRate = r.teammateParticipations / (4 * r.fights);
+    return rate <= teamRate * 0.7 && teamRate - rate >= 0.25;
+  }).sort((a, b) => {
+    const x = a.replayNominations!, y = b.replayNominations!;
+    return x.participated / x.fights - y.participated / y.fights || a.playerName.localeCompare(b.playerName);
+  });
+  addNomination("Фотограф", "📸", photographers.map(player => {
+    const r = player.replayNominations!;
+    return { player, value: `${r.participated}/${r.fights} драк, команда ${Math.round(r.teammateParticipations / (4 * r.fights) * 100)}%` };
+  }));
 
   if (activePlayers.length < 2) return nominations;
 

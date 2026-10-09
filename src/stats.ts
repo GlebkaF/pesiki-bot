@@ -1,3 +1,4 @@
+import type { ReplayNominationStats } from "./replay-nominations.js";
 import type { RecentMatch } from "./opendota.js";
 
 export interface HeroMatch {
@@ -16,6 +17,7 @@ export interface PlayerStats {
   heroes: HeroMatch[];
   avgApm?: number;
   apmMatches?: number;
+  replayNominations?: ReplayNominationStats;
   avgKda?: number;
   rank?: number | null;  // Player's rank tier from OpenDota
   // Aggregated stats for nominations

@@ -1,3 +1,4 @@
+import { replayNominations, summarizeReplayNominations } from "./replay-nominations.js";
 import cron from "node-cron";
 import { config, PLAYER_IDS } from "./config.js";
 import { fetchRecentMatches, fetchPlayerProfile } from "./opendota.js";
@@ -111,6 +112,14 @@ async function fetchAllPlayersStats(
 ): Promise<PlayerStats[]> {
   const days = getDaysForPeriod(period);
   
+  const replayCache = new Map<number, ReturnType<typeof replayNominations> | undefined>();
+  const loadReplayNominations = (matchId: number) => {
+    if (!replayCache.has(matchId)) {
+      const replay = getApmStore().replay(matchId);
+      replayCache.set(matchId, replay ? replayNominations(replay) : undefined);
+    }
+    return replayCache.get(matchId);
+  };
   const statsPromises = PLAYER_IDS.map(async (playerId) => {
     console.log(`Fetching data for player ${playerId}...`);
     
@@ -125,7 +134,8 @@ async function fetchAllPlayersStats(
     const apm = summarizeApm(getApmStore().history(playerId), periodMatches);
     const avgApm = apm.avgApm;
     console.log(`  Player: ${profileData.name}, Found ${matches.length} recent matches, APM: ${avgApm ?? "N/A"}, Rank: ${profileData.rank ?? "N/A"}`);
-    return { ...calculateStats(playerId, profileData.name, matches, period, avgApm, profileData.rank), apmMatches: apm.apmMatches };
+    return { ...calculateStats(playerId, profileData.name, matches, period, avgApm, profileData.rank), apmMatches: apm.apmMatches,
+      replayNominations: summarizeReplayNominations(playerId, periodMatches, loadReplayNominations) };
   });
 
   return Promise.all(statsPromises);

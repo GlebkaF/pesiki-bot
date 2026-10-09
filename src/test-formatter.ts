@@ -241,13 +241,36 @@ async function runTests() {
     kills: score, deaths: score, assists: score,
   } as RecentMatch)));
   const luckyMessage = await formatStatsMessage([luckyStats]);
-  assert.ok(luckyMessage.includes("🍀 Фартовый: Lucky (3/3/3, 6/6/6, 7/7/7, 0/0/0)"));
+  assert.ok(luckyMessage.includes("🍀 Фартовый: Lucky (7/7/7)"));
   const unequalGames = { ...luckyStats, heroes: [
     { heroId: 1, isWin: true, kda: [2, 3, 4] as [number, number, number] },
     { heroId: 1, isWin: true, kda: [4, 3, 2] as [number, number, number] },
   ], totalKills: 6, totalDeaths: 6, totalAssists: 6 };
   assert.ok(!(await formatStatsMessage([unequalGames])).includes("Фартовый:"));
   assert.ok(!message.includes("Фартовый:"));
+
+  const sixes = { ...luckyStats, heroes: luckyStats.heroes.filter(h => h.kda?.[0] !== 7) };
+  assert.ok((await formatStatsMessage([sixes])).includes("Lucky (6/6/6)"));
+  const otherScores = { ...luckyStats, heroes: luckyStats.heroes.filter(h => [0, 3].includes(h.kda![0])) };
+  assert.match(await formatStatsMessage([otherScores]), /Фартовый: Lucky \((?:0\/0\/0|3\/3\/3)\)/);
+  const sevenPlayer = { ...luckyStats, playerId: 456, playerName: "Seven" };
+  assert.ok((await formatStatsMessage([sixes, sevenPlayer])).includes("Фартовый: Seven (7/7/7)"));
+  const replayPlayer = { ...mockStats[0], replayNominations: {
+    wardMatches: 6, observers: 30, fightMatches: 6,
+    fights: 8, participated: 5, teammateParticipations: 31,
+  } };
+  const replayMessage = await formatStatsMessage([replayPlayer]);
+  assert.ok(replayMessage.includes("Большой брат: ProGamer (5 observer-вардов/игра)"));
+  assert.ok(replayMessage.includes("Фотограф: ProGamer (5/8 драк, команда 97%)"));
+  const partial = { ...replayPlayer, replayNominations: { ...replayPlayer.replayNominations, wardMatches: 5, fightMatches: 5 } };
+  const partialMessage = await formatStatsMessage([partial]);
+  assert.ok(!partialMessage.includes("Большой брат:"));
+  assert.ok(!partialMessage.includes("Фотограф:"));
+  for (const changes of [{ fights: 2, participated: 0 }, { participated: 7 }, { observers: 0, participated: 8 }]) {
+    const report = await formatStatsMessage([{ ...replayPlayer, replayNominations: { ...replayPlayer.replayNominations, ...changes } }]);
+    assert.ok(!report.includes("Фотограф:"));
+    if ('observers' in changes) assert.ok(!report.includes("Большой брат:"));
+  }
 
   // Verify expected content
   const checks = [
