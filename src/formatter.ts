@@ -465,15 +465,15 @@ function calculateNominations(
 
   // Rare solo achievements: enough games and complete roster coverage for the period.
   const soloCandidates = activePlayers.filter(p => p.solo &&
-    p.solo.knownMatches === p.totalMatches && p.solo.matches >= 5 &&
+    p.solo.knownMatches === p.totalMatches && p.solo.matches >= 3 &&
     p.solo.matches / p.totalMatches >= 0.7);
   for (const [title, emoji, winning] of [
     ["Одинокий волк", "🐺", true],
     ["Одинокий корм", "🍽️", false],
   ] as const) {
     const candidates = soloCandidates.filter(p => winning
-      ? p.solo!.wins / p.solo!.matches >= 0.8
-      : p.solo!.wins / p.solo!.matches <= 0.2
+      ? p.solo!.wins >= 3 && p.solo!.wins * 3 >= p.solo!.matches * 2
+      : p.solo!.losses >= 3 && p.solo!.losses * 3 >= p.solo!.matches * 2
     ).sort((a, b) => {
       const x = a.solo!, y = b.solo!;
       const rateDiff = y.wins / y.matches - x.wins / x.matches;

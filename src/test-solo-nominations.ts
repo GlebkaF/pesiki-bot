@@ -35,7 +35,7 @@ assert.ok((await formatStatsMessage([{...player, solo: {...player.solo!, wins: 1
 for (const p of [
   {...player, solo: undefined},
   {...player, solo: {...player.solo!, knownMatches: 4}},
-  {...player, totalMatches: 4, solo: {knownMatches: 4, matches: 4, wins: 4, losses: 0}},
+  {...player, totalMatches: 2, solo: {knownMatches: 2, matches: 2, wins: 2, losses: 0}},
   {...player, totalMatches: 8, solo: {...player.solo!, knownMatches: 8}},
   {...player, solo: {...player.solo!, wins: 3, losses: 2}},
 ]) {
@@ -44,6 +44,18 @@ for (const p of [
 }
 const boundary = {...player, totalMatches: 10, solo: {knownMatches: 10, matches: 7, wins: 7, losses: 0}};
 assert.ok((await formatStatsMessage([boundary])).includes('Одинокий волк:'));
+for (const [wins, losses, expected] of [
+  [3, 0, 'волк'], [0, 3, 'корм'], [3, 1, 'волк'], [1, 3, 'корм'],
+  [4, 2, 'волк'], [2, 4, 'корм'], [3, 3, ''], [5, 5, ''],
+  [6, 4, ''], [4, 6, ''], [7, 3, 'волк'], [3, 7, 'корм'],
+  [2, 1, ''], [1, 2, ''], [3, 2, ''], [2, 3, ''],
+] as const) {
+  const total = wins + losses;
+  const report = await formatStatsMessage([{ ...player, totalMatches: total,
+    solo: { knownMatches: total, matches: total, wins, losses } }]);
+  assert.equal(report.includes('Одинокий волк:'), expected === 'волк', `${wins}W/${losses}L`);
+  assert.equal(report.includes('Одинокий корм:'), expected === 'корм', `${wins}W/${losses}L`);
+}
 const store = new ApmStore(':memory:');
 assert.equal(store.profileRoster(1), undefined);
 store.saveReplay({match_id: 1, players: roster.map(id => ({steam_id: String(76561197960265728n + BigInt(id)), hero: `hero${id}`, team: id <= 5 ? 'radiant' : 'dire'})), duration_min: 30, winner: 'radiant'} as ParsedMatch);
