@@ -292,6 +292,10 @@ export class ApmStore {
       this.saveReplay(next);return this.replay(matchId);
     }).immediate();
   }
+  profileRoster(matchId: number): ProfileRoster | undefined {
+    const row = this.db.prepare("SELECT payload_json FROM profile_rosters WHERE match_id=?").get(matchId) as {payload_json:string} | undefined;
+    return row ? JSON.parse(row.payload_json) as ProfileRoster : undefined;
+  }
   profileRosters(): ProfileRoster[] {
     return (this.db.prepare("SELECT payload_json FROM profile_rosters").all() as {payload_json:string}[]).map(r=>JSON.parse(r.payload_json));
   }

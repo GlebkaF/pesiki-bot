@@ -1,3 +1,4 @@
+import type { SoloStats } from "./solo-nominations.js";
 import type { ReplayNominationStats } from "./replay-nominations.js";
 import type { RecentMatch } from "./opendota.js";
 
@@ -18,6 +19,7 @@ export interface PlayerStats {
   avgApm?: number;
   apmMatches?: number;
   replayNominations?: ReplayNominationStats;
+  solo?: SoloStats;
   avgKda?: number;
   rank?: number | null;  // Player's rank tier from OpenDota
   // Aggregated stats for nominations

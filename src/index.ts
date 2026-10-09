@@ -1,3 +1,4 @@
+import { summarizeSoloStats } from "./solo-nominations.js";
 import { replayNominations, summarizeReplayNominations } from "./replay-nominations.js";
 import cron from "node-cron";
 import { config, PLAYER_IDS } from "./config.js";
@@ -120,6 +121,18 @@ async function fetchAllPlayersStats(
     }
     return replayCache.get(matchId);
   };
+  const rosterCache = new Map<number, (number | undefined)[] | undefined>();
+  const loadRoster = (matchId: number) => {
+    if (!rosterCache.has(matchId)) {
+      const roster = getApmStore().profileRoster(matchId);
+      const ids = roster?.players.map(p => /^\d+$/.test(p.steam_id)
+        ? Number(BigInt(p.steam_id) - 76561197960265728n) : undefined);
+      const complete = ids?.length === 10 && new Set(ids).size === 10 &&
+        ids.every(id => Number.isSafeInteger(id) && id! > 0 && id! <= 0xffffffff);
+      rosterCache.set(matchId, complete ? ids : getApmStore().matchApi(matchId)?.players.map(p => p.account_id));
+    }
+    return rosterCache.get(matchId);
+  };
   const statsPromises = PLAYER_IDS.map(async (playerId) => {
     console.log(`Fetching data for player ${playerId}...`);
     
@@ -135,7 +148,8 @@ async function fetchAllPlayersStats(
     const avgApm = apm.avgApm;
     console.log(`  Player: ${profileData.name}, Found ${matches.length} recent matches, APM: ${avgApm ?? "N/A"}, Rank: ${profileData.rank ?? "N/A"}`);
     return { ...calculateStats(playerId, profileData.name, matches, period, avgApm, profileData.rank), apmMatches: apm.apmMatches,
-      replayNominations: summarizeReplayNominations(playerId, periodMatches, loadReplayNominations) };
+      replayNominations: summarizeReplayNominations(playerId, periodMatches, loadReplayNominations),
+      solo: summarizeSoloStats(playerId, periodMatches, PLAYER_IDS, loadRoster) };
   });
 
   return Promise.all(statsPromises);
