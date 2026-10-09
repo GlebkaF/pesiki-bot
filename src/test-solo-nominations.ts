@@ -34,13 +34,19 @@ assert.ok((await formatStatsMessage([player])).includes('🐺 Одинокий �
 assert.ok((await formatStatsMessage([{...player, solo: {...player.solo!, wins: 1, losses: 4}}])).includes('🍽️ Одинокий корм: Solo (без наших 1W/4L)'));
 for (const p of [
   {...player, solo: undefined},
-  {...player, solo: {...player.solo!, knownMatches: 4}},
   {...player, totalMatches: 1, solo: {knownMatches: 1, matches: 1, wins: 1, losses: 0}},
-  {...player, totalMatches: 8, solo: {...player.solo!, knownMatches: 8}},
   {...player, solo: {...player.solo!, wins: 3, losses: 2}},
 ]) {
   const message = await formatStatsMessage([p]);
   assert.ok(!message.includes('Одинокий волк:') && !message.includes('Одинокий корм:'));
+}
+// Two confirmed solo games qualify even among many stack games or unknown rosters.
+for (const knownMatches of [2, 20]) {
+  for (const wins of [0, 2]) {
+    const report = await formatStatsMessage([{ ...player, totalMatches: 20,
+      solo: { knownMatches, matches: 2, wins, losses: 2 - wins } }]);
+    assert.ok(report.includes(wins === 2 ? 'Одинокий волк:' : 'Одинокий корм:'));
+  }
 }
 const boundary = {...player, totalMatches: 10, solo: {knownMatches: 10, matches: 7, wins: 7, losses: 0}};
 assert.ok((await formatStatsMessage([boundary])).includes('Одинокий волк:'));

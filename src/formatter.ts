@@ -463,10 +463,8 @@ function calculateNominations(
     addNomination("Фартовый", "🍀", [bestLucky[Math.floor(Math.random() * bestLucky.length)]]);
   }
 
-  // Rare solo achievements: enough games and complete roster coverage for the period.
-  const soloCandidates = activePlayers.filter(p => p.solo &&
-    p.solo.knownMatches === p.totalMatches && p.solo.matches >= 2 &&
-    p.solo.matches / p.totalMatches >= 0.7);
+  // Only confirmed solo games count; games with our stack do not affect eligibility.
+  const soloCandidates = activePlayers.filter(p => p.solo && p.solo.matches >= 2);
   for (const [title, emoji, winning] of [
     ["Одинокий волк", "🐺", true],
     ["Одинокий корм", "🍽️", false],
