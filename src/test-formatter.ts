@@ -3,8 +3,11 @@
  * Run with: npx tsx src/test-formatter.ts
  */
 
+import assert from "node:assert/strict";
+
 import { formatStatsMessage, stripHtml } from "./formatter.js";
-import type { PlayerStats } from "./stats.js";
+import { calculateStats, type PlayerStats } from "./stats.js";
+import type { RecentMatch } from "./opendota.js";
 
 // Mock data to test formatting with heroes, APM, and KDA
 // Hero IDs: 1=Anti-Mage, 2=Axe, 3=Bane, 4=Bloodseeker, 5=Crystal Maiden, 6=Drow Ranger
@@ -215,6 +218,36 @@ async function runTests() {
   console.log("---");
   console.log(plainMessage);
   console.log("---\n");
+
+  const deathless = { ...mockStats[0], totalDeaths: 0 };
+  const soloMessage = await formatStatsMessage([deathless]);
+  assert.ok(soloMessage.includes("🥨 Сухарь: ProGamer (0 смертей за период)"));
+  const multipleMessage = await formatStatsMessage([
+    deathless,
+    { ...mockStats[1], totalDeaths: 0 },
+    mockStats[3], // An inactive player also has zero deaths, but does not qualify.
+  ]);
+  assert.equal((multipleMessage.match(/🥨 Сухарь:/g) ?? []).length, 2);
+  assert.ok(!multipleMessage.includes("🥨 Сухарь: InactivePlayer"));
+  assert.ok(!multipleMessage.includes("Фидер:"));
+  assert.ok(!message.includes("Сухарь:"));
+  assert.ok(!message.includes("Спринтер:"));
+  assert.ok(!message.includes("Аккуратист:"));
+  assert.ok(!(await formatStatsMessage([{ ...deathless, totalDeaths: 1 }])).includes("Сухарь:"));
+
+  const luckyStats = calculateStats(123, "Lucky", [3, 6, 7, 0].map((score, index) => ({
+    match_id: index + 1, start_time: Math.floor(Date.now() / 1000),
+    hero_id: 1, player_slot: 0, radiant_win: true, duration: 1800,
+    kills: score, deaths: score, assists: score,
+  } as RecentMatch)));
+  const luckyMessage = await formatStatsMessage([luckyStats]);
+  assert.ok(luckyMessage.includes("🍀 Фартовый: Lucky (3/3/3, 6/6/6, 7/7/7, 0/0/0)"));
+  const unequalGames = { ...luckyStats, heroes: [
+    { heroId: 1, isWin: true, kda: [2, 3, 4] as [number, number, number] },
+    { heroId: 1, isWin: true, kda: [4, 3, 2] as [number, number, number] },
+  ], totalKills: 6, totalDeaths: 6, totalAssists: 6 };
+  assert.ok(!(await formatStatsMessage([unequalGames])).includes("Фартовый:"));
+  assert.ok(!message.includes("Фартовый:"));
 
   // Verify expected content
   const checks = [

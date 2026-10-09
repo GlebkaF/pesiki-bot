@@ -3,6 +3,7 @@ import type { RecentMatch } from "./opendota.js";
 export interface HeroMatch {
   heroId: number;
   isWin: boolean;
+  kda?: [number, number, number];
 }
 
 export interface PlayerStats {
@@ -226,6 +227,7 @@ export function calculateStats(
   const heroes: HeroMatch[] = filteredMatches.map((match) => ({
     heroId: match.hero_id,
     isWin: isWin(match),
+    kda: [match.kills, match.deaths, match.assists],
   }));
 
   // Calculate aggregated stats

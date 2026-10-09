@@ -380,15 +380,12 @@ function formatNominationsSection(nominations: Nomination[]): string[] {
 /**
  * Calculates nominations based on player stats
  * Only considers players with at least 1 match
- * Returns empty array if less than 2 active players
+ * Comparative nominations require at least 2 active players
  */
 function calculateNominations(
   activePlayers: PlayerStats[],
   heroNamesMap: Map<number, string[]>
 ): Nomination[] {
-  // Need at least 2 players to compare
-  if (activePlayers.length < 2) return [];
-
   const nominations: Nomination[] = [];
   const NEW_NOMINATION_MIN_MATCHES = 3;
   const COMEBACK_MIN_LONG_MATCHES = 2;
@@ -443,6 +440,30 @@ function calculateNominations(
     });
   };
 
+  // A deathless period is an achievement for every qualifying player, even solo.
+  for (const player of sortWithTiebreaker(
+    activePlayers.filter((p) => p.totalMatches > 0 && p.totalDeaths === 0),
+    (p) => p.totalMatches
+  )) {
+    addNomination("Сухарь", "🥨", [{ player, value: "0 смертей за период" }]);
+  }
+
+  // Equal K/D/A must occur in one match, not just in the period totals.
+  for (const player of activePlayers) {
+    const luckyScores = player.heroes.flatMap(({ kda }) =>
+      kda && kda.every((value) => Number.isInteger(value) && value >= 0) &&
+      kda[0] === kda[1] && kda[1] === kda[2] ? [kda.join("/")] : []
+    );
+    if (luckyScores.length > 0) {
+      addNomination("Фартовый", "🍀", [{
+        player,
+        value: [...new Set(luckyScores)].join(", "),
+      }]);
+    }
+  }
+
+  if (activePlayers.length < 2) return nominations;
+
   // 1. Лузер (💀) - worst win rate
   const sortedByWinRate = sortWithTiebreaker(
     activePlayers,
@@ -465,10 +486,12 @@ function calculateNominations(
   const feeder = sortedByDeaths[0];
   const deathsPerGame =
     Math.round((feeder.totalDeaths / feeder.totalMatches) * 10) / 10;
-  addNomination("Фидер", "⚰️", [{
-    player: feeder,
-    value: `${deathsPerGame} смертей/игра`,
-  }]);
+  if (feeder.totalDeaths > 0) {
+    addNomination("Фидер", "⚰️", [{
+      player: feeder,
+      value: `${deathsPerGame} смертей/игра`,
+    }]);
+  }
 
   // 3. Тащер (💪) - best KDA
   const playersWithKda = activePlayers.filter((p) => p.avgKda !== undefined);
@@ -587,18 +610,6 @@ function calculateNominations(
       value: formatHoursMinutes(marathoner.totalDurationSeconds),
     }]);
 
-    // 10. Спринтер (⚡) - shortest average match duration
-    const sortedByAvgDurationAsc = sortWithTiebreaker(
-      eligibleForNew,
-      (p) => p.avgDurationSeconds,
-      true
-    );
-    const sprinter = sortedByAvgDurationAsc[0];
-    addNomination("Спринтер", "⚡", [{
-      player: sprinter,
-      value: `ср. ${formatMinutes(sprinter.avgDurationSeconds)}`,
-    }]);
-
     // 11. Любитель лейта (🐢) - longest average match duration
     const sortedByAvgDurationDesc = sortWithTiebreaker(
       eligibleForNew,
@@ -608,20 +619,6 @@ function calculateNominations(
     addNomination("Любитель лейта", "🐢", [{
       player: lateEnjoyer,
       value: `ср. ${formatMinutes(lateEnjoyer.avgDurationSeconds)}`,
-    }]);
-
-    // 12. Аккуратист (🛡️) - fewest deaths per game
-    const sortedByDeathsPerGame = sortWithTiebreaker(
-      eligibleForNew,
-      (p) => p.totalDeaths / p.totalMatches,
-      true
-    );
-    const careful = sortedByDeathsPerGame[0];
-    const deathsPerGame =
-      Math.round((careful.totalDeaths / careful.totalMatches) * 10) / 10;
-    addNomination("Аккуратист", "🛡️", [{
-      player: careful,
-      value: `${deathsPerGame} смертей/игра`,
     }]);
 
     // 13. Дуэлянт (🧹) - best K/D ratio
