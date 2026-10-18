@@ -1,3 +1,5 @@
+import {getVoiceMemory,liveVoiceScope} from "../voice-generation.js";
+import {publishVoiceDraft} from "../voice-publication.js";
 import {liveAdvice} from '../live-advice.js';
 import {getLiveMatch} from '../live-match.js';
 import {renderLiveMatch} from './live-match-render.js';
@@ -175,7 +177,11 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     if (!config.telegramChatId) return sendJson(res, 400, { ok: false, error: "TELEGRAM_CHAT_ID не задан" });
     try {
       const bot = await createBot();
-      await sendMessage(bot, formatForTelegram(matchId, stored.parsed, stored.text, stored.format));
+      if(!stored.voiceDraftId)throw Error("Regenerate this analysis to create a memory draft");
+      if(getVoiceMemory().getDraft(stored.voiceDraftId)?.scope!==liveVoiceScope(config.telegramChatId))throw Error("Draft belongs to another chat; regenerate");
+      const actualText=formatForTelegram(matchId,stored.parsed,stored.text,stored.format);
+      await publishVoiceDraft({store:getVoiceMemory(),draftId:stored.voiceDraftId,actualText,
+        send:()=>bot.api.sendMessage(config.telegramChatId,actualText,{parse_mode:"HTML",link_preview_options:{is_disabled:true}})});
       await markPosted(matchId);
       return sendJson(res, 200, { ok: true, postedAt: Date.now() });
     } catch (error) {

@@ -5,15 +5,19 @@ import { withAnalysisApm } from "../analysis-apm.js";
  * поэтому HTTP-запрос его только ставит в очередь, а страница опрашивает прогресс.
  * Одновременно выполняется один разбор — качать несколько реплеев параллельно смысла нет.
  */
-import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { analyseParsedMatch, mergeOfficialStats } from "../analyze-v2.js";
-import { generateMainVoiceAnalysis } from "../analyze-main-voice.js";
-import { collectMatchFacts, renderFactPacket } from "../match-facts.js";
+import {randomUUID} from "node:crypto";
+import { createMatchVoiceDraft } from "../analyze-v2.js";
 import { fetchReplayForAnalysis, type ParsedMatch } from "../replay.js";
 
 const ANALYSIS_DIR = path.join(process.env.DATA_DIR || "data", "analysis");
-export const CURRENT_ANALYSIS_ENGINE = "main-voice-facts-v7";
+async function archiveLegacy(file:string):Promise<void> {
+  const directory=path.join(process.env.DATA_DIR||"data","analysis-archive");
+  await mkdir(directory,{recursive:true});
+  await rename(file,path.join(directory,`${path.basename(file,'.json')}-${randomUUID()}.json`));
+}
+export const CURRENT_ANALYSIS_ENGINE = "voice-parity-v1";
 
 export type JobStage = "queued" | "locating" | "requesting" | "downloading" | "unpacking" | "parsing" | "writing" | "done" | "error";
 
@@ -35,6 +39,8 @@ export interface StoredAnalysis {
   parsed: ParsedMatch;
   /** Когда разбор ушёл в Telegram; пусто — ещё не отправляли. */
   postedAt?: number;
+  voiceDraftId?: string;
+  voiceVariant?: "legacy"|"new";
 }
 
 /** Помечает разбор как отправленный в чат. */
@@ -70,7 +76,7 @@ export async function getStoredAnalysis(matchId: number): Promise<StoredAnalysis
   try {
     const stored = JSON.parse(await readFile(file, "utf8")) as Partial<StoredAnalysis>;
     if (stored.engine !== CURRENT_ANALYSIS_ENGINE) {
-      await rm(file, { force: true });
+      await archiveLegacy(file);
       return null;
     }
     if (stored.parsed && stored.text) {
@@ -83,7 +89,7 @@ export async function getStoredAnalysis(matchId: number): Promise<StoredAnalysis
   }
 }
 
-/** Удаляет сохранённые разборы прежнего генератора при старте новой версии. */
+/** Архивирует сохранённые разборы прежнего генератора при старте новой версии. */
 export async function purgeLegacyAnalyses(): Promise<number> {
   let files: string[];
   try {
@@ -100,7 +106,7 @@ export async function purgeLegacyAnalyses(): Promise<number> {
     } catch {
       // Повреждённый результат тоже не должен считаться актуальным.
     }
-    await rm(fullPath, { force: true });
+    await archiveLegacy(fullPath);
     removed++;
   }
   return removed;
@@ -117,21 +123,16 @@ function setStage(matchId: number, stage: JobStage, error?: string): void {
 
 async function runJob(matchId: number): Promise<void> {
   try {
-    const parsed = await mergeOfficialStats(
-      await fetchReplayForAnalysis(matchId, (stage) => {
-        if (stage !== "done") setStage(matchId, stage as JobStage);
-      }),
-    );
-    setStage(matchId, "writing");
-
-    const facts = await collectMatchFacts(analyseParsedMatch(parsed));
-    const text = withAnalysisApm(await generateMainVoiceAnalysis(renderFactPacket(facts)), parsed);
+    const draft=await createMatchVoiceDraft(matchId,(stage)=>{if(stage!=="done")setStage(matchId,stage as JobStage);});
+    const parsed=draft.parsed,text=withAnalysisApm(draft.text,parsed);
 
     await mkdir(ANALYSIS_DIR, { recursive: true });
     await writeFile(
       path.join(ANALYSIS_DIR, `${matchId}.json`),
       JSON.stringify({
         matchId,
+        voiceDraftId:draft.draftId,
+        voiceVariant:draft.variant,
         createdAt: Date.now(),
         engine: CURRENT_ANALYSIS_ENGINE,
         format: "Песик сбоку",

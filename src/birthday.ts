@@ -141,13 +141,9 @@ async function generateGreeting(
   const isGpt5 = OPENAI_MODEL.startsWith("gpt-5");
 
   const statsContext = stats ? buildStatsContext(stats) : "Статистика недоступна.";
-  const attitudeHint = player.botAttitude
-    ? `Твоё отношение к этому игроку: "${player.botAttitude}"`
-    : "";
 
   const userPrompt = `Игрок: ${player.dotaName}
 Возраст: ${age} лет
-${attitudeHint}
 
 ${statsContext}
 

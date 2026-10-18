@@ -9,7 +9,6 @@ export interface Player {
   telegramId?: number;   // Telegram user ID (optional, fill in later)
   telegramUsername?: string; // Telegram @username (optional)
   displayName?: string;  // Custom display name (optional)
-  botAttitude?: string;  // How the bot feels about this player (used in AI analysis prompts)
   /** Устойчивые игровые привычки для контекстного разбора конкретного матча. */
   analysisProfile?: {
     notes: string[];
@@ -29,16 +28,15 @@ export interface Player {
  * npx tsx tools/check-nicks.ts
  */
 export const ALL_PLAYERS: Player[] = [
-  { steamId: 93921511,   dotaName: "Unclead", archived: true,      telegramId: 442863557, botAttitude: "тёплый тон, симпатия, ищет за что похвалить" },
-  { steamId: 167818283,  dotaName: "MOX",          telegramId: 55087818, telegramUsername: "alexkim87", botAttitude: "уважение + лёгкие подколы про экономию и жадность" },
-  { steamId: 94014640,   dotaName: "Твердости Жана",  telegramId: 455412364, telegramUsername: "loothood", botAttitude: "замечает то, что другие не видят — тихий вклад, незаметная работа" },
-  { steamId: 1869377945, dotaName: "zladey",       telegramId: 1152640, telegramUsername: "glebkaF", botAttitude: "дружеский троллинг, подначки про эмоции и тильт", birthday: "1993-11-10" },
+  { steamId: 93921511,   dotaName: "Unclead", archived: true,      telegramId: 442863557 },
+  { steamId: 167818283,  dotaName: "MOX",          telegramId: 55087818, telegramUsername: "alexkim87" },
+  { steamId: 94014640,   dotaName: "Твердости Жана",  telegramId: 455412364, telegramUsername: "loothood" },
+  { steamId: 1869377945, dotaName: "zladey",       telegramId: 1152640, telegramUsername: "glebkaF", birthday: "1993-11-10" },
   {
     steamId: 126449680,
     dotaName: "Marinad",
     telegramId: 44083057,
     telegramUsername: "marinerius",
-    botAttitude: "подчёркнуто вежливый, аккуратный тон",
     analysisProfile: {
       usualRoles: ["support"],
       grammaticalGender: "feminine",
@@ -46,15 +44,15 @@ export const ALL_PLAYERS: Player[] = [
     },
     birthday: "1993-02-06",
   },
-  { steamId: 92126977,   dotaName: "Stronk doto",  telegramId: 121460076, botAttitude: "подмечает вклад, который остальные не ценят" },
-  { steamId: 40087920,   dotaName: "BoaOfDaeth",     telegramId: 278234366, botAttitude: "признаёт скилл сдержанно, без восторгов" },
-  { steamId: 178693086,  dotaName: "Curiosity",    telegramId: 572881360, botAttitude: "кайфует от нестандартных пиков, подкалывает за дерзкие ходы", birthday: "1998-04-12" },
-  { steamId: 97643532,   dotaName: "Aoba",         telegramId: 416994035, botAttitude: "покровительственный тон, мягче в критике", birthday: "1997-01-20" },
-  { steamId: 83930539,   dotaName: "Shootema",     telegramId: 439811056, botAttitude: "соперничество, придирчивый взгляд, ищет огрехи", birthday: "1997-11-03" },
-  { steamId: 76017871,   dotaName: "vedpo", archived: true,        telegramId: 44310713, botAttitude: "ровный тон, констатация фактов, мало эмоций" },
-  { steamId: 93253585,   dotaName: "BisMark",      telegramId: 300064257, botAttitude: "явная симпатия, лидерский тон в его адрес" },
-  { steamId: 62405887,   dotaName: "che6ka", archived: true,       telegramId: 186731190, botAttitude: "подколки про героев, но с уважением к результату" },
-  { steamId: 91407576, dotaName: "Why me?", archived: true, botAttitude: "сочувственный тон, мягче обычного после поражений" },
+  { steamId: 92126977,   dotaName: "Stronk doto",  telegramId: 121460076 },
+  { steamId: 40087920,   dotaName: "BoaOfDaeth",     telegramId: 278234366 },
+  { steamId: 178693086,  dotaName: "Curiosity",    telegramId: 572881360, birthday: "1998-04-12" },
+  { steamId: 97643532,   dotaName: "Aoba",         telegramId: 416994035, birthday: "1997-01-20" },
+  { steamId: 83930539,   dotaName: "Shootema",     telegramId: 439811056, birthday: "1997-11-03" },
+  { steamId: 76017871,   dotaName: "vedpo", archived: true,        telegramId: 44310713 },
+  { steamId: 93253585,   dotaName: "BisMark",      telegramId: 300064257 },
+  { steamId: 62405887,   dotaName: "che6ka", archived: true,       telegramId: 186731190 },
+  { steamId: 91407576, dotaName: "Why me?", archived: true },
 ];
 
 export const PLAYERS = ALL_PLAYERS.filter(player => !player.archived);
@@ -84,13 +82,6 @@ export function findPlayerBySteamId(steamId: number): Player | undefined {
  */
 export function getPlayerDisplayName(player: Player): string {
   return player.displayName || player.dotaName;
-}
-
-/**
- * Get bot's attitude towards a player by Steam ID
- */
-export function getBotAttitude(steamId: number): string | undefined {
-  return ALL_PLAYERS.find(p => p.steamId === steamId)?.botAttitude;
 }
 
 export const config = {

@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import {mkdtempSync,rmSync} from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import {generateRolloutText,replaceNarrative,voiceVariantForMatch,VOICE_EXPERIMENT} from './voice-rollout.js';
+import {VoiceMemoryStore} from './voice-memory.js';
+import {withAnalysisApm} from './analysis-apm.js';
+import type {ParsedMatch} from './replay.js';
+process.env.SITE_URL='https://example.test';
+const {formatForTelegram}=await import('./analyze-v2.js');
+const parsed={match_id:9049411611,start_time:1000,duration_min:20,winner:"radiant",
+ players:[{steam_id:String(76561197960265728n+1869377945n),name:'zladey',hero:'invoker',team:'radiant',kda_source:'opendota',kills:1,deaths:2,assists:3,actions_per_min:185,hero_damage:1000,networth_final:1000,gold_lost_to_death:0,networth_by_minute:[]}]} as unknown as ParsedMatch;
+const tail='\n\n👤 НАШИ\nzladey · Invoker · 1/2/3 · APM 185 — сохрани этот комментарий';
+const original='Старый рассказ.'+tail;
+let legacyCalls=0,modernCalls=0;
+const deps={legacy:async()=>{legacyCalls++;return original;},modern:async()=>{modernCalls++;return {text:'Новый рассказ <без HTML>.',id:'draft-new'};}};
+for(const id of [9045029900,9045029900]){const r=await generateRolloutText(id,deps);assert.equal(r.variant,'legacy');assert.equal(r.text,original);assert.equal(r.draftId,undefined);}
+assert.equal(modernCalls,0,'control must never call the new model');
+const result=await generateRolloutText(9049411611,deps);assert.equal(result.variant,'new');assert.equal(result.draftId,'draft-new');assert.equal(result.text,'Новый рассказ <без HTML>.'+tail);assert.equal(legacyCalls,3);assert.equal(modernCalls,1);
+assert.equal(withAnalysisApm(result.text,parsed).split('👤 НАШИ')[1],withAnalysisApm(original,parsed).split('👤 НАШИ')[1]);
+const oldMessage=formatForTelegram(9049411611,parsed,original,'Песик сбоку');
+const newMessage=formatForTelegram(9049411611,parsed,result.text,'Песик сбоку');
+assert.equal(newMessage,oldMessage.replace('Старый рассказ.','Новый рассказ &lt;без HTML&gt;.'));
+assert.match(newMessage,/Разбор целиком/);
+for(const id of [NaN,0,-1,1.5,Number.MAX_SAFE_INTEGER+1])assert.throws(()=>voiceVariantForMatch(id));
+assert.equal(Array.from({length:1000},(_,i)=>voiceVariantForMatch(9000000000+i)).filter(x=>x==='new').length,500);
+assert.throws(()=>replaceNarrative('Нет блока','текст'));assert.throws(()=>replaceNarrative(original,'👤 НАШИ\nподмена'));
+await assert.rejects(generateRolloutText(3,{legacy:deps.legacy,modern:async()=>{throw Error('model failed');}}),/model failed/,'failure must not silently change assignment');
+const root=mkdtempSync(path.join(os.tmpdir(),'pesiki-rollout-'));let store=new VoiceMemoryStore(path.join(root,'memory.sqlite'));
+const id=store.draft({scope:'test',matchId:9049411611,matchAt:1,createdAt:2,text:result.text,patches:[],evidence:[],experiment:{id:VOICE_EXPERIMENT,variant:'new',model:'test'}});
+store.publish(id,10,3,newMessage);store.close();store=new VoiceMemoryStore(path.join(root,'memory.sqlite'));
+assert.equal(store.getDraft(id)?.experiment?.variant,'new');assert.equal(store.context('test',[],4).recentPublications[0].text,newMessage);store.close();rmSync(root,{recursive:true,force:true});
+console.log('✓ rollout: stable parity, legacy untouched, only narrative replaced, НАШИ/header/link retained, no silent fallback, durable attribution');

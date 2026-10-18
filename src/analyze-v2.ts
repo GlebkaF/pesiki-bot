@@ -16,7 +16,12 @@ import { ALL_PLAYERS, PLAYERS, PLAYER_IDS, type Player } from "./config.js";
 import { fetchRecentMatches, savedRecentMatches, fetchMatchApi } from "./opendota.js";
 import { fetchReplayForAnalysis, toSteam32, type ParsedMatch, type ParsedPlayer, type ParseProgress } from "./replay.js";
 import { escapeHtml } from "./telegram-html.js";
+import { generateVoiceDraft, getVoiceMemory, liveVoiceScope } from "./voice-generation.js";
+import { config } from "./config.js";
 import { generateMainVoiceAnalysis } from "./analyze-main-voice.js";
+import { generateRolloutText, VOICE_EXPERIMENT } from "./voice-rollout.js";
+import { NEW_VOICE_EDITORIAL } from "./voice-new-prompt.js";
+import { VOICE_SYSTEM } from "./voice-generation.js";
 import { collectMatchFacts, renderFactPacket } from "./match-facts.js";
 
 /** Адрес витрины. Пустой — значит ссылку в пост не добавляем. */
@@ -212,16 +217,31 @@ export async function findLastPartyMatch(fresh = false): Promise<{
 }
 
 /** Разбор матча по реплею. Прогресс отдаётся наружу, чтобы бот мог обновлять сообщение. */
-export async function analyzeMatchV2(
-  matchId: number,
-  onProgress: ParseProgress = () => {},
-): Promise<string> {
-  const parsed = await mergeOfficialStats(await fetchReplayForAnalysis(matchId, onProgress));
-  const analysis = analyseParsedMatch(parsed);
-  const facts = await collectMatchFacts(analysis);
-  const text = await generateMainVoiceAnalysis(renderFactPacket(facts));
+export async function createMatchVoiceDraft(matchId:number,onProgress:ParseProgress=()=>{},chatId:string|number=config.telegramChatId) {
+  if(!chatId)throw Error("Chat identity required for voice memory");
+  const parsed = await mergeOfficialStats(await fetchReplayForAnalysis(matchId,onProgress));
+  const analysis = analyseParsedMatch(parsed), facts = await collectMatchFacts(analysis);
+  const at=Date.now();
+  // Unknown match date must not create a new 'current' relationship event.
+  const matchAt=parsed.start_time?Math.floor(parsed.start_time*1000):0;
+  const store=getVoiceMemory(),scope=liveVoiceScope(chatId);
+  const model=process.env.OPENAI_MODEL_NEW_VOICE||'gpt-6.1-sol';
+  const result=await generateRolloutText(matchId,{
+    legacy:async()=>withAnalysisApm(await generateMainVoiceAnalysis(renderFactPacket(facts)),parsed),
+    modern:()=>generateVoiceDraft({store,scope,matchId,matchAt,at,model,
+      experiment:{id:VOICE_EXPERIMENT,variant:'new',model},
+      systemPrompt:VOICE_SYSTEM+'\n\n'+NEW_VOICE_EDITORIAL,
+      players:analysis.ours.map(p=>({accountId:p.config.steamId,name:p.config.dotaName})),input:{facts}}),
+  });
+  const draftId=result.draftId??store.draft({scope,matchId,matchAt,createdAt:at,text:result.text,patches:[],evidence:[],
+    experiment:{id:VOICE_EXPERIMENT,variant:'legacy',model:process.env.OPENAI_MODEL_V2||process.env.OPENAI_MODEL||'gpt-5.6-sol'}});
+  console.log(`[VOICE] match=${matchId} experiment=${VOICE_EXPERIMENT} variant=${result.variant}`);
+  return {draftId,variant:result.variant,parsed,text:result.text,telegramText:formatForTelegram(matchId,parsed,result.text,"Песик сбоку")};
+}
 
-  return formatForTelegram(matchId, parsed, text, "Песик сбоку");
+/** Compatibility preview helper: generation alone never changes relationship memory. */
+export async function analyzeMatchV2(matchId:number,onProgress:ParseProgress=()=>{}):Promise<string> {
+  return (await createMatchVoiceDraft(matchId,onProgress)).telegramText;
 }
 
 /** Готовое HTML-сообщение для Telegram: шапка с исходом и составом + сам разбор. */

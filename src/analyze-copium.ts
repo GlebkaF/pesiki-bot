@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { getAppFetch, getOpenAIFetch } from "./proxy.js";
-import { PLAYER_IDS, getBotAttitude } from "./config.js";
+import { PLAYER_IDS } from "./config.js";
 import { fetchRecentMatches, fetchPlayerProfile } from "./opendota.js";
 import { getHeroName } from "./heroes.js";
 import { getItemNames } from "./items.js";
@@ -300,8 +300,7 @@ ECONOMY (our team perspective):
     const rank = getRankName(p.rank_tier);
     
     let marker = "";
-    const attitude = role === "our" && p.account_id ? getBotAttitude(p.account_id) : undefined;
-    if (role === "our") marker = `⭐ [OUR PLAYER${attitude ? ` — твоё отношение: "${attitude}"` : ""} - PRAISE THEM] `;
+    if (role === "our") marker = `⭐ [OUR PLAYER - PRAISE THEM] `;
     else if (role === "random_ally") marker = "🤷 [RANDOM ALLY - FIND THEIR MISTAKES] ";
     else marker = "⚔️ [ENEMY - ACKNOWLEDGE IF STRONG] ";
     

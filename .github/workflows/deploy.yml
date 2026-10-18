@@ -23,3 +23,26 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           HTTPS_PROXY: ${{ secrets.HTTPS_PROXY }}
           SITE_URL: ${{ vars.SITE_URL }}
+
+      - name: Verify service and new voice model
+        run: |
+          docker exec -i pesiki-bot node --input-type=module <<'JS'
+          import OpenAI from 'openai';
+          import {getOpenAIFetch} from './dist/proxy.js';
+          import {voiceVariantForMatch} from './dist/voice-rollout.js';
+          try {
+            let ready=false;
+            for(let attempt=0;attempt<10;attempt++) {
+              try {const r=await fetch(`http://127.0.0.1:${process.env.WEB_PORT||3000}/api/feed`);if(r.ok){ready=true;break;}}catch{}
+              await new Promise(resolve=>setTimeout(resolve,3000));
+            }
+            if(!ready)throw Error('service not ready');
+            if(voiceVariantForMatch(9045029900)!=='legacy'||voiceVariantForMatch(9049411611)!=='new')throw Error('assignment mismatch');
+            const api=new OpenAI({apiKey:process.env.OPENAI_API_KEY,fetch:await getOpenAIFetch(),timeout:90000,maxRetries:0});
+            const r=await api.chat.completions.create({model:process.env.OPENAI_MODEL_NEW_VOICE||'gpt-6.1-sol',messages:[{role:'user',content:'Reply with OK.'}],max_completion_tokens:1024});
+            if(r.choices[0]?.finish_reason!=='stop'||!r.choices[0]?.message.content)throw Error('model probe incomplete');
+            console.log('Service ready; parity assignment and new voice API probe passed. No Telegram messages sent by probe.');
+          } catch(error) {
+            console.error('Deployment verification failed',error?.status??'service/model check');process.exitCode=1;
+          }
+          JS

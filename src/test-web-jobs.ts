@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -19,4 +19,7 @@ await writeFile(path.join(analysisDir, "222.json"), JSON.stringify({
 assert.equal(await jobs.purgeLegacyAnalyses(), 1);
 assert.equal(await jobs.getStoredAnalysis(111), null);
 assert.equal(JSON.parse(await readFile(path.join(analysisDir, "222.json"), "utf8")).engine, jobs.CURRENT_ANALYSIS_ENGINE);
-console.log("✓ web jobs: legacy analysis purge");
+const archived=await readdir(path.join(root,"analysis-archive"));
+assert.equal(archived.length,1);
+assert.equal(JSON.parse(await readFile(path.join(root,"analysis-archive",archived[0]),"utf8")).matchId,111);
+console.log("✓ web jobs: legacy analyses archived without losing their text");

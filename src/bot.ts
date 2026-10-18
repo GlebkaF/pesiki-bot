@@ -1,10 +1,12 @@
+import {getVoiceMemory,liveVoiceScope} from "./voice-generation.js";
+import {publishVoiceDraft} from "./voice-publication.js";
 import {replyCurrentMatch} from './current-match-command.js';
 import { Bot, type CommandContext, type Context } from "grammy";
 import { config } from "./config.js";
 import { getStackStatus } from "./status.js";
 import type { StatsPeriod } from "./stats.js";
 import { analyzeLastMatchCopium, analyzeMatchCopium } from "./analyze-copium.js";
-import { analyzeMatchV2, findLastPartyMatch } from "./analyze-v2.js";
+import { createMatchVoiceDraft, findLastPartyMatch } from "./analyze-v2.js";
 
 /**
  * Creates and returns a configured Telegram bot instance
@@ -250,14 +252,11 @@ async function handleAnalyzeCommand(
       );
     }
 
-    const analysis = await analyzeMatchV2(matchId, (stage) => {
+    const draft = await createMatchVoiceDraft(matchId, (stage) => {
       void editProgress(V2_STAGE_TEXT[stage] ?? "⏳ Работаю...");
-    });
+    },ctx.chat.id);
+    await publishVoiceDraft({store:getVoiceMemory(),draftId:draft.draftId,actualText:draft.telegramText,send:()=>ctx.reply(draft.telegramText,{parse_mode:"HTML",link_preview_options:{is_disabled:true}})});
     await ctx.api.deleteMessage(ctx.chat.id, progressMsg.message_id).catch(() => {});
-    await ctx.reply(analysis, {
-      parse_mode: "HTML",
-      link_preview_options: { is_disabled: true },
-    });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     console.error(`[ERROR] ${command}:`, msg);
@@ -280,6 +279,16 @@ export function setupCommands(
   fetchStatsHandler: (period: StatsPeriod) => Promise<string>,
   onCommandReceived?: () => void,
 ): void {
+  // Observe only the configured group; no private chats or other groups enter its memory.
+  bot.use(async(ctx,next)=>{
+    const m=ctx.message;
+    if(m?.text && m.from && !m.from.is_bot && String(m.chat.id)===String(config.telegramChatId)) {
+      try{getVoiceMemory().addChat({scope:liveVoiceScope(m.chat.id),messageId:m.message_id,at:m.date*1000,
+        authorId:m.from.id,authorName:[m.from.first_name,m.from.last_name].filter(Boolean).join(' '),text:m.text,replyTo:m.reply_to_message?.message_id});}
+      catch{console.warn('[VOICE] Could not persist chat observation');}
+    }
+    await next();
+  });
   bot.command("current_match", async (ctx) => {
     onCommandReceived?.();
     await replyCurrentMatch(ctx);

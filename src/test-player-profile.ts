@@ -103,7 +103,7 @@ try {
   for(const player of PLAYERS) {
     assert.ok(!html.includes(String(player.telegramId??"PRIVATE_ID_SENTINEL")),"no private Telegram IDs");
     if(player.birthday) assert.ok(!html.includes(player.birthday));
-    if(player.botAttitude) assert.ok(!html.includes(player.botAttitude));
+    assert.ok(!("botAttitude" in player), "no fixed attitude labels");
   }
   const absent=buildProfile(store,93921511,"7",now);
   assert.ok(renderPlayer(absent,[absent]).includes("В этом периоде нет сохранённых игр"));
