@@ -108,7 +108,11 @@ try {
   const absent=buildProfile(store,93921511,"7",now);
   assert.ok(renderPlayer(absent,[absent]).includes("В этом периоде нет сохранённых игр"));
   assert.ok(!renderPlayer(absent,[absent]).includes("NaN"));
-  assert.ok(renderPlayers([absent],"7").includes("История ещё собирается"));
+  assert.ok(!renderPlayers([absent],"7").includes('class="player-card"'),"archived players are hidden from directory");
+  const platon=buildProfile(store,1331018267,"7",now);
+  assert.ok(renderPlayers([platon],"7").includes("История ещё собирается"));
+  assert.ok(PLAYERS.some(p=>p.steamId===1331018267));
+  for(const account of [93921511,76017871,62405887,91407576,178693086]) assert.ok(!PLAYERS.some(p=>p.steamId===account));
   p.matches[0].hero='<script>alert("x")</script>';
   assert.ok(!renderPlayer(p,[p]).includes('<script>alert("x")</script>'),"escape untrusted names");
   assert.equal(validActionCounts({a:1,b:-1},0),false);

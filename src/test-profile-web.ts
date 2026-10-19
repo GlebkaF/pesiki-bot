@@ -30,7 +30,7 @@ try {
   });
   for(const period of ["7","30","all"]) {
     const directory=await fetch(`http://localhost:3018/players?period=${period}`);
-    assert.equal(directory.status,200);assert.equal(((await directory.text()).match(/class="player-card"/g)||[]).length,14);
+    assert.equal(directory.status,200);assert.equal(((await directory.text()).match(/class="player-card"/g)||[]).length,10);
     for(const p of PLAYERS) {
       const response=await fetch(`http://localhost:3018/player/${p.steamId}?period=${period}`);
       assert.equal(response.status,200);const html=await response.text();assert.ok(html.includes(p.dotaName));assert.ok(!html.includes("NaN"));
@@ -55,7 +55,7 @@ try {
   assert.equal((await fetch("http://localhost:3018/player/999999/compare")).status,404);
   assert.ok(!output.includes("UNEXPECTED_NETWORK_CALL"),output);
   assert.ok(!output.includes("ошибка запроса"),output);
-  console.log("Profile HTTP tests passed: 14 players × 3 periods, per-match breakdown, 404, zero outgoing requests.");
+  console.log("Profile HTTP tests passed: 10 active players × 3 periods, per-match breakdown, 404, zero outgoing requests.");
 } finally {
   const exited=once(worker,"exit");worker.kill("SIGTERM");await exited;
   await rm(dir,{recursive:true,force:true});
