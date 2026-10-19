@@ -47,7 +47,7 @@ export const ALL_PLAYERS: Player[] = [
   },
   { steamId: 92126977,   dotaName: "Stronk doto",  telegramId: 121460076 },
   { steamId: 40087920,   dotaName: "BoaOfDaeth",     telegramId: 278234366 },
-  { steamId: 178693086,  dotaName: "Curiosity",    telegramId: 572881360, birthday: "1998-04-12" },
+  { steamId: 178693086,  dotaName: "Curiosity", archived: true, telegramId: 572881360, birthday: "1998-04-12" },
   { steamId: 97643532,   dotaName: "Aoba",         telegramId: 416994035, birthday: "1997-01-20" },
   { steamId: 83930539,   dotaName: "Shootema",     telegramId: 439811056, birthday: "1997-11-03" },
   { steamId: 76017871,   dotaName: "vedpo", archived: true,        telegramId: 44310713 },
