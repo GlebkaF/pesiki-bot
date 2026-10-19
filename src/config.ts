@@ -32,6 +32,7 @@ export const ALL_PLAYERS: Player[] = [
   { steamId: 167818283,  dotaName: "MOX",          telegramId: 55087818, telegramUsername: "alexkim87" },
   { steamId: 94014640,   dotaName: "Твердости Жана",  telegramId: 455412364, telegramUsername: "loothood" },
   { steamId: 1869377945, dotaName: "zladey",       telegramId: 1152640, telegramUsername: "glebkaF", birthday: "1993-11-10" },
+  { steamId: 1331018267, dotaName: "Fortuna33🐘" },
   {
     steamId: 126449680,
     dotaName: "Marinad",
