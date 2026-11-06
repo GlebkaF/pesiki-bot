@@ -1,3 +1,4 @@
+import { startReplayArchiveRetention } from "./replay.js";
 import { summarizeSoloStats } from "./solo-nominations.js";
 import { replayNominations, summarizeReplayNominations } from "./replay-nominations.js";
 import cron from "node-cron";
@@ -198,6 +199,8 @@ async function main(): Promise<void> {
   console.log(`[STARTUP] Timezone: ${process.env.TZ || "not set (using system default)"}`);
   console.log(`[STARTUP] Configured players: ${PLAYER_IDS.length}`);
   console.log(`[STARTUP] Health check interval: ${HEALTH_CHECK_INTERVAL_MS / 1000}s`);
+
+  await startReplayArchiveRetention();
 
   // Create bot instance
   const bot = await createBot();

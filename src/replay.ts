@@ -3,6 +3,7 @@
  * собственным парсером (tools/replay-parser). Даёт данные, которых нет в базовом
  * ответе OpenDota: лейнинг, экономику по минутам, тимфайты, тайминги предметов.
  */
+import { pruneReplayArchives } from "./replay-retention.js";
 import { execFile } from "node:child_process";
 import { createWriteStream } from "node:fs";
 import { mkdir, readFile, writeFile, rm, stat, rename } from "node:fs/promises";
@@ -410,7 +411,7 @@ async function fetchAndParseReplayInternal(
           throw new Error(`CDN Valve вернул ${res.status}`);
         }
         await pipeline(Readable.fromWeb(res.body as never), createWriteStream(downloadPath));
-        // Only complete downloads become permanent archives.
+        // Only complete downloads enter the three-day archive cache.
         await rename(downloadPath, archivePath);
       } finally { clearTimeout(timer); }
     }
@@ -433,7 +434,7 @@ async function fetchAndParseReplayInternal(
     onProgress("done");
     return parsed;
   } finally {
-    // Keep the original compressed replay permanently; remove only scratch files.
+    // Archive retention is handled separately; always remove scratch files.
     await rm(downloadPath, { force: true });
     await rm(demPath, { force: true });
   }
@@ -473,4 +474,17 @@ export async function fetchReplayForAnalysis(matchId: number, onProgress: ParseP
     console.warn(`[APM] upgrade ${matchId} unavailable:`, (error as Error).message);
     return parsed;
   }
+}
+
+/** Run retention on startup and hourly in the same queue as downloads/parsing. */
+export async function startReplayArchiveRetention(): Promise<void> {
+  const run = () => {
+    const task = parseQueue.catch(() => {}).then(() => pruneReplayArchives(ARCHIVE_DIR));
+    parseQueue = task;
+    return task.then(result => {
+      console.log(`[REPLAY RETENTION] removed=${result.removed} bytes=${result.bytes} ttl=3d`);
+    }).catch(error => { console.error("[REPLAY RETENTION]", error); });
+  };
+  await run();
+  setInterval(() => { void run(); }, 60 * 60 * 1000).unref();
 }

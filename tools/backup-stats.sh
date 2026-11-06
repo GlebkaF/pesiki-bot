@@ -20,3 +20,6 @@ docker cp pesiki-bot:/app/data/.stats-backup.sqlite "$backup_dir/.stats-$backup_
 chmod 600 "$backup_dir/.stats-$backup_stamp.tmp"
 mv "$backup_dir/.stats-$backup_stamp.tmp" "$backup_dir/stats-$backup_stamp.sqlite"
 printf 'Saved %s/stats-%s.sqlite\n' "$backup_dir" "$backup_stamp"
+
+# Rotate only after the new verified backup has been published successfully.
+python3 "$(dirname "$0")/rotate-stats-backups.py" "$backup_dir" --apply
