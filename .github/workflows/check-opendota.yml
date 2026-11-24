@@ -1,0 +1,31 @@
+name: Observe OpenDota limits
+on:
+  push:
+    branches: [codex/check-opendota]
+jobs:
+  observe:
+    runs-on: [self-hosted, x260, linux]
+    timeout-minutes: 3
+    steps:
+      - name: Summarize production health without changing service
+        run: |
+          docker inspect --format 'status={{.State.Status}} started={{.State.StartedAt}} restarts={{.RestartCount}}' pesiki-bot
+          docker logs --since 2026-11-24T02:29:00Z --timestamps pesiki-bot > /tmp/pesiki-observe.log 2>&1
+          python3 - <<'PY'
+          import collections,re
+          lines=open('/tmp/pesiki-observe.log').readlines()
+          patterns={'rate_limit':r'\[OPENDOTA\] 429','network_failure':r'\[OPENDOTA\] network unavailable','feed_completed':r'\[FEED\] собрано','feed_failed':r'\[FEED\].*(не удалось|не удалось получить)','cooldown':r'cooldown'}
+          for name,pattern in patterns.items():
+              found=[s for s in lines if re.search(pattern,s)]
+              print(name, 'count=',len(found),'first=',found[0].split()[0] if found else '-', 'last=',found[-1].split()[0] if found else '-')
+          for line in lines:
+              if re.search(r'\[FEED\] (собрано|автосинк)|\[OPENDOTA\]',line):print(line.strip())
+          PY
+          docker exec -i pesiki-bot node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          const f=JSON.parse(fs.readFileSync('/app/data/feed.json','utf8'));
+          console.log(JSON.stringify({paidKeyConfigured:!!process.env.OPENDOTA_API_KEY,feedUpdated:new Date(f.updatedAt).toISOString(),feedAgeSeconds:Math.round((Date.now()-f.updatedAt)/1000),matches:f.matches.length,latest:f.matches.slice(0,3).map(m=>({id:m.matchId,start:new Date(m.startTime*1000).toISOString()}))}));
+          const r=await fetch('https://api.opendota.com/api/metadata',{signal:AbortSignal.timeout(15000)});
+          console.log('OpenDota probe status',r.status);
+          for(const [k,v] of r.headers)if(/rate.?limit|retry-after/i.test(k))console.log(k,v);
+          JS
