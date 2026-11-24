@@ -3,6 +3,7 @@
  * Use getProxiedFetch for OpenAI, OpenDota, heroes, items. Use getDirectFetch for Steam (avoids proxy 502).
  */
 import "dotenv/config";
+import { OpenDotaLimit } from "./opendota-limit.js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let proxiedFetch: any = null;
@@ -84,14 +85,24 @@ async function getTransportFetch(): Promise<typeof fetch> {
   return appFetch;
 }
 
-let openDotaBlockedUntil = 0;
-export function isOpenDotaLimited(): boolean { return Date.now() < openDotaBlockedUntil; }
+const openDotaLimit = new OpenDotaLimit();
+export function isOpenDotaLimited(): boolean { return openDotaLimit.limited(); }
 /** Shared circuit breaker: do not turn an upstream 429 into minutes of retries. */
 export async function getAppFetch(): Promise<typeof fetch> {
   const transport = await getTransportFetch();
   return async (input, init) => {
-    const isOpenDota = new URL(String(input)).hostname === "api.opendota.com";
-    if (isOpenDota && Date.now() < openDotaBlockedUntil) return new Response("OpenDota cooldown", {status:429});
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    const isOpenDota = url.hostname === "api.opendota.com";
+    if (isOpenDota) {
+      if (openDotaLimit.limited()) return new Response("OpenDota cooldown", {status:429});
+      const delay = openDotaLimit.reserve();
+      if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+      if (openDotaLimit.limited()) return new Response("OpenDota cooldown", {status:429});
+      if (process.env.OPENDOTA_API_KEY) {
+        url.searchParams.set("api_key", process.env.OPENDOTA_API_KEY);
+        input = input instanceof Request ? new Request(url, input) : url;
+      }
+    }
     let response: Response;
     try {
     response = await (isOpenDota ? globalThis.fetch : transport)(input, {
@@ -100,14 +111,14 @@ export async function getAppFetch(): Promise<typeof fetch> {
     });
     } catch (error) {
       if (isOpenDota) {
-        openDotaBlockedUntil = Date.now() + 2 * 60_000;
+        openDotaLimit.networkFailure();
         console.warn("[OPENDOTA] network unavailable: using saved data for 2 minutes");
       }
       throw error;
     }
-    if (isOpenDota && response.status === 429) {
-      openDotaBlockedUntil = Date.now() + 15 * 60_000;
-      console.warn("[OPENDOTA] 429: pausing API requests for 15 minutes; using saved data");
+    if (isOpenDota) {
+      openDotaLimit.response(response.status, response.headers.get("retry-after"));
+      if (response.status === 429) console.warn("[OPENDOTA] 429: pausing API requests with backoff; using saved data");
     }
     return response;
   };
