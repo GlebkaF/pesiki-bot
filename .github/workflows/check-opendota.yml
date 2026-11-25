@@ -1,37 +1,29 @@
-name: Observe OpenDota for 24 hours
+name: Read OpenDota observation report
 on:
   push:
     branches: [codex/check-opendota]
 jobs:
-  observe:
+  report:
     runs-on: [self-hosted, x260, linux]
     timeout-minutes: 3
     steps:
-      - uses: actions/checkout@v4
-      - name: Install bounded observation on server
+      - name: Read saved report and monitoring schedule
         run: |
-          set -eu
-          command -v crontab
-          systemctl is-active cron
           python3 - <<'PY'
-          import json,os,pathlib,shutil,subprocess,time
+          import json,pathlib,subprocess,datetime
           root=pathlib.Path.home()/'.local/share/pesiki-opendota-observation'
-          root.mkdir(parents=True,exist_ok=True)
-          os.chmod(root,0o700)
-          script=root/'observe.py'
-          shutil.copyfile('tools/observe-opendota.py',script)
-          config=root/'config.json'
-          if not config.exists():
-              start=int(time.time())
-              config.write_text(json.dumps({'start':start,'end':start+86400}))
-          old=subprocess.run(['crontab','-l'],capture_output=True,text=True)
-          if old.returncode not in (0,1):raise RuntimeError('Cannot read crontab')
-          marker='# pesiki-opendota-observation-24h'
-          lines=[line for line in old.stdout.splitlines() if marker not in line]
-          import shlex
-          lines.append('*/10 * * * * /usr/bin/flock -n '+shlex.quote(str(root/'lock'))+' /usr/bin/python3 '+shlex.quote(str(script))+' '+shlex.quote(str(root))+' >> '+shlex.quote(str(root/'monitor.log'))+' 2>&1 '+marker)
-          subprocess.run(['crontab','-'],input='\n'.join(lines)+'\n',text=True,check=True)
-          subprocess.run(['/usr/bin/python3',str(script),str(root)],check=True)
-          print('Report directory:',root)
           print((root/'summary.json').read_text())
+          samples=[json.loads(s) for s in (root/'samples.jsonl').read_text().splitlines()]
+          print('first_sample',samples[0]['at'],'last_sample',samples[-1]['at'])
+          gaps=[(datetime.datetime.fromisoformat(b['at'])-datetime.datetime.fromisoformat(a['at'])).total_seconds() for a,b in zip(samples,samples[1:])]
+          print('max_sample_gap_seconds',max(gaps,default=0))
+          last={}
+          for s in samples:
+              counts=s.get('counts',{})
+              if s.get('error') or any(counts.get(k,0)>last.get(k,0) for k in ['rate_limits','network_failures','feed_failures']):print('incident',json.dumps(s))
+              last=counts
+          cron=subprocess.run(['crontab','-l'],capture_output=True,text=True)
+          print('monitor_scheduled', '# pesiki-opendota-observation-24h' in cron.stdout)
+          log=root/'monitor.log'
+          print('monitor_log_bytes',log.stat().st_size if log.exists() else 0)
           PY
